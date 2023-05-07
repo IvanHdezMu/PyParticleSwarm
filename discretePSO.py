@@ -23,7 +23,7 @@ from pyswarms.utils.reporter import Reporter
 from typing import Generator, List
 
 
-class DiscretePSO_TSP(DiscreteSwarmOptimizer):
+class DiscretePSO(DiscreteSwarmOptimizer):
     def __init__(
         self,
         n_particles,
@@ -82,7 +82,7 @@ class DiscretePSO_TSP(DiscreteSwarmOptimizer):
         # Assign k-neighbors and p-value as attributes
         self.k, self.p = options["k"], options["p"]
         # Initialize parent class
-        super(DiscretePSO_TSP, self).__init__(
+        super(DiscretePSO, self).__init__(
             n_particles=n_particles,
             dimensions=dimensions,
             binary=False,
