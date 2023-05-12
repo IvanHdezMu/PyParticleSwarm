@@ -46,8 +46,9 @@ class ParticleSwarm_TwoOpt:
         :param distance_matrix: distance matrix between nodes
         :param min_objective: objective function value to stop algorithm once reached
         """
-        self.borrame_i = 0
-        self.borrame_fx = 0
+        self.fx = []
+        self.f_best = []
+        self.f_global_best = []
         
         self.distance_matrix = distance_matrix
         self.sum_min_raws()
@@ -76,8 +77,9 @@ class ParticleSwarm_TwoOpt:
             
         self.pos = np.array(aux)
 
-        self.vel = uniform(self.lower_bound - self.upper_bound, self.upper_bound - self.lower_bound,
-                           size=(swarm_size, self.member_size))
+        self.vel = abs(uniform(self.lower_bound - self.upper_bound, self.upper_bound - self.lower_bound,
+                           size=(self.swarm_size, 1)))
+        self.vel_new = self.vel
 
         self.best = copy(self.pos)
 
@@ -120,8 +122,8 @@ class ParticleSwarm_TwoOpt:
             aux.append(np.random.choice(self.member_size,self.member_size,replace=False))
             
         self.pos = np.array(aux)
-        self.vel = uniform(self.lower_bound - self.upper_bound, self.upper_bound - self.lower_bound,
-                           size=(self.swarm_size, self.member_size))
+        self.vel = abs(uniform(self.lower_bound - self.upper_bound, self.upper_bound - self.lower_bound,
+                           size=(self.swarm_size, 1)))
         self.scores = self._score(self.pos)
         self.best = copy(self.pos)
         self.cur_steps = 0
@@ -195,16 +197,26 @@ class ParticleSwarm_TwoOpt:
             if verbose and ((i + 1) % 100 == 0):
                 print(self)
 
-            u1 = zeros((self.swarm_size, self.swarm_size))
+            """u1 = zeros((self.swarm_size, self.swarm_size))
             u1[diag_indices_from(u1)] = [random() for x in range(self.swarm_size)]
             u2 = zeros((self.swarm_size, self.swarm_size))
-            u2[diag_indices_from(u2)] = [random() for x in range(self.swarm_size)]
+            u2[diag_indices_from(u2)] = [random() for x in range(self.swarm_size)]"""
+            
+            self.fx = np.array(self._calculate_objective_arr(self.pos))
+            self.f_best = np.array(self._calculate_objective_arr(self.best))
+            self.f_global_best = np.array(self._calculate_objective_arr(self.global_best))
+            
+            """self.vel_new = (self.c1 * self.vel) + \
+                      (self.c2 * dot(u1, abs(self.f_best - self.fx))) + \
+                      (self.c3 * dot(u2, abs(self.f_global_best - self.fx)))"""
+                      
+            """c1 se refiere al coeficiente de aceleración cognitiva, que controla la influencia de la mejor posición que ha alcanzado una partícula individualmente en su movimiento hacia la solución óptima.
+c2 se refiere al coeficiente de aceleración social, que controla la influencia de la mejor posición alcanzada por el enjambre en su movimiento hacia la solución óptima.
+c3 se refiere al coeficiente de aceleración de la velocidad, que controla la influencia de la velocidad de la partícula en su movimiento."""
+                      
+            self.vel_new = (self.c1 * self.vel_new)
 
-            vel_new = (self.c1 * self.vel) + \
-                      (self.c2 * dot(u1, (self.best - self.pos))) + \
-                      (self.c3 * dot(u2, (self.global_best - self.pos)))
-
-            pos_new = self._compute_position(vel_new) #self.pos + vel_new
+            pos_new = self._compute_position() #self.pos + vel_new
 
             self._best(self.pos, pos_new)
             self.pos = pos_new
@@ -217,19 +229,23 @@ class ParticleSwarm_TwoOpt:
         print("TERMINATING - REACHED MAXIMUM STEPS")
         return self.global_best[0], self._objective(self.global_best[0])
 
-    def _compute_position(self, vel_new):
+    def _calculate_objective_arr(self, x):
+        
+        n_particles = x.shape[0]  # number of particles
+        
+        fx = []
+        for i in range(n_particles):
+            fx.append(self._objective(x[i])) 
+            
+        return fx
+
+    def _compute_position(self):
         """Update the position of the swarm
         This computes the next position in a discrete swarm.
         """
         
         x = self.pos 
         n_particles = x.shape[0]  # number of particles
-        
-        fx = []
-        for i in range(n_particles-1):
-            self.borrame_i = i
-            self.borrame_fx = fx
-            fx.append(self._objective(x[i])) 
                    
         """k_inner_max = 10 * len(x)
                 
@@ -248,8 +264,8 @@ class ParticleSwarm_TwoOpt:
             xn = next (self._two_opt_gen(x[i].tolist()))
             fn =  self._objective(xn)              
 
-            if self._acceptance_rule(fx[i], fn, np.mean(vel_new[i])):
-                x[i], fx[i] = xn, fn                
+            if self._acceptance_rule(self.fx[i], fn, np.mean(self.vel_new[i])):
+                x[i], self.fx[i] = xn, fn                
                     
         return x
     
