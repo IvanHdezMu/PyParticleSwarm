@@ -6,6 +6,14 @@ from numpy.random import uniform
 import numpy as np
 from typing import Generator, List
 
+"""
+c1: constant for speed (recommended 0.1).
+c2: ratio affecting partial best  
+c3: ratio affecting the global best
+c2 + c3 < 1 because 1-c2-c3 is the ratio affecting the initial velocity
+""" 
+
+
 class ParticleSwarm_TwoOpt:
     """
     Conducts particle swarm optimization
@@ -19,9 +27,15 @@ class ParticleSwarm_TwoOpt:
 
     pos = None
     vel = None
+    vel_new = None
+    
     scores = None
     best = None
     global_best = None
+    
+    fx = None
+    f_best = None
+    f_global_best = None
 
     c1 = None
     c2 = None
@@ -45,9 +59,6 @@ class ParticleSwarm_TwoOpt:
         :param maxCapacity = vehicle capacity in liters
         :param consumption = consumption of the vehicle in Km per liter
         """
-        self.fx = []
-        self.f_best = []
-        self.f_global_best = []
         
         self.TSPWR = TSPWR
         
@@ -69,16 +80,8 @@ class ParticleSwarm_TwoOpt:
             raise ValueError('Swarm size must be a positive integer')
 
 
+        self.vel = np.ones(self.swarm_size) # [1.,1.,...,1.]
 
-        aux = []
-        for i in range(self.swarm_size):
-            aux.append(np.random.choice(self.member_size,self.member_size,replace=False))
-            
-        self.pos = np.array(aux)
-
-        self.vel = np.ones(self.swarm_size)
-
-        self.best = copy(self.pos)
 
         if isinstance(c1, (int, float)) and isinstance(c2, (int, float)) and isinstance(c3, (int, float)):
             self.c1 = float(c1)
@@ -114,11 +117,12 @@ class ParticleSwarm_TwoOpt:
             aux.append(np.random.choice(self.member_size,self.member_size,replace=False))
             
         self.pos = np.array(aux)
-
-        self.vel = np.ones(self.swarm_size)
-
+        self.fx = np.array(self._calculate_objective_arr(self.pos))
+            
         self.scores = self._score(self.pos)
         self.best = copy(self.pos)
+        self.f_best = np.array(self._calculate_objective_arr(self.best))
+        
         self.cur_steps = 0
         self._global_best()
 
@@ -204,6 +208,7 @@ class ParticleSwarm_TwoOpt:
                 best.append(old[i])
             else:
                 best.append(new[i])
+                self.f_best[i] = self._objective(self.best[i])
         self.best = array(best)
 
     def _global_best(self):
@@ -214,6 +219,7 @@ class ParticleSwarm_TwoOpt:
         """
         if self.global_best is None or min(self.scores) < self._objective(self.global_best[0]):
             self.global_best = array([self.pos[argmin(self.scores)]] * self.swarm_size)
+            self.f_global_best = np.full(self.swarm_size, self._objective(self.global_best[0]))
 
     def run(self, verbose=True):
         """
@@ -230,18 +236,7 @@ class ParticleSwarm_TwoOpt:
                 print(self)
 
 
-            
-            self.fx = np.array(self._calculate_objective_arr(self.pos))
-            self.f_best = np.array(self._calculate_objective_arr(self.best))
-            self.f_global_best = np.array(self._calculate_objective_arr(self.global_best))
-            
-            """
-            c1: constant for speed (recommended 0.1).
-            c2: ratio affecting partial best  
-            c3: ratio affecting the global best
-            c2 + c3 < 1 because 1-c2-c3 is the ratio affecting the initial velocity
-            """           
-            
+
             aux_vel =  self.vel * (1-self.c2-self.c3) + (self.fx-self.f_best)/self.fx * self.c2 +  (self.fx-self.f_global_best)/self.fx * self.c3     
             self.vel_new = (self.c1 * i * aux_vel / self.max_steps)
 
@@ -271,10 +266,9 @@ class ParticleSwarm_TwoOpt:
         This computes the next position in a discrete swarm.
         """
         
-        x = self.pos 
+        x = self.pos
         n_particles = x.shape[0]  # number of particles
-                   
-                    
+                                     
         for i in range(n_particles):
 
             xn = next (self._two_opt_gen(x[i].tolist()))
