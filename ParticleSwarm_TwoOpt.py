@@ -31,24 +31,37 @@ class ParticleSwarm_TwoOpt:
     max_steps = None
 
 
-    def __init__(self, swarm_size, c1, c2, c3, max_steps,distance_matrix):
+    def __init__(self, swarm_size, c1, c2, c3, max_steps,distance_matrix,
+                 TSPWR=False, prices=None, maxCapacity=None, consumption=None):
         """
-
         :param swarm_size: number of members in swarm
         :param c1: constant for 1st term in velocity calculation
         :param c2: contsant for 2nd term in velocity calculation
         :param c3: constant for 3rd term in velocity calculation
         :param max_steps: maximum steps to run algorithm for
         :param distance_matrix: distance matrix between nodes
+        :param TSPWR: false->TSP mode active; true->TSPWR mode active
+        :param prices = array with refueling prices
+        :param maxCapacity = vehicle capacity in liters
+        :param consumption = consumption of the vehicle in Km per liter
         """
         self.fx = []
         self.f_best = []
         self.f_global_best = []
         
+        self.TSPWR = TSPWR
+        
         self.distance_matrix = distance_matrix
-        self.sum_min_raws()
-        self.sum_max_raws()
         self.member_size = distance_matrix.shape[0]
+        
+        self.prices = prices
+        self.maxCapacity = maxCapacity
+        self.consumption = consumption
+        
+        
+        self.min_value = self._min_values()
+        self.max_value = self._max_values()
+        
         
         if isinstance(swarm_size, int) and swarm_size > 0:
             self.swarm_size = swarm_size
@@ -109,8 +122,14 @@ class ParticleSwarm_TwoOpt:
         self.cur_steps = 0
         self._global_best()
 
-    @abstractmethod
+   
     def _objective(self, member):
+        if self.TSPWR == False:
+            return self._objectiveTSP(member)
+        else:
+            return self._objectiveTSPWR(member)
+    
+    def _objectiveTSP(self, member):
         """
         Returns objective function value for a member of swarm -
         operates on 1D numpy array
@@ -119,13 +138,46 @@ class ParticleSwarm_TwoOpt:
         :return: objective function value of member
         """
         total_distance = 0
-        for i in range(len(member)-1):
+        for i in range(len(member)-1): # no travel from last node
             current_node = member[i]
             next_node = member[i+1]
             # Sum of the distance to the next node
             total_distance += self.distance_matrix[current_node, next_node]
              
-        return abs(self.min_distance-total_distance)
+        return abs(self.min_value-total_distance)
+    
+    def _objectiveTSPWR(self, member):
+        """
+        Returns objective function value for a member of swarm -
+        operates on 1D numpy array
+
+        :param member: a member
+        :return: objective function value of member
+        """
+        tank = 0.0
+        cost = 0.0
+        path_price = self._path_prices(member)     
+        for i in range(len(member)-1): # In the last city it is never refuel
+            distance_km = self.distance_matrix[member[i]][member[i+1]]
+            distance_liters = distance_km / self.consumption
+            
+            liters_aux = distance_liters
+            if (i <= len(member)-2):
+                for j in range(i+1, len(member)-1):
+                    if (path_price[j] < path_price[j+1]):
+                        liters_aux += self.distance_matrix[member[j]][member[j+1]] / self.consumption
+                    else:
+                        break
+                if liters_aux + tank > 150.0:
+                    liters_aux = 150.0 - tank
+
+            if (liters_aux > tank):
+                cost += (liters_aux - tank) * path_price[i]
+                tank += liters_aux - tank
+                
+            tank -= distance_liters
+             
+        return abs(self.min_value-cost)
 
     def _score(self, pos):
         """
@@ -177,22 +229,18 @@ class ParticleSwarm_TwoOpt:
             if verbose and ((i + 1) % 100 == 0):
                 print(self)
 
-            """u1 = zeros((self.swarm_size, self.swarm_size))
-            u1[diag_indices_from(u1)] = [random() for x in range(self.swarm_size)]
-            u2 = zeros((self.swarm_size, self.swarm_size))
-            u2[diag_indices_from(u2)] = [random() for x in range(self.swarm_size)]"""
+
             
             self.fx = np.array(self._calculate_objective_arr(self.pos))
             self.f_best = np.array(self._calculate_objective_arr(self.best))
             self.f_global_best = np.array(self._calculate_objective_arr(self.global_best))
             
-            """self.vel_new = (self.c1 * self.vel) + \
-                      (self.c2 * dot(u1, abs(self.f_best - self.fx))) + \
-                      (self.c3 * dot(u2, abs(self.f_global_best - self.fx)))"""
-                      
-            """c1 se refiere al coeficiente de aceleración cognitiva, que controla la influencia de la mejor posición que ha alcanzado una partícula individualmente en su movimiento hacia la solución óptima.
-c2 se refiere al coeficiente de aceleración social, que controla la influencia de la mejor posición alcanzada por el enjambre en su movimiento hacia la solución óptima.
-c3 se refiere al coeficiente de aceleración de la velocidad, que controla la influencia de la velocidad de la partícula en su movimiento."""
+            """
+            c1: constant for speed (recommended 0.1).
+            c2: ratio affecting partial best  
+            c3: ratio affecting the global best
+            c2 + c3 < 1 because 1-c2-c3 is the ratio affecting the initial velocity
+            """           
             
             aux_vel =  self.vel * (1-self.c2-self.c3) + (self.fx-self.f_best)/self.fx * self.c2 +  (self.fx-self.f_global_best)/self.fx * self.c3     
             self.vel_new = (self.c1 * i * aux_vel / self.max_steps)
@@ -226,17 +274,6 @@ c3 se refiere al coeficiente de aceleración de la velocidad, que controla la in
         x = self.pos 
         n_particles = x.shape[0]  # number of particles
                    
-        """k_inner_max = 10 * len(x)
-                
-        for i in range(n_particles-1):
-            for k in range(k_inner_max):
-                xn = next (self._two_opt_gen(x[i].tolist()))
-                fn =  self._objective(xn)     
-                
-
-                if self._acceptance_rule(fx[i], fn, np.mean(vel_new[i])):
-                    x[i], fx[i] = xn, fn
-                    break"""  
                     
         for i in range(n_particles):
 
@@ -272,22 +309,53 @@ c3 se refiere al coeficiente de aceleración de la velocidad, que controla la in
         if (dfx < 0):
             return True
         else:
-            dif_max = self.max_distance - self.min_distance
+            dif_max = self.max_value - self.min_value
             aux = (dif_max - dfx) / dif_max
             if (np.random.rand() <= np.exp(-aux / velocity)):
                 return True
             else:
                 return False
     
-    def sum_min_raws(self):
-        self.min_distance = 0
+    def _min_values(self):
+        min_distance = 0
         for raw in self.distance_matrix:
             non_zero_values = [value for value in raw if value != 0]
-            if non_zero_values:
-                self.min_distance += min(non_zero_values)
+            if non_zero_values:        
+                min_distance += min(non_zero_values)
+                
+        if self.TSPWR == False:
+            return min_distance
+        else:
+            sorted_prices = np.sort(self.prices)
+            return self._calculate_path_cost(min_distance, sorted_prices)
+               
 
-
-    def sum_max_raws(self):
-        self.max_distance = 0
+    def _max_values(self):
+        max_distance = 0
         for raw in self.distance_matrix:
-            self.max_distance += max(raw)
+            max_distance += max(raw)
+            
+        if self.TSPWR == False:
+            return max_distance
+        else:
+            sorted_prices = np.sort(self.prices)[::-1]
+            return self._calculate_path_cost(max_distance, sorted_prices)
+
+    def _calculate_path_cost(self, km, sorted_prices):
+        liters = km / self.consumption
+        liters_aux = liters
+        cost = 0
+        for i in range(len(sorted_prices)):
+            if liters_aux > self.maxCapacity:
+                cost += self.maxCapacity * sorted_prices[i]
+                liters_aux -= self.maxCapacity
+            else:
+                cost += liters_aux * sorted_prices[i]
+                return cost
+            
+    
+    def _path_prices(self, path): # array of prices of the path
+        prices_arr = np.zeros(len(path))
+        for i in range(len(path)):
+            prices_arr[i] = self.prices[path[i]]
+        return prices_arr

@@ -12,6 +12,10 @@ from geopy import distance
 
 from ParticleSwarm_TwoOpt import ParticleSwarm_TwoOpt
 
+#constant data
+maxCapacity = 150.0 # capacidad del vehiculo en litros
+consumption = 7.0 # consumo del vehiculo en Km por litro
+
 # leer los datos del archivo Excel y almacenarlos en un DataFrame
 df = pd.read_excel('ciudades_Bahia.xlsx')
 
@@ -25,6 +29,7 @@ for index, row in df.iterrows():
     C = row[3]
     cities.append((city, lat, long, C))
 
+prices = df.iloc[:, 3].values
 
 N = len(cities) # Numero de ciudades
 #Matriz con distancias
@@ -36,10 +41,10 @@ for i, start in enumerate(cities):
         distance_matrix[i][j] = distance.distance(coord1, coord2).km # distancia entre los dos puntos en Km
         
         """
-        c1: constante para la velocidad (recomendable 0.1)
+        c1: constante para la velocidad (recomendable 0.1 para TSP)
         c2: proporción que afecta el mejor parcial  
         c3: proporción que afecta el mejor global
         c2 + c3 < 1 porque 1-c2-c3 es la proporcion que afecta la velocidad inicial
         """
-algorithm = ParticleSwarm_TwoOpt(50, 0.1, 0.3, 0.2, 5000, distance_matrix)
+algorithm = ParticleSwarm_TwoOpt(50, 0.5, 0.3, 0.2, 5000, distance_matrix,True, prices, maxCapacity, consumption)
 algorithm.run()
