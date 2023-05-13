@@ -64,7 +64,6 @@ class ParticleSwarm_TwoOpt:
         self.pos = np.array(aux)
 
         self.vel = np.ones(self.swarm_size)
-        self.vel_new = self.vel
 
         self.best = copy(self.pos)
 
@@ -104,7 +103,7 @@ class ParticleSwarm_TwoOpt:
         self.pos = np.array(aux)
 
         self.vel = np.ones(self.swarm_size)
-        self.vel_new = self.vel
+
         self.scores = self._score(self.pos)
         self.best = copy(self.pos)
         self.cur_steps = 0
@@ -194,8 +193,9 @@ class ParticleSwarm_TwoOpt:
             """c1 se refiere al coeficiente de aceleración cognitiva, que controla la influencia de la mejor posición que ha alcanzado una partícula individualmente en su movimiento hacia la solución óptima.
 c2 se refiere al coeficiente de aceleración social, que controla la influencia de la mejor posición alcanzada por el enjambre en su movimiento hacia la solución óptima.
 c3 se refiere al coeficiente de aceleración de la velocidad, que controla la influencia de la velocidad de la partícula en su movimiento."""
-                      
-            self.vel_new = (self.c1 * i * self.vel / self.max_steps)
+            
+            aux_vel =  self.vel * (1-self.c2-self.c3) + (self.fx-self.f_best)/self.fx * self.c2 +  (self.fx-self.f_global_best)/self.fx * self.c3     
+            self.vel_new = (self.c1 * i * aux_vel / self.max_steps)
 
             pos_new = self._compute_position() #self.pos + vel_new
 
@@ -238,7 +238,7 @@ c3 se refiere al coeficiente de aceleración de la velocidad, que controla la in
                     x[i], fx[i] = xn, fn
                     break"""  
                     
-        for i in range(n_particles-1):
+        for i in range(n_particles):
 
             xn = next (self._two_opt_gen(x[i].tolist()))
             fn =  self._objective(xn)              

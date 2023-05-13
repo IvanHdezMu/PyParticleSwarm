@@ -35,5 +35,11 @@ for i, start in enumerate(cities):
         coord2 = (end[1], end[2]) # coordenadas de latitud y longitud del segundo punto
         distance_matrix[i][j] = distance.distance(coord1, coord2).km # distancia entre los dos puntos en Km
         
+        """
+        c1: constante para la velocidad (recomendable 0.1)
+        c2: proporción que afecta el mejor parcial  
+        c3: proporción que afecta el mejor global
+        c2 + c3 < 1 porque 1-c2-c3 es la proporcion que afecta la velocidad inicial
+        """
 algorithm = ParticleSwarm_TwoOpt(50, 0.1, 0.3, 0.2, 5000, distance_matrix)
 algorithm.run()
