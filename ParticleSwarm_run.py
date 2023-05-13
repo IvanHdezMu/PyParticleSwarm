@@ -47,9 +47,7 @@ for i, start in enumerate(cities):
         c2 + c3 < 1 porque 1-c2-c3 es la proporcion que afecta la velocidad inicial
         """
         
-#algorithm = ParticleSwarm_TwoOpt(150, 0.1, 0.0, 0.0, 5000, distance_matrix) # 808       
-#algorithm = ParticleSwarm_TwoOpt(50, 0.5, 0.3, 0.2, 5000, distance_matrix,True, prices, maxCapacity, consumption) #TSPWR 549.7299
-#algorithm = ParticleSwarm_TwoOpt(250, 0.5, 0.3, 0.2, 1000, distance_matrix,True, prices, maxCapacity, consumption) #TSPWR 543.94951 /628 / 559
-#algorithm = ParticleSwarm_TwoOpt(150, 0.1, 0.0, 0.0, 5000, distance_matrix,True, prices, maxCapacity, consumption) #TSPWR 532.71
-algorithm = ParticleSwarm_TwoOpt(150, 0.5, 0.0, 0.0, 5000, distance_matrix,True, prices, maxCapacity, consumption)
+algorithm = ParticleSwarm_TwoOpt(50, 0.1, 0.6, 0.2, 100, distance_matrix) # 2944.814327       
+
+#algorithm = ParticleSwarm_TwoOpt(50, 0.1, 0.6, 0.2, 100, distance_matrix,True, prices, maxCapacity, consumption) #1517.473831 
 algorithm.run()

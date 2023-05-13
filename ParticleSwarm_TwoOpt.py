@@ -97,11 +97,18 @@ class ParticleSwarm_TwoOpt:
 
 
     def __str__(self):
-        return ('PARTICLE SWARM: \n' +
-                'CURRENT STEPS: %d \n' +
-                'BEST FITNESS: %f \n' +
-                'BEST MEMBER: %s \n\n') % \
-               (self.cur_steps, self._objective(self.global_best[0]), str(self.global_best[0]))
+        if self.TSPWR == False:
+            return ('PARTICLE SWARM: \n' +
+                    'CURRENT STEPS: %d \n' +
+                    'BEST DISTANCE: %f \n' +
+                    'BEST MEMBER: %s \n\n') % \
+                   (self.cur_steps, self.min_value + self._objective(self.global_best[0]), str(self.global_best[0]))
+        else:
+            return ('PARTICLE SWARM: \n' +
+                    'CURRENT STEPS: %d \n' +
+                    'BEST REFUEL COST: %f \n' +
+                    'BEST MEMBER: %s \n\n') % \
+                   (self.cur_steps, self.min_value + self._objective(self.global_best[0]), str(self.global_best[0]))                   
 
     def __repr__(self):
         return self.__str__()
@@ -232,15 +239,13 @@ class ParticleSwarm_TwoOpt:
         for i in range(self.max_steps):
             self.cur_steps += 1
 
-            if verbose and ((i + 1) % 100 == 0):
+            if verbose and ((i + 1) % (self.max_steps/10) == 0):
                 print(self)
+                
+            aux_vel =  self.vel * (1-self.c2-self.c3) + (self.fx-self.f_best)/self.fx * self.c2 +  (self.fx-self.f_global_best)/self.fx * self.c3  
+            self.vel_new = (self.c1 * (self.max_steps-i) * aux_vel / self.max_steps)
 
-
-
-            aux_vel =  self.vel * (1-self.c2-self.c3) + (self.fx-self.f_best)/self.fx * self.c2 +  (self.fx-self.f_global_best)/self.fx * self.c3     
-            self.vel_new = (self.c1 * i * aux_vel / self.max_steps)
-
-            pos_new = self._compute_position() #self.pos + vel_new
+            pos_new = self._compute_position(i) #self.pos + vel_new
 
             self._best(self.pos, pos_new)
             self.pos = pos_new
@@ -261,7 +266,7 @@ class ParticleSwarm_TwoOpt:
             
         return fx
 
-    def _compute_position(self):
+    def _compute_position(self, num_iter):
         """Update the position of the swarm
         This computes the next position in a discrete swarm.
         """
@@ -270,9 +275,16 @@ class ParticleSwarm_TwoOpt:
         n_particles = x.shape[0]  # number of particles
                                      
         for i in range(n_particles):
-
-            xn = next (self._two_opt_gen(x[i].tolist()))
-            fn =  self._objective(xn)              
+            
+            fn = self.max_value - self.min_value
+            for j, xn_aux in enumerate(self._two_opt_gen(x[i].tolist())):
+                fn_aux =  self._objective(xn_aux)
+                if fn > fn_aux:
+                    xn = xn_aux
+                    fn = fn_aux
+                if j >= (1/self.vel_new[i]):
+                    break
+                    
 
             if self._acceptance_rule(self.fx[i], fn, np.mean(self.vel_new[i])):
                 x[i], self.fx[i] = xn, fn                
@@ -283,7 +295,7 @@ class ParticleSwarm_TwoOpt:
     #def _two_opt_gen(self, x: np.array) -> Generator[np.array, np.array, None]:
         """2-opt perturbation scheme [2]"""
         n = len(x)
-        i_range = range(2, n)
+        i_range = range(1, n)
         for i in np.random.choice(i_range, len(i_range), replace=False):
             j_range = range(i + 1, n + 1)
             for j in np.random.choice(j_range, len(j_range), replace=False):
