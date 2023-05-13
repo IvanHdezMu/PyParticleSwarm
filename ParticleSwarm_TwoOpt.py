@@ -29,22 +29,17 @@ class ParticleSwarm_TwoOpt:
 
     cur_steps = None
     max_steps = None
-    min_objective = None
 
-    def __init__(self, swarm_size, lower_bound, upper_bound, c1, c2, c3,
-                 max_steps,distance_matrix, min_objective=None):
+
+    def __init__(self, swarm_size, c1, c2, c3, max_steps,distance_matrix):
         """
 
         :param swarm_size: number of members in swarm
-
-        :param lower_bound: list of lower bounds, where ith element is ith lower bound
-        :param upper_bound: list of upper bounds, where ith element is ith upper bound
         :param c1: constant for 1st term in velocity calculation
         :param c2: contsant for 2nd term in velocity calculation
         :param c3: constant for 3rd term in velocity calculation
         :param max_steps: maximum steps to run algorithm for
         :param distance_matrix: distance matrix between nodes
-        :param min_objective: objective function value to stop algorithm once reached
         """
         self.fx = []
         self.f_best = []
@@ -61,15 +56,6 @@ class ParticleSwarm_TwoOpt:
             raise ValueError('Swarm size must be a positive integer')
 
 
-        if all([isinstance(x, (int, float)) for x in lower_bound]):
-            self.lower_bound = array([float(x) for x in lower_bound])
-        else:
-            raise ValueError('Lower bounds must be numeric types')
-
-        if all([isinstance(x, (int, float)) for x in upper_bound]):
-            self.upper_bound = array([float(x) for x in upper_bound])
-        else:
-            raise ValueError('Upper bounds must be numeric types')
 
         aux = []
         for i in range(self.swarm_size):
@@ -77,8 +63,7 @@ class ParticleSwarm_TwoOpt:
             
         self.pos = np.array(aux)
 
-        self.vel = abs(uniform(self.lower_bound - self.upper_bound, self.upper_bound - self.lower_bound,
-                           size=(self.swarm_size, 1)))
+        self.vel = np.ones(self.swarm_size)
         self.vel_new = self.vel
 
         self.best = copy(self.pos)
@@ -95,11 +80,6 @@ class ParticleSwarm_TwoOpt:
         else:
             raise ValueError()
 
-        if min_objective is not None:
-            if isinstance(min_objective, (int, float)):
-                self.min_objective = float(min_objective)
-            else:
-                raise ValueError()
 
     def __str__(self):
         return ('PARTICLE SWARM: \n' +
@@ -122,8 +102,9 @@ class ParticleSwarm_TwoOpt:
             aux.append(np.random.choice(self.member_size,self.member_size,replace=False))
             
         self.pos = np.array(aux)
-        self.vel = abs(uniform(self.lower_bound - self.upper_bound, self.upper_bound - self.lower_bound,
-                           size=(self.swarm_size, 1)))
+
+        self.vel = np.ones(self.swarm_size)
+        self.vel_new = self.vel
         self.scores = self._score(self.pos)
         self.best = copy(self.pos)
         self.cur_steps = 0
@@ -214,7 +195,7 @@ class ParticleSwarm_TwoOpt:
 c2 se refiere al coeficiente de aceleración social, que controla la influencia de la mejor posición alcanzada por el enjambre en su movimiento hacia la solución óptima.
 c3 se refiere al coeficiente de aceleración de la velocidad, que controla la influencia de la velocidad de la partícula en su movimiento."""
                       
-            self.vel_new = (self.c1 * self.vel_new)
+            self.vel_new = (self.c1 * i * self.vel / self.max_steps)
 
             pos_new = self._compute_position() #self.pos + vel_new
 
@@ -223,9 +204,7 @@ c3 se refiere al coeficiente de aceleración de la velocidad, que controla la in
             self.scores = self._score(self.pos)
             self._global_best()
 
-            if self._objective(self.global_best[0]) < (self.min_objective or 0):
-                print("TERMINATING - REACHED MINIMUM OBJECTIVE")
-                return self.global_best[0], self._objective(self.global_best[0])
+
         print("TERMINATING - REACHED MAXIMUM STEPS")
         return self.global_best[0], self._objective(self.global_best[0])
 
@@ -282,15 +261,23 @@ c3 se refiere al coeficiente de aceleración de la velocidad, que controla la in
                 yield xn
     
     def _acceptance_rule(self, fx: float, fn: float, velocity: float):
-        """Metropolis acceptance rule"""
+        """Metropolis acceptance rule
+        
+        fx: current value
+        fn: proposed value
+        velocity: constant that controls the acceptance rate of the new samples
+        """
     
         dfx = fn - fx
         if (dfx < 0):
             return True
-        elif (dfx > 0) and (np.random.rand() <= np.exp(-(fn - fx) / velocity)):
-            return True
         else:
-            return False
+            dif_max = self.max_distance - self.min_distance
+            aux = (dif_max - dfx) / dif_max
+            if (np.random.rand() <= np.exp(-aux / velocity)):
+                return True
+            else:
+                return False
     
     def sum_min_raws(self):
         self.min_distance = 0

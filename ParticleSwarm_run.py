@@ -35,5 +35,5 @@ for i, start in enumerate(cities):
         coord2 = (end[1], end[2]) # coordenadas de latitud y longitud del segundo punto
         distance_matrix[i][j] = distance.distance(coord1, coord2).km # distancia entre los dos puntos en Km
         
-algorithm = ParticleSwarm_TwoOpt(50, [0.], [100.], 0.9, 0., 0., 5000, distance_matrix, min_objective=None)
+algorithm = ParticleSwarm_TwoOpt(50, 0.1, 0.3, 0.2, 5000, distance_matrix)
 algorithm.run()
