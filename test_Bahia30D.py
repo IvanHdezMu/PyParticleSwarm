@@ -46,8 +46,9 @@ for i, start in enumerate(cities):
         c3: proporción que afecta el mejor global
         c2 + c3 < 1 porque 1-c2-c3 es la proporcion que afecta la velocidad inicial
         """
-        
-algorithm = ParticleSwarm_TwoOpt(50, 0.1, 0.6, 0.2, 100, distance_matrix) # 2944.814327       
 
-#algorithm = ParticleSwarm_TwoOpt(50, 0.1, 0.6, 0.2, 100, distance_matrix,True, prices, maxCapacity, consumption) #1517.473831 
+"NO RING MODE"        
+#algorithm = ParticleSwarm_TwoOpt(50, 0.1, 0.6, 0.2, 100, distance_matrix,False) # 2944.814327       
+
+algorithm = ParticleSwarm_TwoOpt(50, 0.1, 0.6, 0.2, 100, distance_matrix,False,True, prices, maxCapacity, consumption) #1503.052382 
 algorithm.run()

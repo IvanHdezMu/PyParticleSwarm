@@ -81,9 +81,6 @@ class ParticleSwarm_TwoOpt:
             raise ValueError('Swarm size must be a positive integer')
 
 
-        self.vel = np.ones(self.swarm_size) # [1.,1.,...,1.]
-
-
         if isinstance(c1, (int, float)) and isinstance(c2, (int, float)) and isinstance(c3, (int, float)):
             self.c1 = float(c1)
             self.c2 = float(c2)
@@ -95,6 +92,8 @@ class ParticleSwarm_TwoOpt:
             self.max_steps = max_steps
         else:
             raise ValueError()
+            
+        self.vel = np.full((self.swarm_size, 2), np.array([self.c1,1.0])) # [[c1,1],...]
 
 
     def __str__(self):
@@ -109,7 +108,7 @@ class ParticleSwarm_TwoOpt:
                     'CURRENT STEPS: %d \n' +
                     'BEST REFUEL COST: %f \n' +
                     'BEST MEMBER: %s \n\n') % \
-                   (self.cur_steps, self._calculate_distance(self.global_best[0]), str(self.global_best[0]))                   
+                   (self.cur_steps, self._calculate_refuel(self.global_best[0]), str(self.global_best[0]))                   
 
     def __repr__(self):
         return self.__str__()
@@ -142,15 +141,6 @@ class ParticleSwarm_TwoOpt:
             return self._objectiveTSPWR(member)
     
     def _objectiveTSP(self, member):
-        """
-        Returns objective function value for a member of swarm -
-        operates on 1D numpy array
-
-        :param member: a member
-        :return: objective function value of member
-        """
-        
-             
         return abs(self.min_value-self._calculate_distance(member))
     
     def _calculate_distance(self, member):
@@ -167,14 +157,11 @@ class ParticleSwarm_TwoOpt:
         return total_distance
         
     
+        
     def _objectiveTSPWR(self, member):
-        """
-        Returns objective function value for a member of swarm -
-        operates on 1D numpy array
-
-        :param member: a member
-        :return: objective function value of member
-        """
+        return abs(self.min_value-self._calculate_refuel(member)) 
+    
+    def _calculate_refuel(self, member):
         tank = 0.0
         cost = 0.0
         path_price = self._path_prices(member)     
@@ -197,8 +184,8 @@ class ParticleSwarm_TwoOpt:
                 tank += liters_aux - tank
                 
             tank -= distance_liters
-             
-        return abs(self.min_value-cost)
+           
+        return cost
 
     def _score(self, pos):
         """
@@ -252,10 +239,12 @@ class ParticleSwarm_TwoOpt:
             if verbose and ((i + 1) % (self.max_steps/10) == 0):
                 print(self)
                 
-            aux_vel =  self.vel * (1-self.c2-self.c3) + (self.fx-self.f_best)/self.fx * self.c2 +  (self.fx-self.f_global_best)/self.fx * self.c3  
-            self.vel_new = (self.c1 * (self.max_steps-i) * aux_vel / self.max_steps)
+            aux_vel1 = self.vel * (1-self.c2-self.c3) 
+            aux_vel2 = ((self.fx-self.f_best)/self.fx * self.c2 + (self.fx-self.f_global_best)/self.fx * self.c3)
+            aux_vel3 = aux_vel2[:, np.newaxis]* np.array([1, 1])
+            self.vel_new = (self.max_steps-i) * (aux_vel1+aux_vel3) / self.max_steps
 
-            pos_new = self._compute_position(i) #self.pos + vel_new
+            pos_new = self._compute_position() #self.pos + vel_new
 
             self._best(self.pos, pos_new)
             self.pos = pos_new
@@ -266,17 +255,8 @@ class ParticleSwarm_TwoOpt:
         print("TERMINATING - REACHED MAXIMUM STEPS")
         return self.global_best[0], self._objective(self.global_best[0])
 
-    def _calculate_objective_arr(self, x):
-        
-        n_particles = x.shape[0]  # number of particles
-        
-        fx = []
-        for i in range(n_particles):
-            fx.append(self._objective(x[i])) 
-            
-        return fx
 
-    def _compute_position(self, num_iter):
+    def _compute_position(self):
         """Update the position of the swarm
         This computes the next position in a discrete swarm.
         """
@@ -292,11 +272,11 @@ class ParticleSwarm_TwoOpt:
                 if fn > fn_aux:
                     xn = xn_aux
                     fn = fn_aux
-                if j >= (1/self.vel_new[i]):
+                if j >= (1/self.vel_new[i][0]):
                     break
                     
 
-            if self._acceptance_rule(self.fx[i], fn, np.mean(self.vel_new[i])):
+            if self._acceptance_rule(self.fx[i], fn, np.mean(self.vel_new[i][1])):
                 x[i], self.fx[i] = xn, fn                
                     
         return x
@@ -331,6 +311,16 @@ class ParticleSwarm_TwoOpt:
                 return True
             else:
                 return False
+    
+    def _calculate_objective_arr(self, x):
+        
+        n_particles = x.shape[0]  # number of particles
+        
+        fx = []
+        for i in range(n_particles):
+            fx.append(self._objective(x[i])) 
+            
+        return fx
     
     def _min_values(self):
         min_distance = 0
