@@ -45,8 +45,7 @@ class ParticleSwarm_TwoOpt:
     max_steps = None
 
 
-    def __init__(self, swarm_size, c1, c2, c3, max_steps,distance_matrix,
-                 TSPWR=False, prices=None, maxCapacity=None, consumption=None):
+    def __init__(self, swarm_size, c1, c2, c3, max_steps,distance_matrix,ring_mode=False,TSPWR=False, prices=None, maxCapacity=None, consumption=None):
         """
         :param swarm_size: number of members in swarm
         :param c1: constant for 1st term in velocity calculation
@@ -54,6 +53,7 @@ class ParticleSwarm_TwoOpt:
         :param c3: constant for 3rd term in velocity calculation
         :param max_steps: maximum steps to run algorithm for
         :param distance_matrix: distance matrix between nodes
+        :param ring_mode: add distance from the last node to the first node
         :param TSPWR: false->TSP mode active; true->TSPWR mode active
         :param prices = array with refueling prices
         :param maxCapacity = vehicle capacity in liters
@@ -61,6 +61,7 @@ class ParticleSwarm_TwoOpt:
         """
         
         self.TSPWR = TSPWR
+        self.ring_mode = ring_mode
         
         self.distance_matrix = distance_matrix
         self.member_size = distance_matrix.shape[0]
@@ -102,13 +103,13 @@ class ParticleSwarm_TwoOpt:
                     'CURRENT STEPS: %d \n' +
                     'BEST DISTANCE: %f \n' +
                     'BEST MEMBER: %s \n\n') % \
-                   (self.cur_steps, self.min_value + self._objective(self.global_best[0]), str(self.global_best[0]))
+                   (self.cur_steps, self._calculate_distance(self.global_best[0]), str(self.global_best[0]))
         else:
             return ('PARTICLE SWARM: \n' +
                     'CURRENT STEPS: %d \n' +
                     'BEST REFUEL COST: %f \n' +
                     'BEST MEMBER: %s \n\n') % \
-                   (self.cur_steps, self.min_value + self._objective(self.global_best[0]), str(self.global_best[0]))                   
+                   (self.cur_steps, self._calculate_distance(self.global_best[0]), str(self.global_best[0]))                   
 
     def __repr__(self):
         return self.__str__()
@@ -148,14 +149,23 @@ class ParticleSwarm_TwoOpt:
         :param member: a member
         :return: objective function value of member
         """
+        
+             
+        return abs(self.min_value-self._calculate_distance(member))
+    
+    def _calculate_distance(self, member):
         total_distance = 0
+        
         for i in range(len(member)-1): # no travel from last node
             current_node = member[i]
             next_node = member[i+1]
             # Sum of the distance to the next node
             total_distance += self.distance_matrix[current_node, next_node]
-             
-        return abs(self.min_value-total_distance)
+        if self.ring_mode == True:
+            total_distance += self.distance_matrix[next_node, member[0]]
+            
+        return total_distance
+        
     
     def _objectiveTSPWR(self, member):
         """
