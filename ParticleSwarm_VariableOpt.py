@@ -87,7 +87,7 @@ class ParticleSwarm_VariableOpt:
         # k_aux1 = 1...valor entero menor del logaritmo en base 2 de member_size-2
         k_aux1 = np.arange(1, int(np.log2(self.member_size-2))+1)
         k_aux = np.repeat(k_aux1, np.power(2, np.arange(len(k_aux1))))
-        self.k = np.ones(self.member_size) * k_aux[-1]
+        self.k = (np.ones(self.member_size) * k_aux[-1]).astype(int)
         copy_length = min(len(k_aux), len(self.k))
         self.k[:copy_length] = k_aux
         
@@ -277,7 +277,7 @@ class ParticleSwarm_VariableOpt:
                 print(self)
             
                 
-            self.vel = self.member_size * (self.member_size - np.arange(self.member_size))
+            self.vel = self.member_size * (self.member_size - np.arange(self.member_size)) / 10
 
             self.pos = self._compute_position() #self.pos + vel + self.k
 
@@ -301,36 +301,69 @@ class ParticleSwarm_VariableOpt:
         for i in range(n_particles):
             
             fn = self.max_value - self.min_value
-            for j, xn_aux in enumerate(self._two_opt_gen(x[i].tolist())):
-                self.nIter[i] += 1
-                fn_aux =  self._objective(xn_aux)
-                if fn > fn_aux:
-                    xn = xn_aux
-                    fn = fn_aux
-                if j >= self.vel[i]:
-                    break
-                    
+            
+            nIter = 0
+            while nIter <= self.vel[i]:
+                for j, xn in enumerate(self._two_opt_gen2(x[i])):
+                    nIter += 1
+                    fn =  self._objective(xn)
+                    if self.fx[i] >= fn:
+                        x[i], self.fx[i] = xn, fn
+                     
+                    nIter += 1    
+                    if nIter >= self.vel[i]:
+                        self.nIter[i] += nIter
+                        break
 
-            if self.fx[i] >= fn:
-                x[i], self.fx[i] = xn, fn
-                              
-                    
         return x
     
-    def _two_opt_gen(self, x: List[int]) -> Generator[List[int], List[int], None]:
-    #def _two_opt_gen(self, x: np.array) -> Generator[np.array, np.array, None]:
+    def _two_opt_gen(self, x: np.ndarray) -> Generator[np.ndarray, np.ndarray, None]:
+        """2-opt"""
+        n = len(x)
+        i_range = np.random.choice(np.arange(0, n), n, replace=False)
+        j_range = np.flip(i_range)
+        for pos_i, i in enumerate(i_range):
+            for pos_j, j in enumerate(j_range):
+                if pos_i >= n - pos_j:
+                    xn = np.copy(x)
+                    xn[i], xn[j] = xn[j], xn[i]
+                    yield xn    
+ 
+    def _two_opt_gen2(self, x: np.ndarray) -> Generator[np.ndarray, np.ndarray, None]:
         """2-opt perturbation scheme [2]"""
         n = len(x)
         if self.ring_mode == False:
             node_init = 1
         else:
             node_init = 2
-        
-        i_range = range(node_init, n)
+    
+        i_range = np.arange(node_init, n)
         for i in np.random.choice(i_range, len(i_range), replace=False):
-            j_range = range(i + 1, n + 1)
+            j_range = np.arange(i + 1, n + 1)
             for j in np.random.choice(j_range, len(j_range), replace=False):
                 xn = x.copy()
-                xn = xn[:i - 1] + list(reversed(xn[i - 1:j])) + xn[j:]
-                yield xn        
+                xn = np.concatenate((xn[:i - 1], np.flip(xn[i - 1:j]), xn[j:]))
+                yield xn    
+                        
+    def _two_and_a_half_opt(self, x: np.ndarray) -> Generator[np.ndarray, np.ndarray, None]:
+        """2h-opt"""
+        n = len(x)
+        i_range = np.arange(0, n) 
+        for i in np.random.permutation(i_range):
+            j_range = np.arange(i + 1, n)
+            for j in np.random.permutation(j_range):
+                xn = np.copy(x)
+                node = xn[i]
+                xn = np.delete(xn, i)
+                xn = np.insert(xn, j, node)
+                yield xn
+                
+    def _k_opt_gen(self, x: np.ndarray, k: int) -> Generator[np.ndarray, np.ndarray, None]:
+        """k-opt"""
+        n = len(x)
+        i_range = np.arange(0, n - k + 1)
         
+        for i in np.random.permutation(i_range):
+            xn = np.copy(x)
+            xn[i:i+k] = np.random.permutation(xn[i:i+k])
+            yield xn                
