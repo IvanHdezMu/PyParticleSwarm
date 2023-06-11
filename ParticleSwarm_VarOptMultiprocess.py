@@ -283,7 +283,7 @@ class ParticleSwarm_VarOptMultiprocess:
 
             self.vel = np.column_stack((vel1, vel2, vel3))
 
-            self.pos = self._compute_position()
+            self.pos, self.vel, self.nIter, self.fx = self._compute_position(self.pos, self.vel, self.nIter, self.fx)
 
             self._best()
             self.scores = self._score(self.pos)
@@ -295,65 +295,64 @@ class ParticleSwarm_VarOptMultiprocess:
         return self.global_best[0], self._objective(self.global_best[0])
 
 
-    def _compute_position(self):
+    def _compute_position(self, x, vel, nIter, fx):
         """Update the position of the swarm
         This computes the next position in a discrete swarm.
         """
         
-        x = self.pos
         n_particles = x.shape[0]  # number of particles
                                      
         for i in range(n_particles):
         
-            nIter = 0
-            while nIter <= self.vel[i][0]:
-                if self.vel[i][1] == 1:
+            nIter_aux = 0
+            while nIter_aux <= vel[i][0]:
+                if vel[i][1] == 1:
                     for j, xn in enumerate(self._two_opt(x[i])):
-                        nIter += 1
-                        self.nIter[i] += 1
+                        nIter_aux += 1
+                        nIter[i] += 1
                         fn =  self._objective(xn)
-                        if self.fx[i] > fn:
+                        if fx[i] > fn:
                             x[i] = xn
-                            self.fx[i] = fn
-                            self.nIter[i] = 0
+                            fx[i] = fn
+                            nIter[i] = 0
      
-                        if nIter >= self.vel[i][0]:
+                        if nIter_aux >= vel[i][0]:
                             break
-                elif self.vel[i][1] == 2:
+                elif vel[i][1] == 2:
                     for j, xn in enumerate(self._two_and_a_half_opt(x[i])):
-                        nIter += 1
-                        self.nIter[i] += 1
+                        nIter_aux += 1
+                        nIter[i] += 1
                         fn =  self._objective(xn)
-                        if self.fx[i] > fn:
+                        if fx[i] > fn:
                             x[i] = xn
-                            self.fx[i] = fn
-                            self.nIter[i] = 0
+                            fx[i] = fn
+                            nIter[i] = 0
      
-                        if nIter >= self.vel[i][0]:
+                        if nIter_aux >= vel[i][0]:
                             break
                         
-                elif self.vel[i][1] == 3:
+                elif vel[i][1] == 3:
                     for j, xn in enumerate(self._two_opt_FLip(x[i])):
-                        nIter += 1
-                        self.nIter[i] += 1
+                        nIter_aux += 1
+                        nIter[i] += 1
                         fn =  self._objective(xn)
-                        if self.fx[i] > fn:
+                        if fx[i] > fn:
                             x[i] = xn
-                            self.fx[i] = fn
-                            self.nIter[i] = 0
+                            fx[i] = fn
+                            nIter[i] = 0
      
-                        if nIter >= self.vel[i][0]:
+                        if nIter_aux >= vel[i][0]:
                             break
                         
-                if (self.nIter[i] >= self.max_steps / 5) and (np.random.rand() < self.vel[i][2]):
+                if (nIter[i] >= self.max_steps / 5) and (np.random.rand() < vel[i][2]):
                     x[i] = np.random.choice(self.member_size,self.member_size,replace=False) 
-                    self.fx[i] = self._objective(x[i])
-                    self.nIter[i] = 0
+                    fx[i] = self._objective(x[i])
+                    nIter[i] = 0
                         
             if i == 0:
-                self.cur_steps += nIter                      
+                self.cur_steps += nIter_aux                      
                       
-        return x
+        return x, vel, nIter, fx
     
     def restart_probability(self,x):
         prob = np.ones(self.swarm_size)
