@@ -7,6 +7,7 @@ Created on Fri May 26 17:37:31 2023
 
 import numpy as np
 from typing import Generator
+from multiprocessing import Pool
 
 class ParticleSwarm_VarOptMultiprocess:
     
@@ -124,7 +125,7 @@ class ParticleSwarm_VarOptMultiprocess:
         self.f_global_best = np.ones(self.member_size) * self.max_value
         self.f_best = self._score(self.best)
         
-        self.cur_steps = 0
+        self.cur_steps = 1
         self._global_best()
             
      
@@ -263,27 +264,34 @@ class ParticleSwarm_VarOptMultiprocess:
         :return: best member of swarm and objective function value of best member of swarm
         """
         self._clear()
-        aux_print = self.max_steps/self.member_size
+
+        aux_n_steps = 1
         while self.cur_steps <= self.max_steps:
-        #for i in range(self.max_steps):
-            #self.cur_steps += 1
 
-            if verbose and (self.cur_steps > aux_print):
+            vel0 = (np.ones(self.swarm_size) * (self.member_size * aux_n_steps)).astype(int)
+            vel1 = np.ones(self.swarm_size) * 3 #Type of opt
+            aux_vel2 = np.arange(1, self.member_size + 1)
+            vel2 = np.interp(aux_vel2, [0, self.member_size], [0.0, 1.0]) # Random probability
+
+            self.vel = np.column_stack((vel0, vel1, vel2))
+
+            #self.pos, self.nIter, self.fx = self._compute_position(self.pos, self.vel, self.nIter, self.fx)
+            with Pool() as p:
+                results = p.map(self._compute_position, zip(self.pos, self.vel, self.nIter, self.fx))
+            p.close()
+            p.join()
+
+            pos, nIter, fx = zip(*results)
+            self.pos = np.array(pos)
+            self.nIter = np.array(nIter)
+            self.fx = np.array(fx)
+
+            self.cur_steps += self.vel[0][0]
+
+            if verbose and (self.cur_steps > self.member_size * 5):
                 print(self)
-                aux_print += aux_print
-            
-              
-            vel1 = np.ones(self.swarm_size) * self.member_size * self.cur_steps / self.max_steps
-            
-            vel2 = np.ones(self.swarm_size) * 3 #Type of opt
-            
-            #vel3 = np.ones(self.swarm_size) # Random probability
-            aux_vel3 = np.arange(1, self.member_size + 1)
-            vel3 = np.interp(aux_vel3, [0, self.member_size], [0.0, 1.0])
 
-            self.vel = np.column_stack((vel1, vel2, vel3))
-
-            self.pos, self.vel, self.nIter, self.fx = self._compute_position(self.pos, self.vel, self.nIter, self.fx)
+            aux_n_steps += 1
 
             self._best()
             self.scores = self._score(self.pos)
@@ -295,64 +303,58 @@ class ParticleSwarm_VarOptMultiprocess:
         return self.global_best[0], self._objective(self.global_best[0])
 
 
-    def _compute_position(self, x, vel, nIter, fx):
+    def _compute_position(self, args):
         """Update the position of the swarm
         This computes the next position in a discrete swarm.
         """
-        
-        n_particles = x.shape[0]  # number of particles
-                                     
-        for i in range(n_particles):
-        
-            nIter_aux = 0
-            while nIter_aux <= vel[i][0]:
-                if vel[i][1] == 1:
-                    for j, xn in enumerate(self._two_opt(x[i])):
-                        nIter_aux += 1
-                        nIter[i] += 1
-                        fn =  self._objective(xn)
-                        if fx[i] > fn:
-                            x[i] = xn
-                            fx[i] = fn
-                            nIter[i] = 0
-     
-                        if nIter_aux >= vel[i][0]:
-                            break
-                elif vel[i][1] == 2:
-                    for j, xn in enumerate(self._two_and_a_half_opt(x[i])):
-                        nIter_aux += 1
-                        nIter[i] += 1
-                        fn =  self._objective(xn)
-                        if fx[i] > fn:
-                            x[i] = xn
-                            fx[i] = fn
-                            nIter[i] = 0
-     
-                        if nIter_aux >= vel[i][0]:
-                            break
-                        
-                elif vel[i][1] == 3:
-                    for j, xn in enumerate(self._two_opt_FLip(x[i])):
-                        nIter_aux += 1
-                        nIter[i] += 1
-                        fn =  self._objective(xn)
-                        if fx[i] > fn:
-                            x[i] = xn
-                            fx[i] = fn
-                            nIter[i] = 0
-     
-                        if nIter_aux >= vel[i][0]:
-                            break
-                        
-                if (nIter[i] >= self.max_steps / 5) and (np.random.rand() < vel[i][2]):
-                    x[i] = np.random.choice(self.member_size,self.member_size,replace=False) 
-                    fx[i] = self._objective(x[i])
-                    nIter[i] = 0
-                        
-            if i == 0:
-                self.cur_steps += nIter_aux                      
-                      
-        return x, vel, nIter, fx
+        x, vel, nIter, fx = args
+
+        nIter_aux = 0
+        while nIter_aux <= vel[0]:
+            if vel[1] == 1:
+                for j, xn in enumerate(self._two_opt(x)):
+                    nIter_aux += 1
+                    nIter += 1
+                    fn =  self._objective(xn)
+                    if fx > fn:
+                        x = xn
+                        fx = fn
+                        nIter = 0
+
+                    if nIter_aux >= vel[0]:
+                        break
+            elif vel[1] == 2:
+                for j, xn in enumerate(self._two_and_a_half_opt(x)):
+                    nIter_aux += 1
+                    nIter += 1
+                    fn =  self._objective(xn)
+                    if fx > fn:
+                        x = xn
+                        fx = fn
+                        nIter = 0
+
+                    if nIter_aux >= vel[0]:
+                        break
+
+            elif vel[1] == 3:
+                for j, xn in enumerate(self._two_opt_FLip(x)):
+                    nIter_aux += 1
+                    nIter += 1
+                    fn =  self._objective(xn)
+                    if fx > fn:
+                        x = xn
+                        fx = fn
+                        nIter = 0
+
+                    if nIter_aux >= vel[0]:
+                        break
+
+            if (nIter >= self.max_steps / 5) and (np.random.rand() < vel[2]):
+                x = np.random.choice(self.member_size,self.member_size,replace=False)
+                fx = self._objective(x)
+                nIter = 0
+
+        return x, nIter, fx
     
     def restart_probability(self,x):
         prob = np.ones(self.swarm_size)
