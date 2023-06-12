@@ -269,9 +269,9 @@ class ParticleSwarm_VarOptMultiprocess:
         while self.cur_steps <= self.max_steps:
 
             vel0 = (np.ones(self.swarm_size) * (self.member_size * aux_n_steps)).astype(int)
-            vel1 = np.ones(self.swarm_size) * 3 #Type of opt
+            vel1 = self._Opt_Type() #Type of opt
             aux_vel2 = np.arange(1, self.member_size + 1)
-            vel2 = np.interp(aux_vel2, [0, self.member_size], [0.0, 1.0]) # Random probability
+            vel2 = np.interp(aux_vel2, [0, self.member_size], [0.1, 0.9]) # Random probability
 
             self.vel = np.column_stack((vel0, vel1, vel2))
 
@@ -302,6 +302,15 @@ class ParticleSwarm_VarOptMultiprocess:
         print(self)
         return self.global_best[0], self._objective(self.global_best[0])
 
+    def _Opt_Type(self):
+        opt_type = np.ones(self.swarm_size) * 3
+        for i, nIter in enumerate(self.nIter):
+            if nIter > (self.max_steps / 5):
+                if i < (self.swarm_size / 0.1):
+                    opt_type[i] = 1
+                else:
+                    opt_type[i] = 2
+        return opt_type
 
     def _compute_position(self, args):
         """Update the position of the swarm
