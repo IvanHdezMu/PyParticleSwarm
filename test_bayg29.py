@@ -7,14 +7,17 @@ Created on Fri May 12 19:35:57 2023
 
 # Import modules
 from raead_distance_matrix_GEO_TSPLIB import raead_distance_matrix_GEO_TSPLIB
-from ParticleSwarm_TwoOpt import ParticleSwarm_TwoOpt
+from ParticleSwarm_VarOptMultiprocess import ParticleSwarm_VarOptMultiprocess
 
 
 distance_matrix = raead_distance_matrix_GEO_TSPLIB("bayg29.tsp")
 
 """RING MODE"""
 #Ualgorithm = ParticleSwarm_TwoOpt(50, 0.1, 0.6, 0.2, 100, distance_matrix,True) #1620/1618/1610/1615
-algorithm = ParticleSwarm_TwoOpt(50, 0.1, 0.6, 0.3, 100, distance_matrix,True) #1610/1610/1615/1610
-algorithm.run()
+#algorithm = ParticleSwarm_TwoOpt(50, 0.1, 0.6, 0.3, 100, distance_matrix,True) #1610/1610/1615/1610
     
+c1 = 1000
+algorithm = ParticleSwarm_VarOptMultiprocess(c1,distance_matrix,True)
+algorithm.run()
 
+print(algorithm.nIter)

@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 from geopy import distance
 
-from ParticleSwarm_TwoOpt import ParticleSwarm_TwoOpt
+from ParticleSwarm_VarOptMultiprocess import ParticleSwarm_VarOptMultiprocess
 
 #constant data
 maxCapacity = 150.0 # capacidad del vehiculo en litros
@@ -48,7 +48,12 @@ for i, start in enumerate(cities):
         """
 
 "NO RING MODE"        
-#algorithm = ParticleSwarm_TwoOpt(50, 0.1, 0.6, 0.2, 100, distance_matrix,False) # 2944.814327       
+#algorithm = ParticleSwarm_TwoOpt(50, 0.1, 0.6, 0.2, 100, distance_matrix,False) # 2944.814327
+#algorithm = ParticleSwarm_TwoOpt(50, 0.1, 0.6, 0.2, 100, distance_matrix,False,True, prices, maxCapacity, consumption) #1503.052382
 
-algorithm = ParticleSwarm_TwoOpt(50, 0.1, 0.6, 0.2, 100, distance_matrix,False,True, prices, maxCapacity, consumption) #1503.052382 
-algorithm.run()
+
+c1 = 1000
+algorithm = ParticleSwarm_VarOptMultiprocess(c1,distance_matrix,False,True,prices, maxCapacity, consumption)
+algorithm.run(True)
+
+print(algorithm.nIter)

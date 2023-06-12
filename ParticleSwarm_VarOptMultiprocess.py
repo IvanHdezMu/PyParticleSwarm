@@ -72,7 +72,7 @@ class ParticleSwarm_VarOptMultiprocess:
                  'are nodes in distance_matrix')
 
         if isinstance(c1, (int, float)):
-            self.c1 = float(c1)
+            self.c1 = int(c1)
         
         self.min_value = self._min_values()
         self.max_value = self._max_values()
@@ -83,7 +83,8 @@ class ParticleSwarm_VarOptMultiprocess:
         self.swarm_size = self.member_size
         
         # max_steps
-        self.max_steps = np.power(self.c1, self.member_size)
+        #self.max_steps = np.power(self.c1, self.member_size)
+        self.max_steps = self.c1 * self.member_size
                       
         
     def __str__(self):
@@ -253,9 +254,26 @@ class ParticleSwarm_VarOptMultiprocess:
         else:
             reverse_sorted_prices = np.sort(self.prices)[::-1]
             return self._calculate_path_cost(max_distance,
-                                             reverse_sorted_prices)            
-                       
-        
+                                             reverse_sorted_prices)
+
+    def _calculate_path_cost(self, km, sorted_prices):
+        liters = km / self.consumption
+        liters_aux = liters
+        cost = 0
+        for i in range(len(sorted_prices)):
+            if liters_aux > self.maxCapacity:
+                cost += self.maxCapacity * sorted_prices[i]
+                liters_aux -= self.maxCapacity
+            else:
+                cost += liters_aux * sorted_prices[i]
+                return cost
+
+    def _path_prices(self, path):  # array of prices of the path
+        prices_arr = np.zeros(len(path))
+        for i in range(len(path)):
+            prices_arr[i] = self.prices[path[i]]
+        return prices_arr
+
     def run(self, verbose=True):
         """
         Conducts particle swarm optimization
@@ -271,7 +289,7 @@ class ParticleSwarm_VarOptMultiprocess:
             vel0 = (np.ones(self.swarm_size) * (self.member_size * aux_n_steps)).astype(int)
             vel1 = self._Opt_Type() #Type of opt
             aux_vel2 = np.arange(1, self.member_size + 1)
-            vel2 = np.interp(aux_vel2, [0, self.member_size], [0.1, 0.9]) # Random probability
+            vel2 = np.interp(aux_vel2, [0, self.member_size], [0.05, 0.8]) # Random probability
 
             self.vel = np.column_stack((vel0, vel1, vel2))
 
