@@ -28,15 +28,18 @@ class ParticleSwarm_VarOptMultiprocess:
     vel = None
     nIter = None
 
+    N = None
     c1 = None
     #c2 = None
     #c3 = None
 
     cur_steps = None
     
-    def __init__(self,c1,distance_matrix, ring_mode=False, refuel_mode=False,
+    def __init__(self, N, c1, distance_matrix, ring_mode=False, refuel_mode=False,
                  prices=None, maxCapacity=None, consumption=None):
         """
+        N = Number of particles
+        C1 x Number of nodes = max steps
         distance_matrix = distance between nodes
         ring_mode = add distance from the last node to the first node
         refuel_mode = false->TSP mode active; true->TSPWR mode active
@@ -71,6 +74,9 @@ class ParticleSwarm_VarOptMultiprocess:
                 raise ValueError('Prices must have as many values as there '
                  'are nodes in distance_matrix')
 
+        if isinstance(N, (int, float)):
+            self.N = int(N)
+
         if isinstance(c1, (int, float)):
             self.c1 = int(c1)
         
@@ -78,12 +84,10 @@ class ParticleSwarm_VarOptMultiprocess:
         self.max_value = self._max_values()
             
         self.member_size = distance_matrix.shape[0]
-            
-        # swarm_size = f(member_size)
-        self.swarm_size = self.member_size
+
+        self.swarm_size = N
         
         # max_steps
-        #self.max_steps = np.power(self.c1, self.member_size)
         self.max_steps = self.c1 * self.member_size
                       
         
@@ -118,6 +122,12 @@ class ParticleSwarm_VarOptMultiprocess:
             
         self.fx = self._score(self.pos)   
         self.nIter = np.zeros(self.member_size)
+
+        vel0 = (np.ones(self.swarm_size) * (self.member_size * 1)).astype(int)
+        vel1 = np.ones(self.swarm_size)
+        aux_vel2 = np.arange(1, self.swarm_size + 1)
+        vel2 = np.interp(aux_vel2, [0, self.swarm_size], [0.2, 0.8])  # Random probability
+        self.vel = np.column_stack((vel0, vel1, vel2))
 
         self.scores = self._score(self.pos)
         self.best = np.copy(self.pos)
@@ -214,6 +224,7 @@ class ParticleSwarm_VarOptMultiprocess:
             self.pos = self.pos[ordered_indexes]
             self.fx = self.fx[ordered_indexes]
             self.nIter = self.nIter[ordered_indexes]
+            self.vel[:][1] = self.vel[ordered_indexes][1]
             
             min_index = np.argmin(self.f_best)    
             if self.f_best[min_index] < self.f_global_best[0]:
@@ -286,12 +297,9 @@ class ParticleSwarm_VarOptMultiprocess:
         aux_n_steps = 1
         while self.cur_steps <= self.max_steps:
 
-            vel0 = (np.ones(self.swarm_size) * (self.member_size * aux_n_steps)).astype(int)
-            vel1 = self._Opt_Type() #Type of opt
-            aux_vel2 = np.arange(1, self.member_size + 1)
-            vel2 = np.interp(aux_vel2, [0, self.member_size], [0.05, 0.8]) # Random probability
-
-            self.vel = np.column_stack((vel0, vel1, vel2))
+            self.vel[:,0] = (np.ones(self.swarm_size) * (self.member_size * aux_n_steps)).astype(int)
+            self._Opt_Type() #self.vel[:][1]= ...  #Type of opt
+            #self.vel[:][2] =... #Random probability
 
             #self.pos, self.nIter, self.fx = self._compute_position(self.pos, self.vel, self.nIter, self.fx)
             with Pool() as p:
@@ -321,14 +329,18 @@ class ParticleSwarm_VarOptMultiprocess:
         return self.global_best[0], self._objective(self.global_best[0])
 
     def _Opt_Type(self):
-        opt_type = np.ones(self.swarm_size) * 3
+        """
+        1 = 2-Opt con Flip
+        2 = 2,5-Opt
+        3 = 2-Opt
+        """
         for i, nIter in enumerate(self.nIter):
-            if nIter > (self.max_steps / 5):
-                if i < (self.swarm_size / 0.1):
-                    opt_type[i] = 1
+            if nIter > (self.max_steps / self.member_size):
+                if self.vel[i][1] == 1:
+                    self.vel[i][1] = 2
                 else:
-                    opt_type[i] = 2
-        return opt_type
+                    self.vel[i][1] = 1
+
 
     def _compute_position(self, args):
         """Update the position of the swarm
@@ -338,8 +350,15 @@ class ParticleSwarm_VarOptMultiprocess:
 
         nIter_aux = 0
         while nIter_aux <= vel[0]:
+
+            if (nIter >= (self.max_steps / self.member_size) * 2) and (np.random.rand() < vel[2]):
+                x_parts = np.array_split(x, 4)
+                x = np.concatenate([x_parts[1], x_parts[3], x_parts[0], x_parts[2]])
+                fx = self._objective(x)
+                nIter = 0
+
             if vel[1] == 1:
-                for j, xn in enumerate(self._two_opt(x)):
+                for j, xn in enumerate(self._two_opt_FLip(x)):
                     nIter_aux += 1
                     nIter += 1
                     fn =  self._objective(xn)
@@ -364,7 +383,19 @@ class ParticleSwarm_VarOptMultiprocess:
                         break
 
             elif vel[1] == 3:
-                for j, xn in enumerate(self._two_opt_FLip(x)):
+                for j, xn in enumerate(self._two_opt(x)):
+                    nIter_aux += 1
+                    nIter += 1
+                    fn =  self._objective(xn)
+                    if fx > fn:
+                        x = xn
+                        fx = fn
+                        nIter = 0
+
+                    if nIter_aux >= vel[0]:
+                        break
+            elif vel[1] == 4:
+                for j, xn in enumerate(self._v_opt_gen(x,10)):
                     nIter_aux += 1
                     nIter += 1
                     fn =  self._objective(xn)
@@ -376,17 +407,8 @@ class ParticleSwarm_VarOptMultiprocess:
                     if nIter_aux >= vel[0]:
                         break
 
-            if (nIter >= self.max_steps / 5) and (np.random.rand() < vel[2]):
-                x = np.random.choice(self.member_size,self.member_size,replace=False)
-                fx = self._objective(x)
-                nIter = 0
-
         return x, nIter, fx
-    
-    def restart_probability(self,x):
-        prob = np.ones(self.swarm_size)
-        for i in range(x):
-            prob[i] = np.interp(i, [0, self.member_size], [0.0, 1.0])
+
     
     def _two_opt_FLip(self, x: np.ndarray) -> Generator[np.ndarray, np.ndarray, None]:
         """2-opt perturbation scheme [2]"""
