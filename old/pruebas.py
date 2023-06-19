@@ -44,6 +44,8 @@ for i, start in enumerate(cities):
 
 "NO RING MODE"        
  
-c1 = 1.4#1.5
+c1 = 1000
 algorithm = ParticleSwarm_VarOptMultiprocess(c1,distance_matrix,False)
 algorithm.run(True)
+
+print(algorithm.nIter)

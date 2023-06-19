@@ -17,7 +17,7 @@ maxCapacity = 150.0 # capacidad del vehiculo en litros
 consumption = 7.0 # consumo del vehiculo en Km por litro
 
 # leer los datos del archivo Excel y almacenarlos en un DataFrame
-df = pd.read_excel('ciudades_Bahia30D.xlsx')
+df = pd.read_excel('./DataSets/ciudades_Bahia30D.xlsx')
 
 
 cities = []
