@@ -8,6 +8,7 @@ Created on Fri May 26 17:37:31 2023
 import numpy as np
 from typing import Generator
 from multiprocessing import Pool
+import pandas as pd
 
 class ParticleSwarm_VarOptMultiprocess:
     
@@ -285,20 +286,23 @@ class ParticleSwarm_VarOptMultiprocess:
             prices_arr[i] = self.prices[path[i]]
         return prices_arr
 
-    def run(self, verbose=True):
+    def run(self, verbose=True, excel=True):
         """
         Conducts particle swarm optimization
 
         :param verbose: indicates whether or not to print progress regularly
+        :param excel: indicates whether or not to save progress regularly
         :return: best member of swarm and objective function value of best member of swarm
         """
         self._clear()
+        
+        output_list = []
 
         aux_n_steps = 1
         while self.cur_steps <= self.max_steps:
 
             self.vel[:,0] = (np.ones(self.swarm_size) * (self.member_size * aux_n_steps)).astype(int)
-            self._Opt_Type() #self.vel[:][1]= ...  #Type of opt
+            #self._Opt_Type() #self.vel[:][1]= ...  #Type of opt
             #self.vel[:][2] =... #Random probability
 
             #self.pos, self.nIter, self.fx = self._compute_position(self.pos, self.vel, self.nIter, self.fx)
@@ -307,15 +311,18 @@ class ParticleSwarm_VarOptMultiprocess:
             p.close()
             p.join()
 
-            pos, nIter, fx = zip(*results)
+            pos, nIter, fx, vel = zip(*results)
             self.pos = np.array(pos)
             self.nIter = np.array(nIter)
             self.fx = np.array(fx)
+            self.vel = np.array(vel)
 
             self.cur_steps += self.vel[0][0]
 
             if verbose and (self.cur_steps > self.member_size * 5):
                 print(self)
+                if excel:
+                    output_list.append(self._dataSave())
 
             aux_n_steps += 1
 
@@ -323,16 +330,29 @@ class ParticleSwarm_VarOptMultiprocess:
             self.scores = self._score(self.pos)
             self._global_best()
 
+        if excel:
+            columnas = ['Step', 'Resultado']
+            df = pd.DataFrame(output_list, columns=columnas)
+            file_path = 'output_file.xlsx'
+            df.to_excel(file_path, index=False)
 
         print("TERMINATING - REACHED MAXIMUM STEPS")
         print(self)
         return self.global_best[0], self._objective(self.global_best[0])
+
+    def _dataSave(self):
+        if self.refuel_mode == False:
+            return [self.cur_steps, self._calculate_distance(self.global_best[0])]
+        else:
+            return [self.cur_steps, self._calculate_refuel(self.global_best[0])]
 
     def _Opt_Type(self):
         """
         1 = 2-Opt con Flip
         2 = 2,5-Opt
         3 = 2-Opt
+        4 = v-Opt
+        5 = k-Opt
         """
         for i, nIter in enumerate(self.nIter):
             if nIter > (self.max_steps / self.member_size):
@@ -350,8 +370,7 @@ class ParticleSwarm_VarOptMultiprocess:
 
         nIter_aux = 0
         while nIter_aux <= vel[0]:
-
-            if (nIter >= (self.max_steps / self.member_size) * 2) and (np.random.rand() < vel[2]):
+            if (nIter >= (self.max_steps / self.member_size) * (self.c1/1000)) and (np.random.rand() < vel[2]):
                 x_parts = np.array_split(x, 4)
                 x = np.concatenate([x_parts[1], x_parts[3], x_parts[0], x_parts[2]])
                 fx = self._objective(x)
@@ -366,6 +385,7 @@ class ParticleSwarm_VarOptMultiprocess:
                         x = xn
                         fx = fn
                         nIter = 0
+                        break
 
                     if nIter_aux >= vel[0]:
                         break
@@ -378,6 +398,7 @@ class ParticleSwarm_VarOptMultiprocess:
                         x = xn
                         fx = fn
                         nIter = 0
+                        break
 
                     if nIter_aux >= vel[0]:
                         break
@@ -391,6 +412,7 @@ class ParticleSwarm_VarOptMultiprocess:
                         x = xn
                         fx = fn
                         nIter = 0
+                        break
 
                     if nIter_aux >= vel[0]:
                         break
@@ -403,15 +425,29 @@ class ParticleSwarm_VarOptMultiprocess:
                         x = xn
                         fx = fn
                         nIter = 0
+                        break
+
+                    if nIter_aux >= vel[0]:
+                        break
+            elif vel[1] == 5:
+                for j, xn in enumerate(self._k_opt_gen(x,10)):
+                    nIter_aux += 1
+                    nIter += 1
+                    fn =  self._objective(xn)
+                    if fx > fn:
+                        x = xn
+                        fx = fn
+                        nIter = 0
+                        break
 
                     if nIter_aux >= vel[0]:
                         break
 
-        return x, nIter, fx
+        return x, nIter, fx, vel
 
     
     def _two_opt_FLip(self, x: np.ndarray) -> Generator[np.ndarray, np.ndarray, None]:
-        """2-opt perturbation scheme [2]"""
+        """2-opt Flip"""
         n = len(x)
         if self.ring_mode == False:
             node_init = 0
@@ -430,7 +466,7 @@ class ParticleSwarm_VarOptMultiprocess:
                          
    
     def _two_opt(self, x: np.ndarray) -> Generator[np.ndarray, np.ndarray, None]:
-        """2-opt perturbation scheme [2]"""
+        """2-opt"""
         n = len(x)
         if self.ring_mode == False:
             node_init = 0
@@ -449,7 +485,7 @@ class ParticleSwarm_VarOptMultiprocess:
                 yield xn                   
 
     def _v_opt_gen(self, x: np.ndarray, k: int) -> Generator[np.ndarray, np.ndarray, None]:
-        """2-opt perturbation scheme [2]"""
+        """v-opt FLip"""
         n = len(x)
         if self.ring_mode == False:
             node_init = 0
@@ -461,12 +497,12 @@ class ParticleSwarm_VarOptMultiprocess:
 
         for i in i_range:
             if i+k > n:
-                aux1 = x[:k+i-n]
+                aux1 = np.flip(x[:k+i-n])
                 aux2 = np.flip((x[i:]))
                 aux = np.concatenate((aux2, aux1))
                 a = aux[:k+i-n]
                 b = x[k+i-n:i]
-                c =  np.flip(aux[k+i-n:])
+                c = aux[k+i-n:]
                 xn = np.concatenate((a, b,c))
                 yield xn 
             else:
@@ -491,11 +527,28 @@ class ParticleSwarm_VarOptMultiprocess:
                 yield xn
                 
     def _k_opt_gen(self, x: np.ndarray, k: int) -> Generator[np.ndarray, np.ndarray, None]:
-        """k-opt"""
+        """k-opt Random"""
         n = len(x)
-        i_range = np.arange(0, n - k + 1)
-        
-        for i in np.random.permutation(i_range):
-            xn = np.copy(x)
-            xn[i:i+k] = np.random.permutation(xn[i:i+k])
-            yield xn                
+        if self.ring_mode == False:
+            node_init = 0
+        else:
+            node_init = 1
+
+        arr = np.arange(node_init, n)
+        i_range = np.random.choice(arr, len(arr), replace=False)
+
+        for i in i_range:
+            if i + k > n:
+                aux1 = x[:k + i - n]
+                aux2 = x[i:]
+                aux = np.concatenate((aux2, aux1))
+                aux = np.random.permutation(aux)
+                a = aux[:k + i - n]
+                b = x[k + i - n:i]
+                c = aux[k + i - n:]
+                xn = np.concatenate((a, b, c))
+                yield xn
+            else:
+                xn = np.concatenate((x[:i], np.flip(x[i:i + k]), x[i + k:n]))
+                yield xn
+
