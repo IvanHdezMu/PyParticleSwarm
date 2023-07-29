@@ -286,7 +286,7 @@ class ParticleSwarm_VarOptMultiprocess:
             prices_arr[i] = self.prices[path[i]]
         return prices_arr
 
-    def run(self, verbose=True, excel=True, file_path = 'output_file.xlsx'):
+    def run(self, verbose=True, optType=1, excel=True, file_path = 'output_file.xlsx'):
         """
         Conducts particle swarm optimization
 
@@ -302,7 +302,7 @@ class ParticleSwarm_VarOptMultiprocess:
         while self.cur_steps <= self.max_steps:
 
             self.vel[:,0] = (np.ones(self.swarm_size) * (self.member_size * aux_n_steps)).astype(int)
-            #self._Opt_Type() #self.vel[:][1]= ...  #Type of opt
+            self._Opt_Type(optType) #self.vel[:][1]= ...  #Type of opt
             #self.vel[:][2] =... #Random probability
 
             #self.pos, self.nIter, self.fx = self._compute_position(self.pos, self.vel, self.nIter, self.fx)
@@ -346,7 +346,7 @@ class ParticleSwarm_VarOptMultiprocess:
         else:
             return [self.cur_steps, self._calculate_refuel(self.global_best[0])]
 
-    def _Opt_Type(self):
+    def _Opt_Type(self, optType):
         """
         1 = 2-Opt con Flip
         2 = 2,5-Opt
@@ -354,12 +354,15 @@ class ParticleSwarm_VarOptMultiprocess:
         4 = v-Opt
         5 = k-Opt
         """
-        for i, nIter in enumerate(self.nIter):
+        '''for i, nIter in enumerate(self.nIter):
             if nIter > (self.max_steps / self.member_size):
                 if self.vel[i][1] == 1:
                     self.vel[i][1] = 2
                 else:
-                    self.vel[i][1] = 1
+                    self.vel[i][1] = 1'''
+
+        for i, nIter in enumerate(self.nIter):
+            self.vel[i][1] == optType
 
 
     def _compute_position(self, args):
