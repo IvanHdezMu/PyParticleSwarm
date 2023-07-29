@@ -109,7 +109,7 @@ class ParticleSwarm_VarOptMultiprocess:
     def __repr__(self):
         return self.__str__()        
         
-    def _clear(self):
+    def _clear(self, randomReset, minRandom, maxRandom):
         """
         Resets the variables that are altered on a per-run basis of the algorithm
         
@@ -126,8 +126,11 @@ class ParticleSwarm_VarOptMultiprocess:
 
         vel0 = (np.ones(self.swarm_size) * (self.member_size * 1)).astype(int)
         vel1 = np.ones(self.swarm_size)
-        aux_vel2 = np.arange(1, self.swarm_size + 1)
-        vel2 = np.interp(aux_vel2, [0, self.swarm_size], [0.2, 0.8])  # Random probability
+        if randomReset:
+            aux_vel2 = np.arange(1, self.swarm_size + 1)
+            vel2 = np.interp(aux_vel2, [0, self.swarm_size], [minRandom, maxRandom])  # Random probability
+        else:
+            vel2 = np.zeros(self.swarm_size)
         self.vel = np.column_stack((vel0, vel1, vel2))
 
         self.scores = self._score(self.pos)
@@ -286,7 +289,7 @@ class ParticleSwarm_VarOptMultiprocess:
             prices_arr[i] = self.prices[path[i]]
         return prices_arr
 
-    def run(self, verbose=True, optType=1, excel=True, file_path = 'output_file.xlsx'):
+    def run(self, verbose=True, optType=1, excel=True, file_path = 'output_file.xlsx', randomReset=True, minRandom=0.2, maxRandom=0.8):
         """
         Conducts particle swarm optimization
 
@@ -294,7 +297,7 @@ class ParticleSwarm_VarOptMultiprocess:
         :param excel: indicates whether or not to save progress regularly
         :return: best member of swarm and objective function value of best member of swarm
         """
-        self._clear()
+        self._clear(randomReset, minRandom, maxRandom)
         
         output_list = []
 
