@@ -286,7 +286,7 @@ class ParticleSwarm_VarOptMultiprocess:
             prices_arr[i] = self.prices[path[i]]
         return prices_arr
 
-    def run(self, verbose=True, excel=True):
+    def run(self, verbose=True, excel=True, file_path = 'output_file.xlsx'):
         """
         Conducts particle swarm optimization
 
@@ -319,8 +319,9 @@ class ParticleSwarm_VarOptMultiprocess:
 
             self.cur_steps += self.vel[0][0]
 
-            if verbose and (self.cur_steps > self.member_size * 5):
-                print(self)
+            if self.cur_steps > self.member_size * 5:
+                if verbose:
+                    print(self)
                 if excel:
                     output_list.append(self._dataSave())
 
@@ -333,7 +334,6 @@ class ParticleSwarm_VarOptMultiprocess:
         if excel:
             columnas = ['Step', 'Resultado']
             df = pd.DataFrame(output_list, columns=columnas)
-            file_path = 'output_file.xlsx'
             df.to_excel(file_path, index=False)
 
         print("TERMINATING - REACHED MAXIMUM STEPS")
