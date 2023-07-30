@@ -365,7 +365,7 @@ class ParticleSwarm_VarOptMultiprocess:
                     self.vel[i][1] = 1'''
 
         for i, nIter in enumerate(self.nIter):
-            self.vel[i][1] == optType
+            self.vel[i][1] = optType
 
 
     def _compute_position(self, args):
