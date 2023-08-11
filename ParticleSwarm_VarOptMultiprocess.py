@@ -31,13 +31,13 @@ class ParticleSwarm_VarOptMultiprocess:
 
     N = None
     c1 = None
-    #c2 = None
-    #c3 = None
+    k = None
+    v = None
 
     cur_steps = None
     
     def __init__(self, N, c1, distance_matrix, ring_mode=False, refuel_mode=False,
-                 prices=None, maxCapacity=None, consumption=None):
+                 prices=None, maxCapacity=None, consumption=None, fullinit=False):
         """
         N = Number of particles
         C1 x Number of nodes = max steps
@@ -55,6 +55,8 @@ class ParticleSwarm_VarOptMultiprocess:
             raise ValueError('Distance matrix must be square')
         
         self.ring_mode = ring_mode
+
+        self.fullinit = fullinit
         
         self.refuel_mode = refuel_mode
         if refuel_mode == True: 
@@ -109,13 +111,15 @@ class ParticleSwarm_VarOptMultiprocess:
     def __repr__(self):
         return self.__str__()        
         
-    def _clear(self, randomReset, minRandom, maxRandom):
+    def _clear(self, randomReset, minRandom, maxRandom, k, v):
         """
         Resets the variables that are altered on a per-run basis of the algorithm
         
         :return: None
         """
-        
+        self.k = k
+        self.v = v
+
         aux = []
         for i in range(self.swarm_size):
             aux.append(np.random.choice(self.member_size,self.member_size,replace=False))
@@ -172,7 +176,10 @@ class ParticleSwarm_VarOptMultiprocess:
         return abs(self.min_value-self._calculate_refuel(member)) 
     
     def _calculate_refuel(self, member):
-        tank = 0.0
+        if self.fullinit:
+            tank = self.maxCapacity
+        else:
+            tank = 0.0
         cost = 0.0
         path_price = self._path_prices(member)     
         for i in range(len(member)-1): # In the last city it is never refuel
@@ -289,7 +296,7 @@ class ParticleSwarm_VarOptMultiprocess:
             prices_arr[i] = self.prices[path[i]]
         return prices_arr
 
-    def run(self, verbose=True, optType=1, excel=True, file_path = 'output_file.xlsx', randomReset=True, minRandom=0.2, maxRandom=0.8):
+    def run(self, verbose=True, optType=1, excel=True, file_path = 'output_file.xlsx', randomReset=True, minRandom=0.2, maxRandom=0.8, k=10, v=10):
         """
         Conducts particle swarm optimization
 
@@ -297,7 +304,7 @@ class ParticleSwarm_VarOptMultiprocess:
         :param excel: indicates whether or not to save progress regularly
         :return: best member of swarm and objective function value of best member of swarm
         """
-        self._clear(randomReset, minRandom, maxRandom)
+        self._clear(randomReset, minRandom, maxRandom, k, v)
         
         output_list = []
 
@@ -354,9 +361,43 @@ class ParticleSwarm_VarOptMultiprocess:
         1 = 2-Opt con Flip
         2 = 2,5-Opt
         3 = 2-Opt
-        4 = v-Opt
-        5 = k-Opt
+        4 = v-Opt FLip
+        5 = k-Opt Random
+        10 = 2-Opt Flip + 2,5-Opt (change)
+        12 = 2-Opt Flip + 2,5-Opt (20-80)
+        15 = 2-Opt Flip + k-Opt Random (20-80)
+        21 = 2,5-Opt + 2-Opt Flip (20-80)
         """
+
+        for i, nIter in enumerate(self.nIter):
+            if optType <= 5:
+                    self.vel[i][1] = optType
+            elif optType == 10:
+                if nIter > (self.max_steps / self.member_size):
+                    if self.vel[i][1] == 1:
+                        self.vel[i][1] = 2
+                    else:
+                        self.vel[i][1] = 1
+                else:
+                    self.vel[i][1] = 1
+            elif optType == 12:
+                    if i < (self.swarm_size * 0.2):
+                        self.vel[i][1] = 1
+                    else:
+                        self.vel[i][1] = 2
+            elif optType == 15:
+                    if i < (self.swarm_size * 0.2):
+                        self.vel[i][1] = 1
+                    else:
+                        self.vel[i][1] = 5
+            elif optType == 21:
+                    if i < (self.swarm_size * 0.2):
+                        self.vel[i][1] = 2
+                    else:
+                        self.vel[i][1] = 1
+
+
+
         '''for i, nIter in enumerate(self.nIter):
             if nIter > (self.max_steps / self.member_size):
                 if self.vel[i][1] == 1:
@@ -364,8 +405,7 @@ class ParticleSwarm_VarOptMultiprocess:
                 else:
                     self.vel[i][1] = 1'''
 
-        for i, nIter in enumerate(self.nIter):
-            self.vel[i][1] = optType
+
 
 
     def _compute_position(self, args):
@@ -423,7 +463,7 @@ class ParticleSwarm_VarOptMultiprocess:
                     if nIter_aux >= vel[0]:
                         break
             elif vel[1] == 4:
-                for j, xn in enumerate(self._v_opt_gen(x,10)):
+                for j, xn in enumerate(self._v_opt_gen(x,self.v)):
                     nIter_aux += 1
                     nIter += 1
                     fn =  self._objective(xn)
@@ -436,7 +476,7 @@ class ParticleSwarm_VarOptMultiprocess:
                     if nIter_aux >= vel[0]:
                         break
             elif vel[1] == 5:
-                for j, xn in enumerate(self._k_opt_gen(x,10)):
+                for j, xn in enumerate(self._k_opt_gen(x,self.k)):
                     nIter_aux += 1
                     nIter += 1
                     fn =  self._objective(xn)
