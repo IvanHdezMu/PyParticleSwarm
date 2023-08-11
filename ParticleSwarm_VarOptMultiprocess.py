@@ -181,7 +181,12 @@ class ParticleSwarm_VarOptMultiprocess:
         else:
             tank = 0.0
         cost = 0.0
-        path_price = self._path_prices(member)     
+
+        if self.ring_mode == True:
+            member = np.append(member, member[0])
+
+        path_price = self._path_prices(member)
+
         for i in range(len(member)-1): # In the last city it is never refuel
             distance_km = self.distance_matrix[member[i]][member[i+1]]
             distance_liters = distance_km / self.consumption
