@@ -366,7 +366,7 @@ class ParticleSwarm_VarOptMultiprocess:
         1 = 2-Opt con Flip
         2 = 2,5-Opt
         3 = 2-Opt
-        4 = v-Opt FLip
+        4 = k-Opt FLip
         5 = k-Opt Random
         10 = 2-Opt Flip + 2,5-Opt (change)
         12 = 2-Opt Flip + 2,5-Opt (20-80)
@@ -468,7 +468,7 @@ class ParticleSwarm_VarOptMultiprocess:
                     if nIter_aux >= vel[0]:
                         break
             elif vel[1] == 4:
-                for j, xn in enumerate(self._v_opt_gen(x,self.v)):
+                for j, xn in enumerate(self._k_opt_Flip_gen(x,self.v)):
                     nIter_aux += 1
                     nIter += 1
                     fn =  self._objective(xn)
@@ -481,7 +481,7 @@ class ParticleSwarm_VarOptMultiprocess:
                     if nIter_aux >= vel[0]:
                         break
             elif vel[1] == 5:
-                for j, xn in enumerate(self._k_opt_gen(x,self.k)):
+                for j, xn in enumerate(self._k_opt_Random_gen(x,self.k)):
                     nIter_aux += 1
                     nIter += 1
                     fn =  self._objective(xn)
@@ -535,8 +535,8 @@ class ParticleSwarm_VarOptMultiprocess:
                 xn[j] = x[i]
                 yield xn                   
 
-    def _v_opt_gen(self, x: np.ndarray, k: int) -> Generator[np.ndarray, np.ndarray, None]:
-        """v-opt FLip"""
+    def _k_opt_Flip_gen(self, x: np.ndarray, k: int) -> Generator[np.ndarray, np.ndarray, None]:
+        """k-opt FLip"""
         n = len(x)
         if self.ring_mode == False:
             node_init = 0
@@ -577,7 +577,7 @@ class ParticleSwarm_VarOptMultiprocess:
                 xn = np.insert(xn, j, node)
                 yield xn
                 
-    def _k_opt_gen(self, x: np.ndarray, k: int) -> Generator[np.ndarray, np.ndarray, None]:
+    def _k_opt_Random_gen(self, x: np.ndarray, k: int) -> Generator[np.ndarray, np.ndarray, None]:
         """k-opt Random"""
         n = len(x)
         if self.ring_mode == False:
