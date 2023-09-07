@@ -11,11 +11,12 @@ from multiprocessing import Pool
 import pandas as pd
 
 class ParticleSwarm_VarOptMultiprocess:
+    """
+    Particle swarm
+    """
     
     swarm_size = None
     member_size = None
-    #lower_bound = None
-    #upper_bound = None
 
     pos = None
     scores = None
@@ -39,14 +40,21 @@ class ParticleSwarm_VarOptMultiprocess:
     def __init__(self, N, c1, distance_matrix, ring_mode=False, refuel_mode=False,
                  prices=None, maxCapacity=None, consumption=None, fullinit=False):
         """
-        N = Number of particles
-        C1 x Number of nodes = max steps
-        distance_matrix = distance between nodes
-        ring_mode = add distance from the last node to the first node
-        refuel_mode = false->TSP mode active; true->TSPWR mode active
-        prices = array with refueling prices
-        maxCapacity = vehicle capacity in liters
-        consumption = consumption of the vehicle in Km per liter
+        Initialization function
+
+        Args:
+        N: Number of particles
+        C1: x Number of nodes = max steps
+        distance_matrix: distance between nodes
+        ring_mode: add distance from the last node to the first node
+        refuel_mode: false->TSP mode active; true->TSPWR mode active
+        prices: array with refueling prices
+        maxCapacity: vehicle capacity in liters
+        consumption: consumption of the vehicle in Km per liter
+        fullinit: full tank at first
+
+        Returns:
+        None
         """
         
         if distance_matrix.shape[0] == distance_matrix.shape[1]:
@@ -95,6 +103,12 @@ class ParticleSwarm_VarOptMultiprocess:
                       
         
     def __str__(self):
+        """
+        Special method to return a string representation of a class instance depending on whether it is TSP or TSPWR
+
+        Returns:
+        String representative of the best result achieved by the swarm
+        """
         if self.refuel_mode == False:
             return ('PARTICLE SWARM: \n' +
                     'CURRENT STEPS: %d \n' +
@@ -109,16 +123,28 @@ class ParticleSwarm_VarOptMultiprocess:
                    (self.cur_steps, self._calculate_refuel(self.global_best[0]), str(self.global_best[0]))                   
 
     def __repr__(self):
+        """
+        Special method used to represent a class’s objects as a string
+
+        Returns:
+        Response of the __str__ funtion
+        """
         return self.__str__()        
         
-    def _clear(self, randomReset, minRandom, maxRandom, k, v):
+    def _clear(self, permutReset, minPermut, maxPermut, k):
         """
-        Resets the variables that are altered on a per-run basis of the algorithm
-        
-        :return: None
+        Resets the variables that are modified in each execution of the algorithm
+
+        Args:
+        permutReset: probability of permutation
+        minPermut: minimum probability value
+        maxPermut: maximum probability value
+        k: k constant for k-Opt algorithms
+
+        Returns:
+        None
         """
         self.k = k
-        self.v = v
 
         aux = []
         for i in range(self.swarm_size):
@@ -130,9 +156,9 @@ class ParticleSwarm_VarOptMultiprocess:
 
         vel0 = (np.ones(self.swarm_size) * (self.member_size * 1)).astype(int)
         vel1 = np.ones(self.swarm_size)
-        if randomReset:
+        if permutReset:
             aux_vel2 = np.arange(1, self.swarm_size + 1)
-            vel2 = np.interp(aux_vel2, [0, self.swarm_size], [minRandom, maxRandom])  # Random probability
+            vel2 = np.interp(aux_vel2, [0, self.swarm_size], [minPermut, maxPermut])  # Random probability
         else:
             vel2 = np.zeros(self.swarm_size)
         self.vel = np.column_stack((vel0, vel1, vel2))
@@ -149,15 +175,43 @@ class ParticleSwarm_VarOptMultiprocess:
             
      
     def _objective(self, member):
+        """
+        Returns objective function value for a member of swarm depending on whether it is TSP or TSPWR
+
+        Args:
+        member: a member
+
+        Returns:
+        Objective function value of member
+        """
         if self.refuel_mode == False:
             return self._objectiveTSP(member)
         else:
             return self._objectiveTSPWR(member)
     
     def _objectiveTSP(self, member):
+        """
+        Returns objective function for TSP
+
+        Args:
+        member: a member
+
+        Returns:
+        TSP objective function value of member
+        """
         return abs(self.min_value-self._calculate_distance(member))
     
     def _calculate_distance(self, member):
+        """
+        Returns the total distance traveled taking into account if the ring mode is active
+
+        Args:
+        member: a member
+
+        Returns:
+        Total distance traveled
+        """
+
         total_distance = 0
         
         for i in range(len(member)-1): # no travel from last node
@@ -173,9 +227,29 @@ class ParticleSwarm_VarOptMultiprocess:
     
         
     def _objectiveTSPWR(self, member):
+        """
+        Returns objective function for TSPWR
+
+        Args:
+        member: a member
+
+        Returns:
+        TSPWR objective function value of member
+        """
         return abs(self.min_value-self._calculate_refuel(member)) 
     
     def _calculate_refuel(self, member):
+        """
+        Returns the total cost of fuel taking into account whether the ring mode is active
+        and whether the tank was full at the start.
+
+        Args:
+        member: a member
+
+        Returns:
+        Total cost of fuel
+        """
+
         if self.fullinit:
             tank = self.maxCapacity
         else:
@@ -220,7 +294,8 @@ class ParticleSwarm_VarOptMultiprocess:
 
     def _best(self):
         """
-        Where the target is better it is added to best
+        Copy the results ,and their positions, of those who improve the local best
+
         :return: None
         """
         indexes = np.where(self.fx < self.f_best)
@@ -251,8 +326,8 @@ class ParticleSwarm_VarOptMultiprocess:
             
     def _min_values(self):
         """
-        Minimum distance calculation
-        Minimum price calculation
+        TSP: Minimum distance calculation
+        TSPWR: Minimum price calculation
         """
         min_distance = 0
         for raw in self.distance_matrix:
@@ -269,9 +344,9 @@ class ParticleSwarm_VarOptMultiprocess:
 
     def _max_values(self):
         """
-        Maximun distance calculation
-        Maximun price calculation
-        """        
+        TSP: Maximum distance calculation
+        TSPWR: Maximum price calculation
+        """
         max_distance = 0
         for raw in self.distance_matrix:
             max_distance += max(raw)
@@ -284,6 +359,17 @@ class ParticleSwarm_VarOptMultiprocess:
                                              reverse_sorted_prices)
 
     def _calculate_path_cost(self, km, sorted_prices):
+        """
+        Returns the cost of traveling a distance
+
+        Args:
+        km: kilometers traveled
+        sorted_prices: array of prices of the path
+
+        Return:
+        Cost of fuel for the kilometers traveled
+        """
+
         liters = km / self.consumption
         liters_aux = liters
         cost = 0
@@ -295,21 +381,41 @@ class ParticleSwarm_VarOptMultiprocess:
                 cost += liters_aux * sorted_prices[i]
                 return cost
 
-    def _path_prices(self, path):  # array of prices of the path
+    def _path_prices(self, path):  #
+        """
+        Returns the array of prices of the path
+
+        Args:
+        path: array of nodes
+
+        Returns:
+        Array of prices of the path
+        """
+
         prices_arr = np.zeros(len(path))
         for i in range(len(path)):
             prices_arr[i] = self.prices[path[i]]
         return prices_arr
 
-    def run(self, verbose=True, optType=1, excel=True, file_path = 'output_file.xlsx', randomReset=True, minRandom=0.2, maxRandom=0.8, k=10, v=10):
+    def run(self, verbose=True, optType=10, excel=True, file_path = 'output_file.xlsx',
+            permutReset=True, minPermut=0.2, maxPermut=0.8, k=10):
         """
-        Conducts particle swarm optimization
+        Particle swarm optimization
 
-        :param verbose: indicates whether or not to print progress regularly
-        :param excel: indicates whether or not to save progress regularly
-        :return: best member of swarm and objective function value of best member of swarm
+        Args:
+        verbose: indicates whether or not to print progress regularly
+        optType: type of algorithm or combination of algorithms for searches
+        excel: indicates whether or not to save progress regularly
+        file_path: path for saving progress regularly
+        permutReset: probability of permutation
+        minPermut: minimum probability value
+        maxPermut: maximum probability value
+        k: k constant for k-Opt algorithms
+
+        Returns:
+        The best member of swarm and its objective function value
         """
-        self._clear(randomReset, minRandom, maxRandom, k, v)
+        self._clear(permutReset, minPermut, maxPermut, k)
         
         output_list = []
 
@@ -338,7 +444,7 @@ class ParticleSwarm_VarOptMultiprocess:
                 if verbose:
                     print(self)
                 if excel:
-                    output_list.append(self._dataSave())
+                    output_list.append(self._dataToSave())
 
             aux_n_steps += 1
 
@@ -355,7 +461,13 @@ class ParticleSwarm_VarOptMultiprocess:
         print(self)
         return self.global_best[0], self._objective(self.global_best[0])
 
-    def _dataSave(self):
+    def _dataToSave(self):
+        """
+        Return a string representation of a class instance depending on whether it is TSP or TSPWR
+
+        Returns:
+        String representative of the best result achieved by the swarm
+        """
         if self.refuel_mode == False:
             return [self.cur_steps, self._calculate_distance(self.global_best[0])]
         else:
@@ -363,15 +475,22 @@ class ParticleSwarm_VarOptMultiprocess:
 
     def _Opt_Type(self, optType):
         """
-        1 = 2-Opt con Flip
-        2 = 2,5-Opt
-        3 = 2-Opt
-        4 = k-Opt FLip
-        5 = k-Opt Random
-        10 = 2-Opt Flip + 2,5-Opt (change)
-        12 = 2-Opt Flip + 2,5-Opt (20-80)
-        15 = 2-Opt Flip + k-Opt Random (20-80)
-        21 = 2,5-Opt + 2-Opt Flip (20-80)
+        Returns the type of simple algorithm depending on the search
+
+        Args:
+        optType: type of algorithm or combination of algorithms. Possible values:
+            1 = 2-Opt con Flip
+            2 = 2,5-Opt
+            3 = 2-Opt
+            4 = k-Opt FLip
+            5 = k-Opt Random
+            10 = 2-Opt Flip + 2,5-Opt (change)
+            12 = 2-Opt Flip + 2,5-Opt (20-80)
+            15 = 2-Opt Flip + k-Opt Random (20-80)
+            21 = 2,5-Opt + 2-Opt Flip (20-80)
+
+        Returns:
+        None
         """
 
         for i, nIter in enumerate(self.nIter):
@@ -403,19 +522,16 @@ class ParticleSwarm_VarOptMultiprocess:
 
 
 
-        '''for i, nIter in enumerate(self.nIter):
-            if nIter > (self.max_steps / self.member_size):
-                if self.vel[i][1] == 1:
-                    self.vel[i][1] = 2
-                else:
-                    self.vel[i][1] = 1'''
-
-
-
-
     def _compute_position(self, args):
-        """Update the position of the swarm
-        This computes the next position in a discrete swarm.
+        """
+        Position calculation of a particle
+
+        Args:
+        args: current position, current velocity, current number of unimproved iterations and current best objective
+
+        Returs:
+        New position, new velocity, new number of unimproved iterations and new best objective
+
         """
         x, vel, nIter, fx = args
 
@@ -468,7 +584,7 @@ class ParticleSwarm_VarOptMultiprocess:
                     if nIter_aux >= vel[0]:
                         break
             elif vel[1] == 4:
-                for j, xn in enumerate(self._k_opt_Flip_gen(x,self.v)):
+                for j, xn in enumerate(self._k_opt_Flip(x,self.k)):
                     nIter_aux += 1
                     nIter += 1
                     fn =  self._objective(xn)
@@ -481,7 +597,7 @@ class ParticleSwarm_VarOptMultiprocess:
                     if nIter_aux >= vel[0]:
                         break
             elif vel[1] == 5:
-                for j, xn in enumerate(self._k_opt_Random_gen(x,self.k)):
+                for j, xn in enumerate(self._k_opt_Random(x,self.k)):
                     nIter_aux += 1
                     nIter += 1
                     fn =  self._objective(xn)
@@ -498,7 +614,9 @@ class ParticleSwarm_VarOptMultiprocess:
 
     
     def _two_opt_FLip(self, x: np.ndarray) -> Generator[np.ndarray, np.ndarray, None]:
-        """2-opt Flip"""
+        """
+        2-opt Flip
+        """
         n = len(x)
         if self.ring_mode == False:
             node_init = 0
@@ -517,7 +635,9 @@ class ParticleSwarm_VarOptMultiprocess:
                          
    
     def _two_opt(self, x: np.ndarray) -> Generator[np.ndarray, np.ndarray, None]:
-        """2-opt"""
+        """
+        2-opt
+        """
         n = len(x)
         if self.ring_mode == False:
             node_init = 0
@@ -535,8 +655,10 @@ class ParticleSwarm_VarOptMultiprocess:
                 xn[j] = x[i]
                 yield xn                   
 
-    def _k_opt_Flip_gen(self, x: np.ndarray, k: int) -> Generator[np.ndarray, np.ndarray, None]:
-        """k-opt FLip"""
+    def _k_opt_Flip(self, x: np.ndarray, k: int) -> Generator[np.ndarray, np.ndarray, None]:
+        """
+        k-opt FLip
+        """
         n = len(x)
         if self.ring_mode == False:
             node_init = 0
@@ -564,7 +686,9 @@ class ParticleSwarm_VarOptMultiprocess:
 
                         
     def _two_and_a_half_opt(self, x: np.ndarray) -> Generator[np.ndarray, np.ndarray, None]:
-        """2h-opt"""
+        """
+        2,5-opt
+        """
         n = len(x)
         i_range = np.arange(0, n) 
 
@@ -577,8 +701,10 @@ class ParticleSwarm_VarOptMultiprocess:
                 xn = np.insert(xn, j, node)
                 yield xn
                 
-    def _k_opt_Random_gen(self, x: np.ndarray, k: int) -> Generator[np.ndarray, np.ndarray, None]:
-        """k-opt Random"""
+    def _k_opt_Random(self, x: np.ndarray, k: int) -> Generator[np.ndarray, np.ndarray, None]:
+        """
+        k-opt Random
+        """
         n = len(x)
         if self.ring_mode == False:
             node_init = 0
