@@ -11,13 +11,13 @@ from ParticleSwarm_VarOptMultiprocess import ParticleSwarm_VarOptMultiprocess
 import numpy as np
 
 
-distance_matrix = raead_distance_matrix_EUC2D_TSPLIB("./DataSets/berlin52.tsp")
+distance_matrix = raead_distance_matrix_EUC2D_TSPLIB("./DataSets/ch150.tsp")
 arr_rounded = np.round(distance_matrix, decimals=0)
 
 """RING MODE"""
 
 N = 8
-c1 = 2500
-algorithm = ParticleSwarm_VarOptMultiprocess(N,c1,arr_rounded,True) #7542.00
-algorithm.run(False, 10,False, " ", True)
-
+c1 = 8000
+optType = 10
+algorithm = ParticleSwarm_VarOptMultiprocess(N,c1,arr_rounded,True) #6528
+algorithm.run(True, optType, False, " ", True, 0.2, 0.8)

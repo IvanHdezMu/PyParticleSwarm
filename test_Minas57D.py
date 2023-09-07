@@ -17,7 +17,7 @@ maxCapacity = 150.0 # capacidad del vehiculo en litros
 consumption = 7.0 # consumo del vehiculo en Km por litro
 
 # leer los datos del archivo Excel y almacenarlos en un DataFrame
-df = pd.read_excel('./DataSets/ciudades_Bahia30D.xlsx')
+df = pd.read_excel('./DataSets/ciudades_Minas57D.xlsx')
 
 
 cities = []
@@ -44,6 +44,6 @@ for i, start in enumerate(cities):
 "NO FULL TANK AT FIRST"
 
 N=8
-c1 = 1200
+c1 = 3000
 algorithm = ParticleSwarm_VarOptMultiprocess(N, c1,distance_matrix,False,False,prices, maxCapacity, consumption,True)
 algorithm.run(True, 10, False, " ", True)
