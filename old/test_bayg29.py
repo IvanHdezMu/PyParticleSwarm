@@ -6,7 +6,7 @@ Created on Fri May 12 19:35:57 2023
 """
 
 # Import modules
-from raead_distance_matrix_GEO_TSPLIB import raead_distance_matrix_GEO_TSPLIB
+from Read_TSPLIB.raead_distance_matrix_GEO_TSPLIB import raead_distance_matrix_GEO_TSPLIB
 from ParticleSwarm_VarOptMultiprocess import ParticleSwarm_VarOptMultiprocess
 
 

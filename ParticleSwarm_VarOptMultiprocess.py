@@ -2,7 +2,9 @@
 """
 Created on Fri May 26 17:37:31 2023
 
-@author: ihm12
+@author: Ivan Hernandez Muñoz
+
+Algorithm based on Solid's ParticleSwarm (Python framework for gradient-free optimization)
 """
 
 import numpy as np
