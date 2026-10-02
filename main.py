@@ -9,8 +9,8 @@ import numpy as np
 import pandas as pd
 from geopy import distance
 from ParticleSwarm_VarOptMultiprocess import ParticleSwarm_VarOptMultiprocess
-from Read_TSPLIB.raead_distance_matrix_EUC2D_TSPLIB import raead_distance_matrix_EUC2D_TSPLIB
-from Read_TSPLIB.raead_distance_matrix_GEO_TSPLIB import raead_distance_matrix_GEO_TSPLIB
+from Read_TSPLIB.read_distance_matrix_EUC2D_TSPLIB import read_distance_matrix_EUC2D_TSPLIB
+from Read_TSPLIB.read_distance_matrix_GEO_TSPLIB import read_distance_matrix_GEO_TSPLIB
 
 ROOT = Path(__file__).resolve().parent
 
@@ -60,16 +60,16 @@ def build_experiments(options=None):
     for entry in options['experiments']:
         values = {**options['defaults'], **entry}
         if values['dataset'] not in options['datasets']:
-            raise ValueError(f"Dataset desconocido: {values['dataset']}")
+            raise ValueError(f"Unknown dataset: {values['dataset']}")
         for field in ('steps', 'particles', 'opts', 'minimums', 'maximums',
                       'rings', 'full_tanks'):
             if not isinstance(values[field], list) or not values[field]:
-                raise ValueError(f"{field} debe ser una lista no vacía.")
+                raise ValueError(f"{field} must be a non-empty list.")
             values[field] = tuple(values[field])
         repetitions = values['repetitions']
         values['repetitions'] = range(repetitions['start'], repetitions['stop'])
         if not values['repetitions']:
-            raise ValueError('El rango de repeticiones no puede estar vacío.')
+            raise ValueError('The repetition range cannot be empty.')
         experiments.append(Experiment(**values))
     return experiments
 
@@ -79,13 +79,13 @@ EXPERIMENTS = build_experiments()
 def load_dataset(name):
     dataset = DATASETS[name]
     fmt = dataset['format']
-    path = ROOT / 'DataSets' / dataset['filename']
+    path = ROOT / 'Datasets' / dataset['filename']
     if fmt == 'euc':
-        return np.round(raead_distance_matrix_EUC2D_TSPLIB(path), 0), None
+        return np.round(read_distance_matrix_EUC2D_TSPLIB(path), 0), None
     if fmt == 'matrix':
-        return raead_distance_matrix_GEO_TSPLIB(path), None
+        return read_distance_matrix_GEO_TSPLIB(path), None
     if fmt != 'excel':
-        raise ValueError(f'Formato de dataset desconocido: {fmt}')
+        raise ValueError(f'Unknown dataset format: {fmt}')
     df = pd.read_excel(path)
     coordinates = df.iloc[:, 1:3].to_numpy()
     matrix = np.zeros((len(coordinates), len(coordinates)))
@@ -111,13 +111,14 @@ def result_filename(experiment, configuration):
 
 def execute(experiment, output_dir=None):
     matrix, prices = load_dataset(experiment.dataset)
-    destination = Path(output_dir) if output_dir is not None else ROOT / RUN_OPTIONS['output_dir']
+    destination = (Path(output_dir) if output_dir is not None
+                   else ROOT / RUN_OPTIONS['output_dir']) / experiment.dataset
     if experiment.excel:
         destination.mkdir(parents=True, exist_ok=True)
     for index, configuration in enumerate(experiment.configurations(), 1):
         n, c1, opt, minimum, maximum, ring, full, _ = configuration
-        print(f'\nEjecución {index}/{experiment.count}: N={n}, c1={c1}, '
-              f'Opt={opt}, circuito={ring}, depósito lleno={full}')
+        print(f'\nRun {index}/{experiment.count}: N={n}, c1={c1}, '
+              f'Opt={opt}, circuit={ring}, full tank={full}')
         algorithm = ParticleSwarm_VarOptMultiprocess(
             N=n, c1=c1, distance_matrix=matrix, ring_mode=ring,
             refuel_mode=experiment.refuel, prices=prices,
@@ -138,24 +139,24 @@ def choose_option(title, options, describe, numbers=None):
     print(f'\n{title}')
     for number, option in numbered_options.items():
         print(f'{number:2}. {describe(option)}')
-    print(' 0. Salir')
+    print(' 0. Exit')
     while True:
         try:
-            choice = int(input('\nNúmero: '))
+            choice = int(input('\nNumber: '))
         except ValueError:
-            print('Introduce un número del menú.')
+            print('Enter a number from the menu.')
             continue
         if choice == 0:
             return None
         if choice in numbered_options:
             return numbered_options[choice]
-        print('Ese número no aparece en el menú.')
+        print('That number is not on the menu.')
 
 
 def choose_experiment():
-    return choose_option('¿Qué quieres ejecutar?', EXPERIMENTS,
+    return choose_option('What do you want to run?', EXPERIMENTS,
                          lambda experiment: f'{experiment.dataset}: {experiment.label} '
-                         f'({experiment.count} ejecuciones)')
+                         f'({experiment.count} runs)')
 
 
 def analysis_menu_options(analyses):
@@ -168,34 +169,34 @@ def analysis_menu_options(analyses):
 
 def main():
     try:
-        mode = choose_option('¿Qué quieres hacer?', ('run', 'analysis'),
-                             lambda mode: 'run — Ejecutar' if mode == 'run' else 'analysis — Analizar resultados')
+        mode = choose_option('What do you want to do?', ('run', 'analysis'),
+                             lambda mode: 'run — Execute' if mode == 'run' else 'analysis — Analyze results')
         if mode == 'run':
             experiment = choose_experiment()
             if experiment is not None:
                 execute(experiment)
         elif mode == 'analysis':
-            from analisis import analyze, first_missing_result, load_analysis_options
+            from analysis import analyze, first_missing_result, load_analysis_options
             numbered = analysis_menu_options(load_analysis_options())
             counts = {(experiment.dataset, experiment.label): experiment.count
                       for experiment in EXPERIMENTS}
-            analysis = choose_option('¿Qué análisis quieres ejecutar?', list(numbered.values()),
+            analysis = choose_option('Which results do you want to analyze?', list(numbered.values()),
                                      lambda option: f"{option['label']} "
-                                     f"({counts[(option['experiment']['dataset'], option['experiment']['label'])]} ejecuciones)",
+                                     f"({counts[(option['experiment']['dataset'], option['experiment']['label'])]} runs)",
                                      numbers=numbered)
             if analysis is not None:
                 number = next(number for number, item in numbered.items() if item is analysis)
                 missing = first_missing_result(analysis)
                 if missing is not None:
-                    print(f'Faltan resultados para la opción {number}: {missing}')
-                    if input(f'¿Ejecutar run {number} ahora? [s/N]: ').strip().lower() not in ('s', 'si', 'sí'):
+                    print(f'Missing results for option {number}: {missing}')
+                    if input(f'Run option {number} now? [y/N]: ').strip().lower() not in ('y', 'yes'):
                         return
                     execute(EXPERIMENTS[number - 1])
                 analyze(analysis)
     except (EOFError, KeyboardInterrupt):
-        print('\nOperación cancelada.')
+        print('\nOperation cancelled.')
     except (OSError, ValueError, KeyError) as error:
-        print(f'No se pudo completar la operación: {error}')
+        print(f'Could not complete the operation: {error}')
 
 
 if __name__ == '__main__':

@@ -7,26 +7,26 @@ Created on Sat May 13 19:40:55 2023
 import numpy as np
 
 
-def raead_distance_matrix_EUC2D_TSPLIB (archivo):
+def read_distance_matrix_EUC2D_TSPLIB(file_path):
     
-    # Abrir el archivo txt en modo de lectura
-    with open(archivo, "r") as f:
-        # Leer las líneas del archivo y almacenarlas en una lista
+    # Open the text file for reading
+    with open(file_path, "r") as f:
+        # Read all lines into a list
         lines = f.readlines()
 
-    # Encontrar la línea que contiene la palabra clave "DIMENSION" y extraer el valor del número
+    # Find DIMENSION and extract its numeric value
     dimension_line = [line for line in lines if "DIMENSION" in line][0]
     dimension = int(dimension_line.split(":")[1])
 
-    # Encontrar la línea que contiene la palabra clave "NODE_COORD_SECTION" y a partir de esa línea, leer el resto de las líneas que contienen las coordenadas de los nodos
+    # Read the node coordinates following NODE_COORD_SECTION
     node_coord_section_line = [line for line in lines if "NODE_COORD_SECTION" in line][0]
     node_coord_section_index = lines.index(node_coord_section_line) + 1
     node_coord_section_lines = lines[node_coord_section_index:node_coord_section_index + dimension]
 
-    # Crear una matriz con el número de filas "DIMENSION" y 3 columnas
+    # Create a matrix with DIMENSION rows and three columns
     cities = [[0 for j in range(3)] for i in range(dimension)]
 
-    # Rellenar la matriz
+    # Fill the matrix
     for line in node_coord_section_lines:
         parts = line.split()
         node = float(parts[0]) - 1.0
@@ -38,8 +38,8 @@ def raead_distance_matrix_EUC2D_TSPLIB (archivo):
         
         
         
-    N = len(cities) # Numero de ciudades
-    #Matriz con distancias
+    N = len(cities)  # Number of cities
+    # Distance matrix
     distance_matrix = np.zeros((N, N))
     for i, start in enumerate(cities):
         for j, end in enumerate(cities):

@@ -82,7 +82,7 @@
     "permut_reset": true,
     "k": 10
   },
-  "output_dir": "Resultados",
+  "output_dir": "Results",
   "experiments": [
     {
       "dataset": "berlin52",
@@ -180,7 +180,7 @@
     },
     {
       "dataset": "berlin52",
-      "label": "barrido de c1 y probabilidades",
+      "label": "c1 and probability sweep",
       "steps": [
         1000,
         2000,
@@ -202,7 +202,7 @@
       },
       "excel": true,
       "style": "berlin_grid",
-      "analysis_output": "Analisis_berlin52_grid.xlsx"
+      "analysis_output": "Analysis_berlin52_grid.xlsx"
     },
     {
       "dataset": "berlin52",
@@ -223,11 +223,11 @@
         "stop": 31
       },
       "excel": true,
-      "analysis_output": "Analisis_berlin52.xlsx"
+      "analysis_output": "Analysis_berlin52.xlsx"
     },
     {
       "dataset": "bays29",
-      "label": "barrido de partículas",
+      "label": "particle sweep",
       "steps": [
         2000
       ],
@@ -247,11 +247,11 @@
       },
       "excel": true,
       "style": "bays",
-      "analysis_output": "Analisis_bays29.xlsx"
+      "analysis_output": "Analysis_bays29.xlsx"
     },
     {
       "dataset": "st70",
-      "label": "barrido de c1",
+      "label": "c1 sweep",
       "steps": [
         3400,
         3600,
@@ -263,11 +263,11 @@
         "stop": 31
       },
       "excel": true,
-      "analysis_output": "Analisis_st70.xlsx"
+      "analysis_output": "Analysis_st70.xlsx"
     },
     {
       "dataset": "ch150",
-      "label": "barrido de c1",
+      "label": "c1 sweep",
       "steps": [
         6000,
         7000,
@@ -280,11 +280,11 @@
         "stop": 11
       },
       "excel": true,
-      "analysis_output": "Analisis_ch150.xlsx"
+      "analysis_output": "Analysis_ch150.xlsx"
     },
     {
       "dataset": "kroA100",
-      "label": "repeticiones 17–20",
+      "label": "repetitions 17–20",
       "steps": [
         3600
       ],
@@ -296,11 +296,11 @@
         "stop": 21
       },
       "excel": true,
-      "analysis_output": "Analisis_kroA100.xlsx"
+      "analysis_output": "Analysis_kroA100.xlsx"
     },
     {
       "dataset": "rat195",
-      "label": "repeticiones 6–10",
+      "label": "repetitions 6–10",
       "steps": [
         20000
       ],
@@ -309,11 +309,11 @@
         "stop": 11
       },
       "excel": true,
-      "analysis_output": "Analisis_rat195.xlsx"
+      "analysis_output": "Analysis_rat195.xlsx"
     },
     {
       "dataset": "Bahia30D",
-      "label": "circuito y depósito inicial",
+      "label": "circuit and initial tank",
       "steps": [
         1200
       ],
@@ -332,11 +332,11 @@
       "excel": true,
       "refuel": true,
       "style": "fuel",
-      "analysis_output": "Analisis_Bahia30D.xlsx"
+      "analysis_output": "Analysis_Bahia30D.xlsx"
     },
     {
       "dataset": "Minas24D",
-      "label": "circuito y depósito inicial",
+      "label": "circuit and initial tank",
       "steps": [
         1200
       ],
@@ -355,11 +355,11 @@
       "excel": true,
       "refuel": true,
       "style": "fuel",
-      "analysis_output": "Analisis_Minas24D.xlsx"
+      "analysis_output": "Analysis_Minas24D.xlsx"
     },
     {
       "dataset": "Minas30D",
-      "label": "circuito y depósito inicial",
+      "label": "circuit and initial tank",
       "steps": [
         1500
       ],
@@ -378,11 +378,11 @@
       "excel": true,
       "refuel": true,
       "style": "fuel",
-      "analysis_output": "Analisis_Minas30D.xlsx"
+      "analysis_output": "Analysis_Minas30D.xlsx"
     },
     {
       "dataset": "Minas57D",
-      "label": "circuito y depósito inicial",
+      "label": "circuit and initial tank",
       "steps": [
         3000
       ],
@@ -401,13 +401,13 @@
       "excel": true,
       "refuel": true,
       "style": "fuel",
-      "analysis_output": "Analisis_Minas57D.xlsx"
+      "analysis_output": "Analysis_Minas57D.xlsx"
     }
   ],
   "historical_analyses": [
     {
       "id": "00",
-      "label": "berlin52: 00 (histórico)",
+      "label": "berlin52: 00 (historical)",
       "parameters": {
         "optType": [
           1,
@@ -421,7 +421,7 @@
         "start": 1,
         "stop": 11
       },
-      "input_template": "Resultados/00/berlin52_{optType}_{number}.xlsx",
+      "input_template": "Results/berlin52/00/berlin52_{optType}_{number}.xlsx",
       "columns": [
         "optType"
       ],
@@ -429,7 +429,7 @@
     },
     {
       "id": "02_08",
-      "label": "berlin52: 02_08 (histórico)",
+      "label": "berlin52: 02_08 (historical)",
       "parameters": {
         "optType": [
           1,
@@ -443,7 +443,7 @@
         "start": 1,
         "stop": 11
       },
-      "input_template": "Resultados/02_08/berlin52_{optType}_{number}.xlsx",
+      "input_template": "Results/berlin52/02_08/berlin52_{optType}_{number}.xlsx",
       "columns": [
         "optType"
       ],

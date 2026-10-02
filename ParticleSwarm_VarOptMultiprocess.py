@@ -455,8 +455,8 @@ class ParticleSwarm_VarOptMultiprocess:
             self._global_best()
 
         if excel:
-            columnas = ['Step', 'Resultado']
-            df = pd.DataFrame(output_list, columns=columnas)
+            columns = ['Step', 'Result']
+            df = pd.DataFrame(output_list, columns=columns)
             df.to_excel(file_path, index=False)
 
         print("TERMINATING - REACHED MAXIMUM STEPS")

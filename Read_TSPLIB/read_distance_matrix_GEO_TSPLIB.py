@@ -7,39 +7,39 @@ Created on Sat May 13 19:40:55 2023
 import numpy as np
 
 
-def raead_distance_matrix_GEO_TSPLIB (archivo):
+def read_distance_matrix_GEO_TSPLIB(file_path):
     
-    # Abrir el archivo txt en modo de lectura
-    with open(archivo, "r") as f:
-        # Leer las líneas del archivo y almacenarlas en una lista
+    # Open the text file for reading
+    with open(file_path, "r") as f:
+        # Read all lines into a list
         lines = f.readlines()
 
-    # Encontrar la línea que contiene la palabra clave "DIMENSION" y extraer el valor del número
+    # Find DIMENSION and extract its numeric value
     dimension_line = [line for line in lines if "DIMENSION" in line][0]
     dimension = int(dimension_line.split(":")[1])
     
-    # Tipo de matriz en fichero
-    formato_line = [line for line in lines if "EDGE_WEIGHT_FORMAT" in line][0]
-    formato = str(formato_line.split(":")[1]).strip()
+    # Matrix format in the file
+    matrix_format_line = [line for line in lines if "EDGE_WEIGHT_FORMAT" in line][0]
+    matrix_format = str(matrix_format_line.split(":")[1]).strip()
     
 
-    # Encontrar la línea que contiene la palabra clave "EDGE_WEIGHT_SECTION" y a partir de esa línea, leer el resto de las líneas que contienen las coordenadas de los nodos
+    # Read the weights following EDGE_WEIGHT_SECTION
     node_coord_section_line = [line for line in lines if "EDGE_WEIGHT_SECTION" in line][0]
     node_coord_section_index = lines.index(node_coord_section_line) + 1
     node_coord_section_lines = lines[node_coord_section_index:node_coord_section_index + dimension]
 
-    # Crear una matriz con el número "DIMENSION" de filas y columnas 
+    # Create a square matrix with DIMENSION rows and columns 
     #cities = [[0 for j in range(dimension)] for i in range(dimension)]
     distance_matrix = np.zeros((dimension,dimension))
     
-    if formato == "FULL_MATRIX":
-        # Rellenar la matriz
+    if matrix_format == "FULL_MATRIX":
+        # Fill the matrix
         for i, line in enumerate(node_coord_section_lines):
             parts = line.split()
             for j, part in enumerate(parts):
                 distance_matrix[i][j] = int(part)
-    elif formato == "UPPER_ROW":
-        # Rellenar la matriz
+    elif matrix_format == "UPPER_ROW":
+        # Fill the matrix
         for i, line in enumerate(node_coord_section_lines):
             parts = line.split()
             for j in range(dimension):                         

@@ -5,7 +5,7 @@ from pathlib import Path
 import pandas as pd
 
 ROOT = Path(__file__).resolve().parent
-METRICS = ['media_valor_min', 'media_step_valor_minimo', 'mejor_resultado']
+METRICS = ['mean_minimum_result', 'mean_step_of_minimum', 'best_result']
 
 
 def analysis_for_experiment(analysis, options):
@@ -17,10 +17,10 @@ def analysis_for_experiment(analysis, options):
                if experiment.dataset == reference['dataset']
                and experiment.label == reference['label']]
     if len(matches) != 1:
-        raise ValueError(f"{analysis['id']}: el experimento debe coincidir con una única ejecución.")
+        raise ValueError(f"{analysis['id']}: the analysis must match exactly one run.")
     experiment = matches[0]
     if not experiment.excel:
-        raise ValueError(f"{analysis['id']}: el experimento no guarda resultados (excel=false).")
+        raise ValueError(f"{analysis['id']}: the run does not save results (excel=false).")
     parameters = {'random': [True], 'N': list(experiment.particles),
                   'c1': list(experiment.steps), 'optType': list(experiment.opts)}
     if experiment.style == 'fuel':
@@ -30,7 +30,7 @@ def analysis_for_experiment(analysis, options):
                           maxR=list(experiment.maximums))
     filename = result_filename(experiment, ('{N}', '{c1}', '{optType}',
                               '{minR}', '{maxR}', '{ring}', '{full}', '{number}'))
-    destination = Path(options['output_dir'])
+    destination = Path(options['output_dir']) / experiment.dataset
     return {**analysis, 'parameters': parameters, 'columns': list(parameters),
             'repetitions': {'start': experiment.repetitions.start,
                             'stop': experiment.repetitions.stop},
@@ -49,21 +49,21 @@ def load_analysis_options(run_options_path=None):
             'label': f'{experiment.dataset}: {experiment.label}',
             'experiment': {'dataset': experiment.dataset, 'label': experiment.label},
             'output': experiment.analysis_output or
-                      f'Analisis_{experiment.dataset}_{experiment.label}.xlsx',
+                      f'Analysis_{experiment.dataset}_{experiment.label}.xlsx',
         }
         analyses.append(analysis_for_experiment(analysis, options))
     identifiers = set()
     for analysis in analyses:
         if analysis['id'] in identifiers:
-            raise ValueError(f"Identificador de análisis duplicado: {analysis['id']}")
+            raise ValueError(f"Duplicate analysis identifier: {analysis['id']}")
         identifiers.add(analysis['id'])
         parameters = analysis['parameters']
         if not parameters or any(not isinstance(v, list) or not v for v in parameters.values()):
-            raise ValueError(f"Parámetros vacíos o inválidos en {analysis['id']}.")
+            raise ValueError(f"Empty or invalid parameters in {analysis['id']}.")
         if any(column not in parameters for column in analysis['columns']):
-            raise ValueError(f"Columnas desconocidas en {analysis['id']}.")
+            raise ValueError(f"Unknown columns in {analysis['id']}.")
         if not repetition_numbers(analysis):
-            raise ValueError(f"Repeticiones vacías en {analysis['id']}.")
+            raise ValueError(f"Empty repetitions in {analysis['id']}.")
     return analyses
 
 
@@ -95,7 +95,7 @@ def analyze(analysis, root=None):
     rows = []
     numbers = repetition_numbers(analysis)
     if not numbers:
-        raise ValueError('El rango de repeticiones no puede estar vacío.')
+        raise ValueError('The repetition range cannot be empty.')
     for values in product(*parameters.values()):
         configuration = dict(zip(parameters, values))
         minimums, steps = [], []
@@ -104,16 +104,16 @@ def analyze(analysis, root=None):
             try:
                 frame = pd.read_excel(path)
             except FileNotFoundError as error:
-                raise FileNotFoundError(f'Falta el archivo de resultados: {path}') from error
-            if not {'Resultado', 'Step'}.issubset(frame.columns):
-                raise ValueError(f'{path}: faltan las columnas Resultado o Step.')
-            if frame.empty or frame['Resultado'].isna().all():
-                raise ValueError(f'{path}: no contiene resultados válidos.')
-            index = frame['Resultado'].idxmin()
-            minimum = frame.loc[index, 'Resultado']
+                raise FileNotFoundError(f'Missing results file: {path}') from error
+            if not {'Result', 'Step'}.issubset(frame.columns):
+                raise ValueError(f'{path}: missing Result or Step columns.')
+            if frame.empty or frame['Result'].isna().all():
+                raise ValueError(f'{path}: does not contain valid results.')
+            index = frame['Result'].idxmin()
+            minimum = frame.loc[index, 'Result']
             step = frame.loc[index, 'Step']
             if pd.isna(step):
-                raise ValueError(f'{path}: el resultado mínimo no tiene Step.')
+                raise ValueError(f'{path}: the minimum result has no Step.')
             minimums.append(minimum)
             steps.append(step)
         row = {column: configuration[column] for column in analysis['columns']}
@@ -125,6 +125,6 @@ def analyze(analysis, root=None):
         destination = base / analysis['output']
         destination.parent.mkdir(parents=True, exist_ok=True)
         table.to_excel(destination, index=False)
-        print(f'Análisis guardado en {destination}')
+        print(f'Analysis saved to {destination}')
     print(table.to_string(index=False))
     return table
