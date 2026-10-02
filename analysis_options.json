@@ -1,0 +1,538 @@
+{
+  "analyses": [
+    {
+      "id": "00",
+      "label": "berlin52: 00",
+      "parameters": {
+        "optType": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ]
+      },
+      "repetitions": {
+        "start": 1,
+        "stop": 11
+      },
+      "input_template": "Resultados/00/berlin52_{optType}_{number}.xlsx",
+      "columns": [
+        "optType"
+      ],
+      "output": null
+    },
+    {
+      "id": "02_08",
+      "label": "berlin52: 02_08",
+      "parameters": {
+        "optType": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ]
+      },
+      "repetitions": {
+        "start": 1,
+        "stop": 11
+      },
+      "input_template": "Resultados/02_08/berlin52_{optType}_{number}.xlsx",
+      "columns": [
+        "optType"
+      ],
+      "output": null
+    },
+    {
+      "id": "Bahia30D",
+      "label": "Bahia30D: Bahia30D",
+      "parameters": {
+        "random": [
+          true
+        ],
+        "N": [
+          8
+        ],
+        "c1": [
+          1500
+        ],
+        "optType": [
+          10
+        ],
+        "ring": [
+          false,
+          true
+        ],
+        "full": [
+          false,
+          true
+        ]
+      },
+      "repetitions": {
+        "start": 1,
+        "stop": 31
+      },
+      "input_template": "Resultados/Bahia30D_{random}_{N}_{c1}_{optType}_{ring}_{full}_{number}.xlsx",
+      "columns": [
+        "random",
+        "N",
+        "c1",
+        "optType",
+        "ring",
+        "full"
+      ],
+      "output": "Resultados/Analisis_Bahia30D.xlsx"
+    },
+    {
+      "id": "Minas24D",
+      "label": "Minas24D: Minas24D",
+      "parameters": {
+        "random": [
+          true
+        ],
+        "N": [
+          8
+        ],
+        "c1": [
+          1200
+        ],
+        "optType": [
+          10
+        ],
+        "ring": [
+          false,
+          true
+        ],
+        "full": [
+          false,
+          true
+        ]
+      },
+      "repetitions": {
+        "start": 1,
+        "stop": 31
+      },
+      "input_template": "Resultados/Minas24D_{random}_{N}_{c1}_{optType}_{ring}_{full}_{number}.xlsx",
+      "columns": [
+        "random",
+        "N",
+        "c1",
+        "optType",
+        "ring",
+        "full"
+      ],
+      "output": "Resultados/Analisis_Minas24D.xlsx"
+    },
+    {
+      "id": "Minas30D",
+      "label": "Minas30D: Minas30D",
+      "parameters": {
+        "random": [
+          true
+        ],
+        "N": [
+          8
+        ],
+        "c1": [
+          1500
+        ],
+        "optType": [
+          10
+        ],
+        "ring": [
+          false,
+          true
+        ],
+        "full": [
+          false,
+          true
+        ]
+      },
+      "repetitions": {
+        "start": 1,
+        "stop": 31
+      },
+      "input_template": "Resultados/Minas30D_{random}_{N}_{c1}_{optType}_{ring}_{full}_{number}.xlsx",
+      "columns": [
+        "random",
+        "N",
+        "c1",
+        "optType",
+        "ring",
+        "full"
+      ],
+      "output": "Resultados/Analisis_Minas30D.xlsx"
+    },
+    {
+      "id": "Minas57D",
+      "label": "Minas57D: Minas57D",
+      "parameters": {
+        "random": [
+          true
+        ],
+        "N": [
+          8
+        ],
+        "c1": [
+          3000
+        ],
+        "optType": [
+          10
+        ],
+        "ring": [
+          false,
+          true
+        ],
+        "full": [
+          false,
+          true
+        ]
+      },
+      "repetitions": {
+        "start": 1,
+        "stop": 31
+      },
+      "input_template": "Resultados/Minas57D_{random}_{N}_{c1}_{optType}_{ring}_{full}_{number}.xlsx",
+      "columns": [
+        "random",
+        "N",
+        "c1",
+        "optType",
+        "ring",
+        "full"
+      ],
+      "output": "Resultados/Analisis_Minas57D.xlsx"
+    },
+    {
+      "id": "bays29_optType",
+      "label": "bays29: bays29_optType",
+      "parameters": {
+        "random": [
+          true
+        ],
+        "N": [
+          2,
+          4,
+          6,
+          8,
+          10,
+          12,
+          14,
+          16
+        ],
+        "c1": [
+          2000
+        ],
+        "optType": [
+          10
+        ]
+      },
+      "repetitions": {
+        "start": 1,
+        "stop": 6
+      },
+      "input_template": "Resultados/bays29_{random}_{N}_{c1}_{optType}_{number}.xlsx",
+      "columns": [
+        "random",
+        "N",
+        "c1",
+        "optType"
+      ],
+      "output": "Resultados/Analisis_bays29.xlsx"
+    },
+    {
+      "id": "berlin52_optType",
+      "label": "berlin52: berlin52_optType",
+      "parameters": {
+        "random": [
+          true
+        ],
+        "N": [
+          8
+        ],
+        "c1": [
+          2000,
+          2200,
+          2400,
+          2600,
+          2800,
+          3000
+        ],
+        "optType": [
+          21
+        ],
+        "kv": [
+          10
+        ],
+        "minR": [
+          0.2
+        ],
+        "maxR": [
+          0.8
+        ]
+      },
+      "repetitions": {
+        "start": 1,
+        "stop": 31
+      },
+      "input_template": "Resultados/berlin52_{random}_{N}_{c1}_{optType}_{kv}_{minR}_{maxR}_{number}.xlsx",
+      "columns": [
+        "random",
+        "N",
+        "c1",
+        "optType",
+        "kv"
+      ],
+      "output": "Resultados/Analisis_berlin52.xlsx"
+    },
+    {
+      "id": "berlin52_optType_2",
+      "label": "berlin52: berlin52_optType_2",
+      "parameters": {
+        "random": [
+          true
+        ],
+        "N": [
+          8
+        ],
+        "c1": [
+          1000,
+          2000
+        ],
+        "optType": [
+          10
+        ],
+        "kv": [
+          10
+        ],
+        "minR": [
+          0.0,
+          0.2,
+          0.4
+        ],
+        "maxR": [
+          0.4,
+          0.6,
+          0.8
+        ]
+      },
+      "repetitions": {
+        "start": 1,
+        "stop": 6
+      },
+      "input_template": "Resultados/berlin52_{random}_{N}_{c1}_{optType}_{kv}_{minR}_{maxR}_{number}.xlsx",
+      "columns": [
+        "random",
+        "N",
+        "c1",
+        "optType",
+        "kv",
+        "minR",
+        "maxR"
+      ],
+      "output": "Resultados/Analisis_berlin52_grid.xlsx"
+    },
+    {
+      "id": "ch150",
+      "label": "ch150: ch150",
+      "parameters": {
+        "random": [
+          true
+        ],
+        "N": [
+          8,
+          10
+        ],
+        "c1": [
+          6000,
+          7000,
+          8000,
+          9000,
+          10000
+        ],
+        "optType": [
+          10
+        ],
+        "kv": [
+          10
+        ],
+        "minR": [
+          0.2
+        ],
+        "maxR": [
+          0.8
+        ]
+      },
+      "repetitions": {
+        "start": 1,
+        "stop": 11
+      },
+      "input_template": "Resultados/analisis_9/ch150_{random}_{N}_{c1}_{optType}_{kv}_{minR}_{maxR}_{number}.xlsx",
+      "columns": [
+        "random",
+        "N",
+        "c1",
+        "optType",
+        "kv",
+        "minR",
+        "maxR"
+      ],
+      "output": "Resultados/Analisis_ch150.xlsx"
+    },
+    {
+      "id": "kroA100",
+      "label": "kroA100: kroA100",
+      "parameters": {
+        "random": [
+          true
+        ],
+        "N": [
+          8,
+          16
+        ],
+        "c1": [
+          1600,
+          1800,
+          2000,
+          2200,
+          2400,
+          2600,
+          2800,
+          3000,
+          3200,
+          3400,
+          3600,
+          3800,
+          4000,
+          4200,
+          4400
+        ],
+        "optType": [
+          10
+        ],
+        "kv": [
+          10
+        ],
+        "minR": [
+          0.2
+        ],
+        "maxR": [
+          0.8
+        ]
+      },
+      "repetitions": {
+        "start": 1,
+        "stop": 21
+      },
+      "input_template": "Resultados/kroA100/kroA100_{random}_{N}_{c1}_{optType}_{kv}_{minR}_{maxR}_{number}.xlsx",
+      "columns": [
+        "random",
+        "N",
+        "c1",
+        "optType",
+        "kv",
+        "minR",
+        "maxR"
+      ],
+      "output": "Resultados/Analisis_kroA100.xlsx"
+    },
+    {
+      "id": "rat195",
+      "label": "rat195: rat195",
+      "parameters": {
+        "random": [
+          true
+        ],
+        "N": [
+          8
+        ],
+        "c1": [
+          20000
+        ],
+        "optType": [
+          10
+        ],
+        "kv": [
+          10
+        ],
+        "minR": [
+          0.2
+        ],
+        "maxR": [
+          0.8
+        ]
+      },
+      "repetitions": {
+        "start": 1,
+        "stop": 11
+      },
+      "input_template": "Resultados/rat195_{random}_{N}_{c1}_{optType}_{kv}_{minR}_{maxR}_{number}.xlsx",
+      "columns": [
+        "random",
+        "N",
+        "c1",
+        "optType",
+        "kv",
+        "minR",
+        "maxR"
+      ],
+      "output": "Resultados/Analisis_rat195.xlsx"
+    },
+    {
+      "id": "st70",
+      "label": "st70: st70",
+      "parameters": {
+        "random": [
+          true
+        ],
+        "N": [
+          8
+        ],
+        "c1": [
+          1400,
+          1600,
+          1800,
+          2000,
+          2200,
+          2400,
+          2600,
+          2800,
+          3000,
+          3200,
+          3400,
+          3600,
+          3800,
+          4000
+        ],
+        "optType": [
+          10
+        ],
+        "kv": [
+          10
+        ],
+        "minR": [
+          0.2
+        ],
+        "maxR": [
+          0.8
+        ]
+      },
+      "repetitions": {
+        "start": 1,
+        "stop": 31
+      },
+      "input_template": "Resultados/st70_{random}_{N}_{c1}_{optType}_{kv}_{minR}_{maxR}_{number}.xlsx",
+      "columns": [
+        "random",
+        "N",
+        "c1",
+        "optType",
+        "kv",
+        "minR",
+        "maxR"
+      ],
+      "output": "Resultados/Analisis_st70.xlsx"
+    }
+  ]
+}

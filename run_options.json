@@ -1,0 +1,396 @@
+{
+  "datasets": {
+    "berlin52": {
+      "filename": "berlin52.tsp",
+      "format": "euc",
+      "verbose": false
+    },
+    "bays29": {
+      "filename": "bays29.tsp",
+      "format": "matrix",
+      "verbose": false
+    },
+    "st70": {
+      "filename": "st70.tsp",
+      "format": "euc",
+      "verbose": true
+    },
+    "ch150": {
+      "filename": "ch150.tsp",
+      "format": "euc",
+      "verbose": true
+    },
+    "kroA100": {
+      "filename": "kroA100.tsp",
+      "format": "euc",
+      "verbose": true
+    },
+    "rat195": {
+      "filename": "rat195.tsp",
+      "format": "euc",
+      "verbose": true
+    },
+    "Bahia30D": {
+      "filename": "ciudades_Bahia30D.xlsx",
+      "format": "excel",
+      "verbose": true
+    },
+    "Minas24D": {
+      "filename": "Minas24D.xlsx",
+      "format": "excel",
+      "verbose": true
+    },
+    "Minas30D": {
+      "filename": "Minas30D.xlsx",
+      "format": "excel",
+      "verbose": true
+    },
+    "Minas57D": {
+      "filename": "Minas57D.xlsx",
+      "format": "excel",
+      "verbose": true
+    }
+  },
+  "defaults": {
+    "particles": [
+      8
+    ],
+    "opts": [
+      10
+    ],
+    "minimums": [
+      0.2
+    ],
+    "maximums": [
+      0.8
+    ],
+    "rings": [
+      true
+    ],
+    "full_tanks": [
+      false
+    ],
+    "repetitions": {
+      "start": 1,
+      "stop": 2
+    },
+    "excel": false,
+    "refuel": false,
+    "style": "standard",
+    "max_capacity": 150.0,
+    "consumption": 7.0,
+    "permut_reset": true,
+    "k": 10
+  },
+  "output_dir": "Resultados",
+  "experiments": [
+    {
+      "dataset": "berlin52",
+      "label": "individual",
+      "steps": [
+        2500
+      ]
+    },
+    {
+      "dataset": "bays29",
+      "label": "individual",
+      "steps": [
+        1000
+      ]
+    },
+    {
+      "dataset": "st70",
+      "label": "individual",
+      "steps": [
+        2000
+      ]
+    },
+    {
+      "dataset": "ch150",
+      "label": "individual",
+      "steps": [
+        8000
+      ]
+    },
+    {
+      "dataset": "kroA100",
+      "label": "individual",
+      "steps": [
+        3000
+      ]
+    },
+    {
+      "dataset": "rat195",
+      "label": "individual",
+      "steps": [
+        20000
+      ]
+    },
+    {
+      "dataset": "Bahia30D",
+      "label": "individual",
+      "steps": [
+        1200
+      ],
+      "rings": [
+        false
+      ],
+      "full_tanks": [
+        true
+      ]
+    },
+    {
+      "dataset": "Minas24D",
+      "label": "individual",
+      "steps": [
+        1200
+      ],
+      "rings": [
+        false
+      ],
+      "full_tanks": [
+        true
+      ]
+    },
+    {
+      "dataset": "Minas30D",
+      "label": "individual",
+      "steps": [
+        1500
+      ],
+      "rings": [
+        false
+      ],
+      "full_tanks": [
+        true
+      ]
+    },
+    {
+      "dataset": "Minas57D",
+      "label": "individual",
+      "steps": [
+        3000
+      ],
+      "rings": [
+        false
+      ],
+      "full_tanks": [
+        true
+      ]
+    },
+    {
+      "dataset": "berlin52",
+      "label": "barrido de c1 y probabilidades",
+      "steps": [
+        1000,
+        2000,
+        5000
+      ],
+      "minimums": [
+        0.0,
+        0.2,
+        0.4
+      ],
+      "maximums": [
+        0.4,
+        0.6,
+        0.8
+      ],
+      "repetitions": {
+        "start": 1,
+        "stop": 11
+      },
+      "excel": true,
+      "style": "berlin_grid"
+    },
+    {
+      "dataset": "berlin52",
+      "label": "Opt 21",
+      "steps": [
+        2000,
+        2200,
+        2400,
+        2600,
+        2800,
+        3000
+      ],
+      "opts": [
+        21
+      ],
+      "repetitions": {
+        "start": 1,
+        "stop": 31
+      },
+      "excel": true
+    },
+    {
+      "dataset": "bays29",
+      "label": "barrido de partículas",
+      "steps": [
+        2000
+      ],
+      "particles": [
+        2,
+        4,
+        6,
+        8,
+        10,
+        12,
+        14,
+        16
+      ],
+      "repetitions": {
+        "start": 1,
+        "stop": 11
+      },
+      "excel": true,
+      "style": "bays"
+    },
+    {
+      "dataset": "st70",
+      "label": "barrido de c1",
+      "steps": [
+        3400,
+        3600,
+        3800,
+        4000
+      ],
+      "repetitions": {
+        "start": 1,
+        "stop": 31
+      },
+      "excel": true
+    },
+    {
+      "dataset": "ch150",
+      "label": "barrido de c1",
+      "steps": [
+        6000,
+        7000,
+        8000,
+        9000,
+        10000
+      ],
+      "repetitions": {
+        "start": 1,
+        "stop": 11
+      },
+      "excel": true
+    },
+    {
+      "dataset": "kroA100",
+      "label": "repeticiones 17–20",
+      "steps": [
+        3600
+      ],
+      "particles": [
+        16
+      ],
+      "repetitions": {
+        "start": 17,
+        "stop": 21
+      },
+      "excel": true
+    },
+    {
+      "dataset": "rat195",
+      "label": "repeticiones 6–10",
+      "steps": [
+        20000
+      ],
+      "repetitions": {
+        "start": 6,
+        "stop": 11
+      },
+      "excel": true
+    },
+    {
+      "dataset": "Bahia30D",
+      "label": "circuito y depósito inicial",
+      "steps": [
+        1200
+      ],
+      "rings": [
+        false,
+        true
+      ],
+      "full_tanks": [
+        false,
+        true
+      ],
+      "repetitions": {
+        "start": 1,
+        "stop": 31
+      },
+      "excel": true,
+      "refuel": true,
+      "style": "fuel"
+    },
+    {
+      "dataset": "Minas24D",
+      "label": "circuito y depósito inicial",
+      "steps": [
+        1200
+      ],
+      "rings": [
+        false,
+        true
+      ],
+      "full_tanks": [
+        false,
+        true
+      ],
+      "repetitions": {
+        "start": 1,
+        "stop": 31
+      },
+      "excel": true,
+      "refuel": true,
+      "style": "fuel"
+    },
+    {
+      "dataset": "Minas30D",
+      "label": "circuito y depósito inicial",
+      "steps": [
+        1500
+      ],
+      "rings": [
+        false,
+        true
+      ],
+      "full_tanks": [
+        false,
+        true
+      ],
+      "repetitions": {
+        "start": 1,
+        "stop": 31
+      },
+      "excel": true,
+      "refuel": true,
+      "style": "fuel"
+    },
+    {
+      "dataset": "Minas57D",
+      "label": "circuito y depósito inicial",
+      "steps": [
+        3000
+      ],
+      "rings": [
+        false,
+        true
+      ],
+      "full_tanks": [
+        false,
+        true
+      ],
+      "repetitions": {
+        "start": 1,
+        "stop": 31
+      },
+      "excel": true,
+      "refuel": true,
+      "style": "fuel"
+    }
+  ]
+}

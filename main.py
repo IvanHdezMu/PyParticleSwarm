@@ -1,6 +1,8 @@
-"""Entrada común para las ejecuciones individuales y los experimentos."""
+"""Common entry point for running experiments or analyzing their results."""
 from dataclasses import dataclass
 from itertools import product
+import json
+from math import prod
 from pathlib import Path
 
 import numpy as np
@@ -11,20 +13,15 @@ from Read_TSPLIB.raead_distance_matrix_EUC2D_TSPLIB import raead_distance_matrix
 from Read_TSPLIB.raead_distance_matrix_GEO_TSPLIB import raead_distance_matrix_GEO_TSPLIB
 
 ROOT = Path(__file__).resolve().parent
-# nombre, archivo, formato, c1 individual, mostrar progreso
-DATASETS = {
-    'berlin52': ('berlin52.tsp', 'euc', 2500, False),
-    'bays29': ('bays29.tsp', 'matrix', 1000, False),
-    'st70': ('st70.tsp', 'euc', 2000, True),
-    'ch150': ('ch150.tsp', 'euc', 8000, True),
-    'kroA100': ('kroA100.tsp', 'euc', 3000, True),
-    'rat195': ('rat195.tsp', 'euc', 20000, True),
-    'Bahia30D': ('ciudades_Bahia30D.xlsx', 'excel', 1200, True),
-    'Minas24D': ('Minas24D.xlsx', 'excel', 1200, True),
-    'Minas30D': ('Minas30D.xlsx', 'excel', 1500, True),
-    'Minas57D': ('Minas57D.xlsx', 'excel', 3000, True),
-}
 
+
+def load_run_options(path=None):
+    with Path(path or ROOT / 'run_options.json').open(encoding='utf-8') as stream:
+        return json.load(stream)
+
+
+RUN_OPTIONS = load_run_options()
+DATASETS = RUN_OPTIONS['datasets']
 
 @dataclass(frozen=True)
 class Experiment:
@@ -41,6 +38,10 @@ class Experiment:
     excel: bool = False
     refuel: bool = False
     style: str = 'standard'
+    max_capacity: float = 150.0
+    consumption: float = 7.0
+    permut_reset: bool = True
+    k: int = 10
 
     def configurations(self):
         return product(self.particles, self.steps, self.opts, self.minimums,
@@ -48,49 +49,42 @@ class Experiment:
 
     @property
     def count(self):
-        return sum(1 for _ in self.configurations())
+        return prod(len(values) for values in (self.particles, self.steps, self.opts,
+                    self.minimums, self.maximums, self.rings, self.full_tanks, self.repetitions))
 
 
-def build_experiments():
-    experiments = [Experiment(name, 'individual', (c1,), rings=(fmt != 'excel',),
-                              full_tanks=(fmt == 'excel',))
-                   for name, (_, fmt, c1, _) in DATASETS.items()]
-    experiments.extend([
-        Experiment('berlin52', 'barrido de c1 y probabilidades', (1000, 2000, 5000),
-                   minimums=(0.0, 0.2, 0.4), maximums=(0.4, 0.6, 0.8),
-                   repetitions=range(1, 11), excel=True, style='berlin_grid'),
-        Experiment('berlin52', 'Opt 21', (2000, 2200, 2400, 2600, 2800, 3000),
-                   opts=(21,), repetitions=range(1, 31), excel=True),
-        Experiment('bays29', 'barrido de partículas', (2000,),
-                   particles=(2, 4, 6, 8, 10, 12, 14, 16),
-                   repetitions=range(1, 11), excel=True, style='bays'),
-        Experiment('st70', 'barrido de c1', (3400, 3600, 3800, 4000),
-                   repetitions=range(1, 31), excel=True),
-        Experiment('ch150', 'barrido de c1', (6000, 7000, 8000, 9000, 10000),
-                   repetitions=range(1, 11), excel=True),
-        Experiment('kroA100', 'repeticiones 17–20', (3600,), particles=(16,),
-                   repetitions=range(17, 21), excel=True),
-        Experiment('rat195', 'repeticiones 6–10', (20000,),
-                   repetitions=range(6, 11), excel=True),
-    ])
-    experiments.extend(Experiment(name, 'circuito y depósito inicial', (c1,),
-                                  rings=(False, True), full_tanks=(False, True),
-                                  repetitions=range(1, 31), excel=True,
-                                  refuel=True, style='fuel')
-                       for name, (_, fmt, c1, _) in DATASETS.items() if fmt == 'excel')
+def build_experiments(options=None):
+    options = RUN_OPTIONS if options is None else options
+    experiments = []
+    for entry in options['experiments']:
+        values = {**options['defaults'], **entry}
+        if values['dataset'] not in options['datasets']:
+            raise ValueError(f"Dataset desconocido: {values['dataset']}")
+        for field in ('steps', 'particles', 'opts', 'minimums', 'maximums',
+                      'rings', 'full_tanks'):
+            if not isinstance(values[field], list) or not values[field]:
+                raise ValueError(f"{field} debe ser una lista no vacía.")
+            values[field] = tuple(values[field])
+        repetitions = values['repetitions']
+        values['repetitions'] = range(repetitions['start'], repetitions['stop'])
+        if not values['repetitions']:
+            raise ValueError('El rango de repeticiones no puede estar vacío.')
+        experiments.append(Experiment(**values))
     return experiments
-
 
 EXPERIMENTS = build_experiments()
 
 
 def load_dataset(name):
-    filename, fmt, _, _ = DATASETS[name]
-    path = ROOT / 'DataSets' / filename
+    dataset = DATASETS[name]
+    fmt = dataset['format']
+    path = ROOT / 'DataSets' / dataset['filename']
     if fmt == 'euc':
         return np.round(raead_distance_matrix_EUC2D_TSPLIB(path), 0), None
     if fmt == 'matrix':
         return raead_distance_matrix_GEO_TSPLIB(path), None
+    if fmt != 'excel':
+        raise ValueError(f'Formato de dataset desconocido: {fmt}')
     df = pd.read_excel(path)
     coordinates = df.iloc[:, 1:3].to_numpy()
     matrix = np.zeros((len(coordinates), len(coordinates)))
@@ -108,15 +102,15 @@ def result_filename(experiment, configuration):
     elif experiment.style == 'bays':
         suffix = str(number)
     elif experiment.style == 'berlin_grid':
-        suffix = f'10_{number}_{minimum}_{maximum}'
+        suffix = f'{experiment.k}_{number}_{minimum}_{maximum}'
     else:
-        suffix = f'10_{minimum}_{maximum}_{number}'
+        suffix = f'{experiment.k}_{minimum}_{maximum}_{number}'
     return f'{prefix}_{suffix}.xlsx'
 
 
 def execute(experiment, output_dir=None):
     matrix, prices = load_dataset(experiment.dataset)
-    destination = Path(output_dir) if output_dir is not None else ROOT / 'Resultados'
+    destination = Path(output_dir) if output_dir is not None else ROOT / RUN_OPTIONS['output_dir']
     if experiment.excel:
         destination.mkdir(parents=True, exist_ok=True)
     for index, configuration in enumerate(experiment.configurations(), 1):
@@ -126,20 +120,20 @@ def execute(experiment, output_dir=None):
         algorithm = ParticleSwarm_VarOptMultiprocess(
             N=n, c1=c1, distance_matrix=matrix, ring_mode=ring,
             refuel_mode=experiment.refuel, prices=prices,
-            maxCapacity=150.0, consumption=7.0, fullinit=full)
-        algorithm.run(verbose=DATASETS[experiment.dataset][3] and not experiment.excel,
+            maxCapacity=experiment.max_capacity, consumption=experiment.consumption, fullinit=full)
+        algorithm.run(verbose=DATASETS[experiment.dataset]['verbose'] and not experiment.excel,
                       optType=opt, excel=experiment.excel,
                       file_path=destination / result_filename(experiment, configuration),
-                      permutReset=True, minPermut=minimum, maxPermut=maximum, k=10)
+                      permutReset=experiment.permut_reset, minPermut=minimum,
+                      maxPermut=maximum, k=experiment.k)
         if experiment.dataset == 'bays29' and not experiment.excel:
             print(algorithm.nIter)
 
 
-def choose_experiment():
-    print('\n¿Qué quieres ejecutar?')
-    for number, experiment in enumerate(EXPERIMENTS, 1):
-        print(f'{number:2}. {experiment.dataset}: {experiment.label} '
-              f'({experiment.count} ejecuciones)')
+def choose_option(title, options, describe):
+    print(f'\n{title}')
+    for number, option in enumerate(options, 1):
+        print(f'{number:2}. {describe(option)}')
     print(' 0. Salir')
     while True:
         try:
@@ -149,18 +143,35 @@ def choose_experiment():
             continue
         if choice == 0:
             return None
-        if 1 <= choice <= len(EXPERIMENTS):
-            return EXPERIMENTS[choice - 1]
+        if 1 <= choice <= len(options):
+            return options[choice - 1]
         print('Ese número no aparece en el menú.')
+
+
+def choose_experiment():
+    return choose_option('¿Qué quieres ejecutar?', EXPERIMENTS,
+                         lambda experiment: f'{experiment.dataset}: {experiment.label} '
+                         f'({experiment.count} ejecuciones)')
 
 
 def main():
     try:
-        experiment = choose_experiment()
-        if experiment is not None:
-            execute(experiment)
+        mode = choose_option('¿Qué quieres hacer?', ('run', 'analysis'),
+                             lambda mode: 'run — Ejecutar' if mode == 'run' else 'analysis — Analizar resultados')
+        if mode == 'run':
+            experiment = choose_experiment()
+            if experiment is not None:
+                execute(experiment)
+        elif mode == 'analysis':
+            from analisis import analyze, load_analysis_options
+            analysis = choose_option('¿Qué análisis quieres ejecutar?', load_analysis_options(),
+                                     lambda option: option['label'])
+            if analysis is not None:
+                analyze(analysis)
     except (EOFError, KeyboardInterrupt):
-        print('\nEjecución cancelada.')
+        print('\nOperación cancelada.')
+    except (OSError, ValueError, KeyError) as error:
+        print(f'No se pudo completar la operación: {error}')
 
 
 if __name__ == '__main__':
