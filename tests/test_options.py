@@ -1,5 +1,7 @@
 import contextlib
 import io
+from itertools import product
+import json
 from pathlib import Path
 import tempfile
 import unittest
@@ -45,10 +47,11 @@ class RunOptionsTests(unittest.TestCase):
              patch.object(main, 'execute') as execute, contextlib.redirect_stdout(io.StringIO()):
             main.main()
         execute.assert_called_once_with(main.EXPERIMENTS[0])
-        with patch('builtins.input', side_effect=['2', '1']), \
+        with patch('builtins.input', side_effect=['2', '11']), \
+             patch.object(analisis, 'first_missing_result', return_value=None), \
              patch.object(analisis, 'analyze') as analyze, contextlib.redirect_stdout(io.StringIO()):
             main.main()
-        self.assertEqual(analyze.call_args.args[0]['id'], '00')
+        self.assertEqual(analyze.call_args.args[0]['id'], 'berlin52_barrido de c1 y probabilidades')
         with patch('builtins.input', side_effect=['0']), \
              patch.object(main, 'execute') as execute, contextlib.redirect_stdout(io.StringIO()):
             main.main()
@@ -96,18 +99,157 @@ class AnalysisTests(unittest.TestCase):
 
     def test_configured_analyses_are_available_from_main(self):
         options = analisis.load_analysis_options()
-        self.assertEqual({option['id'] for option in options}, {
-            '00', '02_08', 'Bahia30D', 'Minas24D', 'Minas30D', 'Minas57D',
-            'bays29_optType', 'berlin52_optType', 'berlin52_optType_2',
-            'ch150', 'kroA100', 'rat195', 'st70',
-        })
-        for number, option in enumerate(options, 1):
+        self.assertEqual({option['id'] for option in options},
+                         {'00', '02_08'} |
+                         {f'{e.dataset}_{e.label}' for e in main.EXPERIMENTS})
+        for number, option in main.analysis_menu_options(options).items():
             with self.subTest(analysis=option['id']), \
                  patch('builtins.input', side_effect=['2', str(number)]), \
+                 patch.object(analisis, 'first_missing_result', return_value=None), \
                  patch.object(analisis, 'analyze') as analyze, \
                  contextlib.redirect_stdout(io.StringIO()):
                 main.main()
                 analyze.assert_called_once_with(option)
+
+    def test_analysis_selection_matches_run_numbers(self):
+        options = analisis.load_analysis_options()
+        for number, experiment in enumerate(main.EXPERIMENTS, 1):
+            if not experiment.excel:
+                continue
+            with self.subTest(run=number), \
+                 patch('builtins.input', side_effect=['2', str(number)]), \
+                 patch.object(analisis, 'first_missing_result', return_value=None), \
+                 patch.object(analisis, 'analyze') as analyze, \
+                 contextlib.redirect_stdout(io.StringIO()):
+                main.main()
+            selected = analyze.call_args.args[0]
+            self.assertEqual(selected['experiment'], {'dataset': experiment.dataset,
+                                                     'label': experiment.label})
+        menu = main.analysis_menu_options(list(reversed(options)))
+        self.assertTrue(all(number in menu for number in range(1, 22)))
+        self.assertEqual(menu[8]['id'], 'Minas24D_individual')
+        self.assertEqual(menu[11]['id'], 'berlin52_barrido de c1 y probabilidades')
+        self.assertEqual(menu[21]['id'], 'Minas57D_circuito y depósito inicial')
+        with patch('builtins.input', side_effect=['2', '24', '11']), \
+             patch.object(analisis, 'first_missing_result', return_value=None), \
+             patch.object(analisis, 'analyze') as analyze, \
+             contextlib.redirect_stdout(io.StringIO()) as output:
+            main.main()
+        self.assertIn('Ese número no aparece en el menú.', output.getvalue())
+        self.assertEqual(analyze.call_args.args[0]['id'], 'berlin52_barrido de c1 y probabilidades')
+
+    def test_missing_run_8_results_offer_execution(self):
+        missing = self.root / 'missing.xlsx'
+        with patch('builtins.input', side_effect=['2', '8', 'n']), \
+             patch.object(analisis, 'first_missing_result', return_value=missing), \
+             patch.object(main, 'execute') as execute, \
+             patch.object(analisis, 'analyze') as analyze, \
+             contextlib.redirect_stdout(io.StringIO()) as output:
+            main.main()
+        self.assertIn('Faltan resultados para la opción 8', output.getvalue())
+        execute.assert_not_called()
+        analyze.assert_not_called()
+
+        with patch('builtins.input', side_effect=['2', '8', 's']), \
+             patch.object(analisis, 'first_missing_result', return_value=missing), \
+             patch.object(main, 'execute') as execute, \
+             patch.object(analisis, 'analyze') as analyze, \
+             contextlib.redirect_stdout(io.StringIO()):
+            main.main()
+        execute.assert_called_once_with(main.EXPERIMENTS[7])
+        self.assertEqual(analyze.call_args.args[0]['id'], 'Minas24D_individual')
+
+    def test_run_8_saves_results_for_analysis_8(self):
+        experiment = main.EXPERIMENTS[7]
+        analysis = main.analysis_menu_options(analisis.load_analysis_options())[8]
+
+        def save_results(**kwargs):
+            self.assertTrue(kwargs['excel'])
+            self.assertTrue(kwargs['verbose'])
+            pd.DataFrame({'Resultado': [20, 5], 'Step': [1, 3]}).to_excel(
+                kwargs['file_path'], index=False)
+
+        with patch.object(main, 'load_dataset', return_value=('matrix', None)), \
+             patch.object(main, 'ParticleSwarm_VarOptMultiprocess') as algorithm, \
+             contextlib.redirect_stdout(io.StringIO()):
+            algorithm.return_value.run.side_effect = save_results
+            main.execute(experiment, output_dir=self.root / main.RUN_OPTIONS['output_dir'])
+            table = analisis.analyze(analysis, root=self.root)
+        self.assertEqual(table['mejor_resultado'].tolist(), [5])
+        self.assertTrue((self.root / analysis['output']).exists())
+
+    def test_current_analyses_read_exactly_the_files_written_by_run(self):
+        experiments = {(e.dataset, e.label): e for e in main.build_experiments() if e.excel}
+        options = [a for a in analisis.load_analysis_options() if 'experiment' in a]
+        self.assertEqual(len(options), len(experiments))
+        for option in options:
+            with self.subTest(analysis=option['id']):
+                reference = option['experiment']
+                experiment = experiments[(reference['dataset'], reference['label'])]
+                expected = [str(Path(main.RUN_OPTIONS['output_dir']) /
+                                main.result_filename(experiment, configuration))
+                            for configuration in experiment.configurations()]
+                actual = []
+                for values in product(*option['parameters'].values()):
+                    configuration = dict(zip(option['parameters'], values))
+                    actual.extend(option['input_template'].format(**configuration, number=number)
+                                  for number in analisis.repetition_numbers(option))
+                self.assertEqual(actual, expected)
+
+    def test_analysis_tracks_changes_to_run_options(self):
+        options = main.load_run_options()
+        options['output_dir'] = 'otros_resultados'
+        options['defaults']['k'] = 7
+        entry = options['experiments'][10]
+        entry.update(steps=[100], minimums=[0.1], maximums=[0.9],
+                     repetitions={'start': 3, 'stop': 5})
+        path = self.root / 'run_options.json'
+        path.write_text(json.dumps(options), encoding='utf-8')
+        analysis = next(a for a in analisis.load_analysis_options(run_options_path=path)
+                        if a['id'] == 'berlin52_barrido de c1 y probabilidades')
+        self.assertEqual(analysis['input_template'],
+                         'otros_resultados/berlin52_True_{N}_{c1}_{optType}_7_{number}_{minR}_{maxR}.xlsx')
+        self.assertEqual(analysis['output'], 'otros_resultados/Analisis_berlin52_grid.xlsx')
+        self.assertEqual(analysis['parameters']['c1'], [100])
+        self.assertEqual(analysis['parameters']['minR'], [0.1])
+        self.assertEqual(list(analisis.repetition_numbers(analysis)), [3, 4])
+
+    def test_execute_outputs_can_be_analyzed_for_every_filename_style(self):
+        for index in (0, 7, 10, 11, 12, 17):
+            options = main.load_run_options()
+            entry = options['experiments'][index]
+            entry.update(steps=[10], particles=[2], minimums=[0.2], maximums=[0.8],
+                         rings=[True], full_tanks=[False],
+                         repetitions={'start': 1, 'stop': 3})
+            experiment = main.build_experiments(options)[index]
+            reference = {'id': 'integration', 'experiment': {'dataset': experiment.dataset,
+                         'label': experiment.label}, 'output': 'summary.xlsx'}
+            analysis = analisis.analysis_for_experiment(reference, options)
+
+            def save_results(**kwargs):
+                pd.DataFrame({'Resultado': [20, 5, 5], 'Step': [1, 3, 4]}).to_excel(
+                    kwargs['file_path'], index=False)
+
+            with self.subTest(style=experiment.style), \
+                 patch.object(main, 'load_dataset', return_value=('matrix', None)), \
+                 patch.object(main, 'ParticleSwarm_VarOptMultiprocess') as algorithm, \
+                 contextlib.redirect_stdout(io.StringIO()):
+                algorithm.return_value.run.side_effect = save_results
+                main.execute(experiment, output_dir=self.root / options['output_dir'])
+                table = analisis.analyze(analysis, root=self.root)
+                self.assertEqual(table['media_valor_min'].tolist(), [5])
+                self.assertEqual(table['media_step_valor_minimo'].tolist(), [3])
+
+    def test_references_to_missing_or_unsaved_experiments_are_rejected(self):
+        reference = {'id': 'invalid', 'experiment': {'dataset': 'berlin52',
+                     'label': 'individual'}, 'output': None}
+        with self.assertRaisesRegex(ValueError, 'no guarda resultados'):
+            options = main.load_run_options()
+            options['experiments'][0]['excel'] = False
+            analisis.analysis_for_experiment(reference, options)
+        reference['experiment']['label'] = 'desconocido'
+        with self.assertRaisesRegex(ValueError, 'única ejecución'):
+            analisis.analysis_for_experiment(reference, main.load_run_options())
 
 
 if __name__ == '__main__':

@@ -74,7 +74,7 @@
       "start": 1,
       "stop": 2
     },
-    "excel": false,
+    "excel": true,
     "refuel": false,
     "style": "standard",
     "max_capacity": 150.0,
@@ -201,7 +201,8 @@
         "stop": 11
       },
       "excel": true,
-      "style": "berlin_grid"
+      "style": "berlin_grid",
+      "analysis_output": "Analisis_berlin52_grid.xlsx"
     },
     {
       "dataset": "berlin52",
@@ -221,7 +222,8 @@
         "start": 1,
         "stop": 31
       },
-      "excel": true
+      "excel": true,
+      "analysis_output": "Analisis_berlin52.xlsx"
     },
     {
       "dataset": "bays29",
@@ -244,7 +246,8 @@
         "stop": 11
       },
       "excel": true,
-      "style": "bays"
+      "style": "bays",
+      "analysis_output": "Analisis_bays29.xlsx"
     },
     {
       "dataset": "st70",
@@ -259,7 +262,8 @@
         "start": 1,
         "stop": 31
       },
-      "excel": true
+      "excel": true,
+      "analysis_output": "Analisis_st70.xlsx"
     },
     {
       "dataset": "ch150",
@@ -275,7 +279,8 @@
         "start": 1,
         "stop": 11
       },
-      "excel": true
+      "excel": true,
+      "analysis_output": "Analisis_ch150.xlsx"
     },
     {
       "dataset": "kroA100",
@@ -290,7 +295,8 @@
         "start": 17,
         "stop": 21
       },
-      "excel": true
+      "excel": true,
+      "analysis_output": "Analisis_kroA100.xlsx"
     },
     {
       "dataset": "rat195",
@@ -302,7 +308,8 @@
         "start": 6,
         "stop": 11
       },
-      "excel": true
+      "excel": true,
+      "analysis_output": "Analisis_rat195.xlsx"
     },
     {
       "dataset": "Bahia30D",
@@ -324,7 +331,8 @@
       },
       "excel": true,
       "refuel": true,
-      "style": "fuel"
+      "style": "fuel",
+      "analysis_output": "Analisis_Bahia30D.xlsx"
     },
     {
       "dataset": "Minas24D",
@@ -346,7 +354,8 @@
       },
       "excel": true,
       "refuel": true,
-      "style": "fuel"
+      "style": "fuel",
+      "analysis_output": "Analisis_Minas24D.xlsx"
     },
     {
       "dataset": "Minas30D",
@@ -368,7 +377,8 @@
       },
       "excel": true,
       "refuel": true,
-      "style": "fuel"
+      "style": "fuel",
+      "analysis_output": "Analisis_Minas30D.xlsx"
     },
     {
       "dataset": "Minas57D",
@@ -390,7 +400,54 @@
       },
       "excel": true,
       "refuel": true,
-      "style": "fuel"
+      "style": "fuel",
+      "analysis_output": "Analisis_Minas57D.xlsx"
+    }
+  ],
+  "historical_analyses": [
+    {
+      "id": "00",
+      "label": "berlin52: 00 (histórico)",
+      "parameters": {
+        "optType": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ]
+      },
+      "repetitions": {
+        "start": 1,
+        "stop": 11
+      },
+      "input_template": "Resultados/00/berlin52_{optType}_{number}.xlsx",
+      "columns": [
+        "optType"
+      ],
+      "output": null
+    },
+    {
+      "id": "02_08",
+      "label": "berlin52: 02_08 (histórico)",
+      "parameters": {
+        "optType": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ]
+      },
+      "repetitions": {
+        "start": 1,
+        "stop": 11
+      },
+      "input_template": "Resultados/02_08/berlin52_{optType}_{number}.xlsx",
+      "columns": [
+        "optType"
+      ],
+      "output": null
     }
   ]
 }
