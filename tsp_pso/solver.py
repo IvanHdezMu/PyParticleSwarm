@@ -21,7 +21,6 @@ class ParticleSwarm_VarOptMultiprocess:
     member_size = None
 
     pos = None
-    scores = None
     best = None
     global_best = None
     
@@ -156,7 +155,7 @@ class ParticleSwarm_VarOptMultiprocess:
         self.fx = self._score(self.pos)   
         self.nIter = np.zeros(self.member_size)
 
-        vel0 = (np.ones(self.swarm_size) * (self.member_size * 1)).astype(int)
+        vel0 = np.full(self.swarm_size, self.member_size, dtype=int)
         vel1 = np.ones(self.swarm_size)
         if permutReset:
             aux_vel2 = np.arange(1, self.swarm_size + 1)
@@ -165,7 +164,6 @@ class ParticleSwarm_VarOptMultiprocess:
             vel2 = np.zeros(self.swarm_size)
         self.vel = np.column_stack((vel0, vel1, vel2))
 
-        self.scores = self._score(self.pos)
         self.best = np.copy(self.pos)
         
         self.global_best = self.best # only because of the size
@@ -214,15 +212,10 @@ class ParticleSwarm_VarOptMultiprocess:
         Total distance traveled
         """
 
-        total_distance = 0
-        
-        for i in range(len(member)-1): # no travel from last node
-            current_node = member[i]
-            next_node = member[i+1]
-            # Sum of the distance to the next node
-            total_distance += self.distance_matrix[current_node, next_node]
+        total_distance = self.distance_matrix[member[:-1], member[1:]].sum()
+
         if self.ring_mode == True:
-            total_distance += self.distance_matrix[next_node, member[0]]
+            total_distance += self.distance_matrix[member[-1], member[0]]
             
         return total_distance
         
@@ -264,14 +257,14 @@ class ParticleSwarm_VarOptMultiprocess:
         path_price = self._path_prices(member)
 
         for i in range(len(member)-1): # In the last city it is never refuel
-            distance_km = self.distance_matrix[member[i]][member[i+1]]
+            distance_km = self.distance_matrix[member[i], member[i+1]]
             distance_liters = distance_km / self.consumption
             
             liters_aux = distance_liters
             if (i <= len(member)-2):
                 for j in range(i+1, len(member)-1):
                     if (path_price[j] < path_price[j+1]):
-                        liters_aux += self.distance_matrix[member[j]][member[j+1]] / self.consumption
+                        liters_aux += self.distance_matrix[member[j], member[j+1]] / self.consumption
                     else:
                         break
                 if liters_aux + tank > 150.0:
@@ -383,7 +376,7 @@ class ParticleSwarm_VarOptMultiprocess:
                 cost += liters_aux * sorted_prices[i]
                 return cost
 
-    def _path_prices(self, path):  #
+    def _path_prices(self, path):
         """
         Returns the array of prices of the path
 
@@ -394,10 +387,7 @@ class ParticleSwarm_VarOptMultiprocess:
         Array of prices of the path
         """
 
-        prices_arr = np.zeros(len(path))
-        for i in range(len(path)):
-            prices_arr[i] = self.prices[path[i]]
-        return prices_arr
+        return self.prices[path]
 
     def run(self, verbose=True, optType=10, excel=False, file_path=None,
             permutReset=True, minPermut=0.2, maxPermut=0.8, k=10):
@@ -426,15 +416,11 @@ class ParticleSwarm_VarOptMultiprocess:
         aux_n_steps = 1
         while self.cur_steps <= self.max_steps:
 
-            self.vel[:,0] = (np.ones(self.swarm_size) * (self.member_size * aux_n_steps)).astype(int)
-            self._Opt_Type(optType) #self.vel[:][1]= ...  #Type of opt
-            #self.vel[:][2] =... #Random probability
+            self.vel[:,0] = self.member_size * aux_n_steps
+            self._Opt_Type(optType)
 
-            #self.pos, self.nIter, self.fx = self._compute_position(self.pos, self.vel, self.nIter, self.fx)
             with Pool() as p:
                 results = p.map(self._compute_position, zip(self.pos, self.vel, self.nIter, self.fx))
-            p.close()
-            p.join()
 
             pos, nIter, fx, vel = zip(*results)
             self.pos = np.array(pos)
@@ -442,7 +428,7 @@ class ParticleSwarm_VarOptMultiprocess:
             self.fx = np.array(fx)
             self.vel = np.array(vel)
 
-            self.cur_steps += self.vel[0][0]
+            self.cur_steps += self.vel[0, 0]
 
             if self.cur_steps > self.member_size * 5:
                 if verbose:
@@ -453,7 +439,6 @@ class ParticleSwarm_VarOptMultiprocess:
             aux_n_steps += 1
 
             self._best()
-            self.scores = self._score(self.pos)
             self._global_best()
 
         if excel:
@@ -499,30 +484,30 @@ class ParticleSwarm_VarOptMultiprocess:
 
         for i, nIter in enumerate(self.nIter):
             if optType <= 5:
-                    self.vel[i][1] = optType
+                    self.vel[i, 1] = optType
             elif optType == 10:
                 if nIter > (self.max_steps / self.member_size):
-                    if self.vel[i][1] == 1:
-                        self.vel[i][1] = 2
+                    if self.vel[i, 1] == 1:
+                        self.vel[i, 1] = 2
                     else:
-                        self.vel[i][1] = 1
+                        self.vel[i, 1] = 1
                 else:
-                    self.vel[i][1] = 1
+                    self.vel[i, 1] = 1
             elif optType == 12:
                     if i < (self.swarm_size * 0.2):
-                        self.vel[i][1] = 1
+                        self.vel[i, 1] = 1
                     else:
-                        self.vel[i][1] = 2
+                        self.vel[i, 1] = 2
             elif optType == 15:
                     if i < (self.swarm_size * 0.2):
-                        self.vel[i][1] = 1
+                        self.vel[i, 1] = 1
                     else:
-                        self.vel[i][1] = 5
+                        self.vel[i, 1] = 5
             elif optType == 21:
                     if i < (self.swarm_size * 0.2):
-                        self.vel[i][1] = 2
+                        self.vel[i, 1] = 2
                     else:
-                        self.vel[i][1] = 1
+                        self.vel[i, 1] = 1
 
 
 
@@ -548,7 +533,7 @@ class ParticleSwarm_VarOptMultiprocess:
                 nIter = 0
 
             if vel[1] == 1:
-                for j, xn in enumerate(self._two_opt_FLip(x)):
+                for xn in self._two_opt_FLip(x):
                     nIter_aux += 1
                     nIter += 1
                     fn =  self._objective(xn)
@@ -561,7 +546,7 @@ class ParticleSwarm_VarOptMultiprocess:
                     if nIter_aux >= vel[0]:
                         break
             elif vel[1] == 2:
-                for j, xn in enumerate(self._two_and_a_half_opt(x)):
+                for xn in self._two_and_a_half_opt(x):
                     nIter_aux += 1
                     nIter += 1
                     fn =  self._objective(xn)
@@ -575,7 +560,7 @@ class ParticleSwarm_VarOptMultiprocess:
                         break
 
             elif vel[1] == 3:
-                for j, xn in enumerate(self._two_opt(x)):
+                for xn in self._two_opt(x):
                     nIter_aux += 1
                     nIter += 1
                     fn =  self._objective(xn)
@@ -588,7 +573,7 @@ class ParticleSwarm_VarOptMultiprocess:
                     if nIter_aux >= vel[0]:
                         break
             elif vel[1] == 4:
-                for j, xn in enumerate(self._k_opt_Flip(x,self.k)):
+                for xn in self._k_opt_Flip(x,self.k):
                     nIter_aux += 1
                     nIter += 1
                     fn =  self._objective(xn)
@@ -601,7 +586,7 @@ class ParticleSwarm_VarOptMultiprocess:
                     if nIter_aux >= vel[0]:
                         break
             elif vel[1] == 5:
-                for j, xn in enumerate(self._k_opt_Random(x,self.k)):
+                for xn in self._k_opt_Random(x,self.k):
                     nIter_aux += 1
                     nIter += 1
                     fn =  self._objective(xn)
