@@ -68,7 +68,7 @@ class ParticleSwarm_VarOptMultiprocess:
         self.fullinit = fullinit
         
         self.refuel_mode = refuel_mode
-        if refuel_mode == True: 
+        if refuel_mode: 
             
             if len(prices) == distance_matrix.shape[0]:
                 self.prices = prices
@@ -110,7 +110,7 @@ class ParticleSwarm_VarOptMultiprocess:
         Returns:
         String representative of the best result achieved by the swarm
         """
-        if self.refuel_mode == False:
+        if not self.refuel_mode:
             return ('PARTICLE SWARM: \n' +
                     'CURRENT STEPS: %d \n' +
                     'BEST DISTANCE: %f \n' +
@@ -184,7 +184,7 @@ class ParticleSwarm_VarOptMultiprocess:
         Returns:
         Objective function value of member
         """
-        if self.refuel_mode == False:
+        if not self.refuel_mode:
             return self._objectiveTSP(member)
         else:
             return self._objectiveTSPWR(member)
@@ -214,7 +214,7 @@ class ParticleSwarm_VarOptMultiprocess:
 
         total_distance = self.distance_matrix[member[:-1], member[1:]].sum()
 
-        if self.ring_mode == True:
+        if self.ring_mode:
             total_distance += self.distance_matrix[member[-1], member[0]]
             
         return total_distance
@@ -251,7 +251,7 @@ class ParticleSwarm_VarOptMultiprocess:
             tank = 0.0
         cost = 0.0
 
-        if self.ring_mode == True:
+        if self.ring_mode:
             member = np.append(member, member[0])
 
         path_price = self._path_prices(member)
@@ -330,7 +330,7 @@ class ParticleSwarm_VarOptMultiprocess:
             if non_zero_values:        
                 min_distance += min(non_zero_values)
                 
-        if self.refuel_mode == False:
+        if not self.refuel_mode:
             return min_distance
         else:
             sorted_prices = np.sort(self.prices)
@@ -346,7 +346,7 @@ class ParticleSwarm_VarOptMultiprocess:
         for raw in self.distance_matrix:
             max_distance += max(raw)
             
-        if self.refuel_mode == False:
+        if not self.refuel_mode:
             return max_distance
         else:
             reverse_sorted_prices = np.sort(self.prices)[::-1]
@@ -457,7 +457,7 @@ class ParticleSwarm_VarOptMultiprocess:
         Returns:
         String representative of the best result achieved by the swarm
         """
-        if self.refuel_mode == False:
+        if not self.refuel_mode:
             return [self.cur_steps, self._calculate_distance(self.global_best[0])]
         else:
             return [self.cur_steps, self._calculate_refuel(self.global_best[0])]
@@ -607,7 +607,7 @@ class ParticleSwarm_VarOptMultiprocess:
         2-opt Flip
         """
         n = len(x)
-        if self.ring_mode == False:
+        if not self.ring_mode:
             node_init = 0
         else:
             node_init = 1
@@ -628,7 +628,7 @@ class ParticleSwarm_VarOptMultiprocess:
         2-opt
         """
         n = len(x)
-        if self.ring_mode == False:
+        if not self.ring_mode:
             node_init = 0
         else:
             node_init = 1
@@ -649,7 +649,7 @@ class ParticleSwarm_VarOptMultiprocess:
         k-opt FLip
         """
         n = len(x)
-        if self.ring_mode == False:
+        if not self.ring_mode:
             node_init = 0
         else:
             node_init = 1
@@ -695,7 +695,7 @@ class ParticleSwarm_VarOptMultiprocess:
         k-opt Random
         """
         n = len(x)
-        if self.ring_mode == False:
+        if not self.ring_mode:
             node_init = 0
         else:
             node_init = 1
