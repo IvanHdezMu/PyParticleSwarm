@@ -7,7 +7,7 @@ Created on Sat May 13 19:40:55 2023
 import numpy as np
 
 
-def read_distance_matrix_EUC2D_TSPLIB(file_path):
+def read_euc2d_matrix(file_path):
     
     # Open the text file for reading
     with open(file_path, "r") as f:

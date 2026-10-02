@@ -1,16 +1,16 @@
-"""Analyze the results of experiments defined in run_options.json."""
+"""Analyze results using experiments defined in config/run_options.json."""
 from itertools import product
 from pathlib import Path
 
 import pandas as pd
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parents[1]
 METRICS = ['mean_minimum_result', 'mean_step_of_minimum', 'best_result']
 
 
 def analysis_for_experiment(analysis, options):
     """Resolve a run reference using the same configurations and names as execute."""
-    from main import build_experiments, result_filename
+    from .runner import build_experiments, result_filename
 
     reference = analysis['experiment']
     matches = [experiment for experiment in build_experiments(options)
@@ -39,7 +39,7 @@ def analysis_for_experiment(analysis, options):
 
 
 def load_analysis_options(run_options_path=None):
-    from main import build_experiments, load_run_options
+    from .runner import build_experiments, load_run_options
 
     options = load_run_options(run_options_path)
     analyses = list(options.get('historical_analyses', []))

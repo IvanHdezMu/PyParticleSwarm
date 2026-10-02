@@ -399,7 +399,7 @@ class ParticleSwarm_VarOptMultiprocess:
             prices_arr[i] = self.prices[path[i]]
         return prices_arr
 
-    def run(self, verbose=True, optType=10, excel=True, file_path = 'output_file.xlsx',
+    def run(self, verbose=True, optType=10, excel=False, file_path=None,
             permutReset=True, minPermut=0.2, maxPermut=0.8, k=10):
         """
         Particle swarm optimization
@@ -408,7 +408,7 @@ class ParticleSwarm_VarOptMultiprocess:
         verbose: indicates whether or not to print progress regularly
         optType: type of algorithm or combination of algorithms for searches
         excel: indicates whether or not to save progress regularly
-        file_path: path for saving progress regularly
+        file_path: required destination when excel is enabled
         permutReset: probability of permutation
         minPermut: minimum probability value
         maxPermut: maximum probability value
@@ -417,6 +417,8 @@ class ParticleSwarm_VarOptMultiprocess:
         Returns:
         The best member of swarm and its objective function value
         """
+        if excel and file_path is None:
+            raise ValueError('file_path is required when excel=True')
         self._clear(permutReset, minPermut, maxPermut, k)
         
         output_list = []
