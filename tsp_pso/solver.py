@@ -618,8 +618,7 @@ class ParticleSwarm_VarOptMultiprocess:
             j_range = np.arange(i + 1, n)
             j_range_random = np.random.choice(j_range, len(j_range), replace=False)
             for j in j_range_random:
-                xn = x.copy()
-                xn = np.concatenate((xn[:i], np.flip(xn[i:j]), xn[j:]))
+                xn = np.concatenate((x[:i], np.flip(x[i:j]), x[j:]))
                 yield xn    
                          
    
@@ -684,9 +683,8 @@ class ParticleSwarm_VarOptMultiprocess:
         for i in np.random.permutation(i_range):
             j_range = np.arange(i + 1, n)
             for j in np.random.permutation(j_range):
-                xn = np.copy(x)
-                node = xn[i]
-                xn = np.delete(xn, i)
+                node = x[i]
+                xn = np.delete(x, i)
                 xn = np.insert(xn, j, node)
                 yield xn
                 
