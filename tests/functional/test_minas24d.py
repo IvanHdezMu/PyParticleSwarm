@@ -48,7 +48,7 @@ def test_option_8_minas24d_finds_known_optimum(monkeypatch, tmp_path):
         return solver
 
     monkeypatch.setattr(runner, 'ParticleSwarm_VarOptMultiprocess', capture_solver)
-    runner.execute(experiment, output_dir=tmp_path)
+    run_directory = runner.execute(experiment, output_dir=tmp_path)
 
     assert len(created_solvers) == 1
     solver = created_solvers[0]
@@ -69,7 +69,7 @@ def test_option_8_minas24d_finds_known_optimum(monkeypatch, tmp_path):
 
     # Keep the original Excel behavior while avoiding writes to repository results.
     configuration, = experiment.configurations()
-    workbook = tmp_path / 'Minas24D' / runner.result_filename(experiment, configuration)
+    workbook = run_directory / runner.result_filename(experiment, configuration)
     assert workbook.is_file()
 
 
@@ -118,7 +118,7 @@ def test_minas24d_refuel_ring_finds_known_best_cost(monkeypatch, tmp_path):
 
     monkeypatch.setattr(runner, 'ParticleSwarm_VarOptMultiprocess', capture_solver)
     # execute() loads both coordinates and fuel prices from the repository workbook.
-    runner.execute(experiment, output_dir=tmp_path)
+    run_directory = runner.execute(experiment, output_dir=tmp_path)
 
     assert len(created_solvers) == 1
     solver = created_solvers[0]
@@ -139,5 +139,5 @@ def test_minas24d_refuel_ring_finds_known_best_cost(monkeypatch, tmp_path):
     assert solver.f_global_best[0] == pytest.approx(solver._objective(route))
 
     configuration, = experiment.configurations()
-    workbook = tmp_path / 'Minas24D' / runner.result_filename(experiment, configuration)
+    workbook = run_directory / runner.result_filename(experiment, configuration)
     assert workbook.is_file()

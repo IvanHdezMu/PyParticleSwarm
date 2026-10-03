@@ -1,9 +1,11 @@
 """Configure, run, and select TSP particle swarm experiments."""
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
+from datetime import datetime, timezone
 from itertools import product
 import json
 from math import prod
 from pathlib import Path
+import re
 
 import numpy as np
 import pandas as pd
@@ -107,6 +109,16 @@ def load_dataset(name):
     return matrix, df.iloc[:, 3].to_numpy()
 
 
+def extra_filename_fields(experiment):
+    """Include only varying axes omitted by a legacy filename style."""
+    fields = []
+    if experiment.style in ('fuel', 'bays'):
+        fields.extend(((3, 'minR', experiment.minimums), (4, 'maxR', experiment.maximums)))
+    if experiment.style != 'fuel':
+        fields.extend(((5, 'ring', experiment.rings), (6, 'full', experiment.full_tanks)))
+    return [(index, name, values) for index, name, values in fields if len(values) > 1]
+
+
 def result_filename(experiment, configuration):
     n, c1, opt, minimum, maximum, ring, full, number = configuration
     prefix = f'{experiment.dataset}_True_{n}_{c1}_{opt}'
@@ -118,15 +130,55 @@ def result_filename(experiment, configuration):
         suffix = f'{experiment.k}_{number}_{minimum}_{maximum}'
     else:
         suffix = f'{experiment.k}_{minimum}_{maximum}_{number}'
+    for index, name, _ in extra_filename_fields(experiment):
+        suffix += f'_{name}{configuration[index]}'
     return f'{prefix}_{suffix}.xlsx'
+
+
+def create_run_directory(experiment, output_dir=None):
+    """Reserve a unique execution directory and save its effective configuration."""
+    created_at = datetime.now(timezone.utc).replace(microsecond=0)
+
+    def compact(values):
+        values = tuple(values)
+        text = '-'.join(map(str, values)) if len(values) <= 2 else f'{values[0]}-{values[-1]}x{len(values)}'
+        return re.sub(r'[^A-Za-z0-9.-]', '-', text)[:24]
+
+    summary = '_'.join(f'{name}{compact(values)}' for name, values in (
+        ('N', experiment.particles), ('c1', experiment.steps), ('opt', experiment.opts),
+        ('ring', experiment.rings), ('full', experiment.full_tanks),
+        ('k', (experiment.k,)), ('min', experiment.minimums), ('max', experiment.maximums),
+    ))
+    parent = (Path(output_dir) if output_dir is not None
+              else ROOT / RUN_OPTIONS['output_dir']) / experiment.dataset
+    parent.mkdir(parents=True, exist_ok=True)
+    stem = f'{created_at:%Y-%m-%d_%H-%M-%S}_{summary}'
+    attempt = 1
+    while True:
+        destination = parent / (stem if attempt == 1 else f'{stem}__{attempt}')
+        try:
+            destination.mkdir()
+            break
+        except FileExistsError:
+            attempt += 1
+    configuration = asdict(experiment)
+    configuration['repetitions'] = {'start': experiment.repetitions.start,
+                                    'stop': experiment.repetitions.stop,
+                                    'step': experiment.repetitions.step}
+    configuration['created_at'] = created_at.isoformat()
+    with (destination / 'run_config.json').open('x', encoding='utf-8') as stream:
+        json.dump(configuration, stream, indent=2, ensure_ascii=False)
+        stream.write('\n')
+    return destination
 
 
 def execute(experiment, output_dir=None):
     matrix, prices = load_dataset(experiment.dataset)
-    destination = (Path(output_dir) if output_dir is not None
-                   else ROOT / RUN_OPTIONS['output_dir']) / experiment.dataset
     if experiment.excel:
-        destination.mkdir(parents=True, exist_ok=True)
+        filenames = [result_filename(experiment, c) for c in experiment.configurations()]
+        if len(filenames) != len(set(filenames)):
+            raise ValueError('Experiment contains duplicate result filenames')
+    destination = create_run_directory(experiment, output_dir)
     for index, configuration in enumerate(experiment.configurations(), 1):
         n, c1, opt, minimum, maximum, ring, full, _ = configuration
         print(f'\nRun {index}/{experiment.count}: N={n}, c1={c1}, '
@@ -143,6 +195,7 @@ def execute(experiment, output_dir=None):
                       file_path=destination / result_filename(experiment, configuration),
                       permutReset=experiment.permut_reset, minPermut=minimum,
                       maxPermut=maximum, k=experiment.k)
+    return destination
 
 def choose_option(title, options, describe, numbers=None):
     numbered_options = dict(zip(numbers if numbers is not None else range(1, len(options) + 1),
