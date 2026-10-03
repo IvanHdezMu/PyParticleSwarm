@@ -153,7 +153,7 @@ class ParticleSwarm_VarOptMultiprocess:
         self.pos = np.array(aux) 
             
         self.fx = self._score(self.pos)   
-        self.nIter = np.zeros(self.member_size)
+        self.nIter = np.zeros(self.swarm_size)
 
         vel0 = np.full(self.swarm_size, self.member_size, dtype=int)
         vel1 = np.ones(self.swarm_size)
