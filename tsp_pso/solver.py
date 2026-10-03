@@ -89,6 +89,11 @@ class ParticleSwarm_VarOptMultiprocess:
         if isinstance(N, (int, float)):
             self.N = int(N)
 
+            if self.N < 2:
+                raise ValueError('Number of particles must be at least 2')
+        else:
+            raise ValueError('Unacceptable value for N')
+
         if isinstance(c1, (int, float)):
             self.c1 = int(c1)
         
@@ -97,7 +102,7 @@ class ParticleSwarm_VarOptMultiprocess:
             
         self.member_size = distance_matrix.shape[0]
 
-        self.swarm_size = N
+        self.swarm_size = self.N
         
         # max_steps
         self.max_steps = self.c1 * self.member_size
