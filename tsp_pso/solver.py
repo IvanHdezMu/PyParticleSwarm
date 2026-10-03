@@ -653,6 +653,7 @@ class ParticleSwarm_VarOptMultiprocess:
         k-opt FLip
         """
         n = len(x)
+        k = min(k, n)
         if not self.ring_mode:
             node_init = 0
         else:
