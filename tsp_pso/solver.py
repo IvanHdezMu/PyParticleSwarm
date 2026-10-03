@@ -524,8 +524,9 @@ class ParticleSwarm_VarOptMultiprocess:
         x, vel, nIter, fx = args
 
         nIter_aux = 0
+        reset_threshold = (self.max_steps / self.member_size) * (self.c1 / 1000)
         while nIter_aux <= vel[0]:
-            if (nIter >= (self.max_steps / self.member_size) * (self.c1/1000)) and (np.random.rand() < vel[2]):
+            if (nIter >= reset_threshold) and (np.random.rand() < vel[2]):
                 x_parts = np.array_split(x, 4)
                 x = np.concatenate([x_parts[1], x_parts[3], x_parts[0], x_parts[2]])
                 fx = self._objective(x)
@@ -682,9 +683,12 @@ class ParticleSwarm_VarOptMultiprocess:
         for i in np.random.permutation(i_range):
             j_range = np.arange(i + 1, n)
             for j in np.random.permutation(j_range):
-                node = x[i]
-                xn = np.delete(x, i)
-                xn = np.insert(xn, j, node)
+                xn = np.concatenate((
+                x[:i],
+                x[i + 1:j + 1],
+                x[i:i + 1],
+                x[j + 1:]
+                ))
                 yield xn
                 
     def _k_opt_Random(self, x: np.ndarray, k: int) -> Generator[np.ndarray, np.ndarray, None]:
