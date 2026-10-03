@@ -402,6 +402,27 @@
       "refuel": true,
       "style": "fuel",
       "analysis_output": "Analysis_Minas57D.xlsx"
+    },
+    {
+      "dataset": "Minas24D",
+      "label": "circuit fuel regression",
+      "steps": [
+        1200
+      ],
+      "rings": [
+        true
+      ],
+      "full_tanks": [
+        false
+      ],
+      "repetitions": {
+        "start": 1,
+        "stop": 11
+      },
+      "excel": true,
+      "refuel": true,
+      "style": "fuel",
+      "analysis_output": "Analysis_Minas24D.xlsx"
     }
   ],
   "historical_analyses": [
