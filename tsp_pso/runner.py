@@ -45,6 +45,7 @@ class Experiment:
     analysis_output: str | None = None
     reset_threshold_divisor: float = 1000
     primary_operator_share: float = 0.2
+    progress_warmup_multiplier: float = 5
 
     def configurations(self):
         return product(self.particles, self.steps, self.opts, self.minimums,
@@ -126,7 +127,8 @@ def execute(experiment, output_dir=None):
             refuel_mode=experiment.refuel, prices=prices,
             maxCapacity=experiment.max_capacity, consumption=experiment.consumption, fullinit=full,
             resetThresholdDivisor=experiment.reset_threshold_divisor,
-            primaryOperatorShare=experiment.primary_operator_share)
+            primaryOperatorShare=experiment.primary_operator_share,
+            progressWarmupMultiplier=experiment.progress_warmup_multiplier)
         algorithm.run(verbose=DATASETS[experiment.dataset]['verbose']
                       and (experiment.label == 'individual' or not experiment.excel),
                       optType=opt, excel=experiment.excel,

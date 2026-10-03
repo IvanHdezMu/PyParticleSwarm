@@ -82,6 +82,7 @@
     "permut_reset": true,
     "reset_threshold_divisor": 1000,
     "primary_operator_share": 0.2,
+    "progress_warmup_multiplier": 5,
     "k": 10
   },
   "output_dir": "Results",

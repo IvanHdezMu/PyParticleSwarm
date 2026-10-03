@@ -40,7 +40,7 @@ class ParticleSwarm_VarOptMultiprocess:
     
     def __init__(self, N, c1, distance_matrix, ring_mode=False, refuel_mode=False,
                  prices=None, maxCapacity=None, consumption=None, fullinit=False,
-                 resetThresholdDivisor=1000, primaryOperatorShare=0.2):
+                 resetThresholdDivisor=1000, primaryOperatorShare=0.2, progressWarmupMultiplier=5):
         """
         Initialization function
 
@@ -56,6 +56,7 @@ class ParticleSwarm_VarOptMultiprocess:
         fullinit: full tank at first
         resetThresholdDivisor: divisor used to scale the reset threshold
         primaryOperatorShare: primary operator share in modes 12, 15, and 21
+        progressWarmupMultiplier: route-length multiplier for the progress reporting threshold
 
         Returns:
         None
@@ -71,6 +72,7 @@ class ParticleSwarm_VarOptMultiprocess:
         self.fullinit = fullinit
         self.resetThresholdDivisor = resetThresholdDivisor
         self.primaryOperatorShare = primaryOperatorShare
+        self.progressWarmupMultiplier = progressWarmupMultiplier
         
         self.refuel_mode = refuel_mode
         if refuel_mode: 
@@ -443,7 +445,7 @@ class ParticleSwarm_VarOptMultiprocess:
                 self._best()
                 self._global_best()
 
-                if self.cur_steps > self.member_size * 5:
+                if self.cur_steps > self.member_size * self.progressWarmupMultiplier:
                     if verbose:
                         print(self)
                     if excel:
