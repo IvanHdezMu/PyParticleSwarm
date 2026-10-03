@@ -682,9 +682,12 @@ class ParticleSwarm_VarOptMultiprocess:
         for i in np.random.permutation(i_range):
             j_range = np.arange(i + 1, n)
             for j in np.random.permutation(j_range):
-                node = x[i]
-                xn = np.delete(x, i)
-                xn = np.insert(xn, j, node)
+                xn = np.concatenate((
+                x[:i],
+                x[i + 1:j + 1],
+                x[i:i + 1],
+                x[j + 1:]
+                ))
                 yield xn
                 
     def _k_opt_Random(self, x: np.ndarray, k: int) -> Generator[np.ndarray, np.ndarray, None]:
