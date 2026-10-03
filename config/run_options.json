@@ -80,6 +80,7 @@
     "max_capacity": 150.0,
     "consumption": 7.0,
     "permut_reset": true,
+    "reset_threshold_divisor": 1000,
     "k": 10
   },
   "output_dir": "Results",

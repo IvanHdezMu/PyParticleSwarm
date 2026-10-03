@@ -39,7 +39,8 @@ class ParticleSwarm_VarOptMultiprocess:
     cur_steps = None
     
     def __init__(self, N, c1, distance_matrix, ring_mode=False, refuel_mode=False,
-                 prices=None, maxCapacity=None, consumption=None, fullinit=False):
+                 prices=None, maxCapacity=None, consumption=None, fullinit=False,
+                 resetThresholdDivisor=1000):
         """
         Initialization function
 
@@ -53,6 +54,7 @@ class ParticleSwarm_VarOptMultiprocess:
         maxCapacity: vehicle capacity in liters
         consumption: consumption of the vehicle in Km per liter
         fullinit: full tank at first
+        resetThresholdDivisor: divisor used to scale the reset threshold
 
         Returns:
         None
@@ -66,6 +68,7 @@ class ParticleSwarm_VarOptMultiprocess:
         self.ring_mode = ring_mode
 
         self.fullinit = fullinit
+        self.resetThresholdDivisor = resetThresholdDivisor
         
         self.refuel_mode = refuel_mode
         if refuel_mode: 
@@ -532,7 +535,7 @@ class ParticleSwarm_VarOptMultiprocess:
         x, vel, nIter, fx = args
 
         nIter_aux = 0
-        reset_threshold = (self.max_steps / self.member_size) * (self.c1 / 1000)
+        reset_threshold = (self.max_steps / self.member_size) * (self.c1 / self.resetThresholdDivisor)
         while nIter_aux < vel[0]:
             if (nIter >= reset_threshold) and (np.random.rand() < vel[2]):
                 x_parts = np.array_split(x, 4)
