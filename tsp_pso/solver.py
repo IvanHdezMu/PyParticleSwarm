@@ -204,7 +204,7 @@ class ParticleSwarm_VarOptMultiprocess:
         Returns:
         TSP objective function value of member
         """
-        return abs(self.min_value-self._calculate_distance(member))
+        return self._calculate_distance(member) - self.min_value
     
     def _calculate_distance(self, member):
         """
@@ -379,6 +379,7 @@ class ParticleSwarm_VarOptMultiprocess:
             else:
                 cost += liters_aux * sorted_prices[i]
                 return cost
+        return np.inf
 
     def _path_prices(self, path):
         """
@@ -434,6 +435,9 @@ class ParticleSwarm_VarOptMultiprocess:
 
                 self.cur_steps += self.vel[0, 0]
 
+                self._best()
+                self._global_best()
+
                 if self.cur_steps > self.member_size * 5:
                     if verbose:
                         print(self)
@@ -441,9 +445,6 @@ class ParticleSwarm_VarOptMultiprocess:
                         output_list.append(self._dataToSave())
 
                 aux_n_steps += 1
-
-                self._best()
-                self._global_best()
 
         if excel:
             columns = ['Step', 'Result']
@@ -487,7 +488,7 @@ class ParticleSwarm_VarOptMultiprocess:
         """
 
         for i, nIter in enumerate(self.nIter):
-            if optType <= 5:
+            if 1 <= optType <= 5:
                     self.vel[i, 1] = optType
             elif optType == 10:
                 if nIter > (self.max_steps / self.member_size):
@@ -512,6 +513,8 @@ class ParticleSwarm_VarOptMultiprocess:
                         self.vel[i, 1] = 2
                     else:
                         self.vel[i, 1] = 1
+            else:
+                raise ValueError(f"Invalid optType: {optType}")
 
 
 
@@ -530,13 +533,14 @@ class ParticleSwarm_VarOptMultiprocess:
 
         nIter_aux = 0
         reset_threshold = (self.max_steps / self.member_size) * (self.c1 / 1000)
-        while nIter_aux <= vel[0]:
+        while nIter_aux < vel[0]:
             if (nIter >= reset_threshold) and (np.random.rand() < vel[2]):
                 x_parts = np.array_split(x, 4)
                 x = np.concatenate([x_parts[1], x_parts[3], x_parts[0], x_parts[2]])
                 fx = self._objective(x)
                 nIter = 0
 
+            previous_nIter_aux = nIter_aux
             if vel[1] == 1:
                 for xn in self._two_opt_FLip(x):
                     nIter_aux += 1
@@ -603,6 +607,9 @@ class ParticleSwarm_VarOptMultiprocess:
 
                     if nIter_aux >= vel[0]:
                         break
+
+            if nIter_aux == previous_nIter_aux:
+                break
 
         return x, nIter, fx, vel
 

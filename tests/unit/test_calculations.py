@@ -33,15 +33,15 @@ def test_calculate_distance_directed(make_solver):
     assert s._calculate_distance(np.array([2, 1, 0])) == 16
 
 
-@pytest.mark.parametrize("ring, expected", [(False, 2), (True, 5)])
-def test_objective_tsp_absolute_difference(solver, ring, expected):
+@pytest.mark.parametrize("ring, expected", [(False, -2), (True, 5)])
+def test_objective_tsp_signed_difference(solver, ring, expected):
     solver.ring_mode = ring
     route = np.arange(4)
-    assert solver._objectiveTSP(route) == expected  # abs(11 - (9 or 16))
+    assert solver._objectiveTSP(route) == expected  # (9 or 16) - 11
     assert_array_equal(route, np.arange(4))
 
 
-@pytest.mark.parametrize("refuel, expected", [(False, 2), (True, 7)])
+@pytest.mark.parametrize("refuel, expected", [(False, -2), (True, 7)])
 def test_objective_dispatch(make_solver, refuel, expected):
     s = make_solver(refuel_mode=refuel)
     route = np.arange(4)
@@ -100,7 +100,7 @@ def test_objective_tspwr(make_solver, ring, expected):
     assert_array_equal(route, np.arange(4))
 
 
-@pytest.mark.parametrize("refuel, expected", [(False, [2, 9]), (True, [7, 23.5])])
+@pytest.mark.parametrize("refuel, expected", [(False, [-2, 9]), (True, [7, 23.5])])
 def test_score(make_solver, refuel, expected):
     s = make_solver(refuel_mode=refuel)
     positions = np.array([[0, 1, 2, 3], [0, 2, 1, 3]])
@@ -112,7 +112,7 @@ def test_score(make_solver, refuel, expected):
 
 
 def test_score_one_member(solver):
-    assert_array_equal(solver._score(np.array([[0, 1, 2, 3]])), [2])
+    assert_array_equal(solver._score(np.array([[0, 1, 2, 3]])), [-2])
 
 
 @pytest.mark.parametrize("refuel, minimum, maximum", [(False, 11, 34), (True, 11, 85)])
@@ -147,10 +147,10 @@ def test_calculate_path_cost(make_solver, km, expected):
     assert_array_equal(prices, [2., 3., 4.])
 
 
-def test_calculate_path_cost_exhausted_prices_current_behavior(make_solver):
+def test_calculate_path_cost_exhausted_prices_returns_infinity(make_solver):
     s = make_solver(refuel_mode=True, maxCapacity=5, consumption=2)
-    # Current behavior: no result if total demand exceeds all available tanks.
-    assert s._calculate_path_cost(32, np.array([2., 3., 4.])) is None
+    # Demand exceeding the available fuel capacity has infinite cost.
+    assert s._calculate_path_cost(32, np.array([2., 3., 4.])) == np.inf
 
 
 @pytest.mark.parametrize("path, expected", [([3, 1, 0], [5, 2, 4]), ([2, 2], [3, 3]), ([], [])])
@@ -190,6 +190,6 @@ def test_score_empty_swarm_current_behavior(solver):
         solver._score(np.empty((0, 4), dtype=int))
 
 
-def test_calculate_path_cost_empty_prices_current_behavior(make_solver):
+def test_calculate_path_cost_empty_prices_returns_infinity(make_solver):
     s = make_solver(refuel_mode=True)
-    assert s._calculate_path_cost(1, np.array([])) is None
+    assert s._calculate_path_cost(1, np.array([])) == np.inf
