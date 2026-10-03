@@ -109,3 +109,19 @@ def test_compute_position_refuel_no_improvement(make_solver, operator):
     assert_array_equal(vel, [2, operator, 0])
     assert_array_equal(route, np.arange(4))
     assert_array_equal(velocity, [2, operator, 0])
+
+
+@pytest.mark.parametrize('operator', [1, 3])
+def test_compute_position_empty_two_node_ring_returns_without_evaluations(make_solver, operator):
+    s = make_solver(N=2, distance_matrix=np.array([[0, 2], [2, 0]]), ring_mode=True)
+    route = np.array([0, 1])
+    velocity = np.array([2., operator, 0.])
+    np.random.seed(7)
+    x, n_iter, fx, vel = s._compute_position((route, velocity, 4, s._objective(route)))
+    assert_array_equal(x, [0, 1])
+    # Neither operator has a candidate, so no unimproved iteration is consumed.
+    assert n_iter == 4
+    assert fx == 0 == s._objective(x)
+    assert_array_equal(vel, [2, operator, 0])
+    assert_array_equal(route, [0, 1])
+    assert_array_equal(velocity, [2, operator, 0])
