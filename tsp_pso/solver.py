@@ -411,34 +411,34 @@ class ParticleSwarm_VarOptMultiprocess:
         self._clear(permutReset, minPermut, maxPermut, k)
         
         output_list = []
-
         aux_n_steps = 1
-        while self.cur_steps <= self.max_steps:
+        
+        with Pool() as p:
+            while self.cur_steps <= self.max_steps:
 
-            self.vel[:,0] = self.member_size * aux_n_steps
-            self._Opt_Type(optType)
+                self.vel[:,0] = self.member_size * aux_n_steps
+                self._Opt_Type(optType)
 
-            with Pool() as p:
                 results = p.map(self._compute_position, zip(self.pos, self.vel, self.nIter, self.fx))
 
-            pos, nIter, fx, vel = zip(*results)
-            self.pos = np.array(pos)
-            self.nIter = np.array(nIter)
-            self.fx = np.array(fx)
-            self.vel = np.array(vel)
+                pos, nIter, fx, vel = zip(*results)
+                self.pos = np.array(pos)
+                self.nIter = np.array(nIter)
+                self.fx = np.array(fx)
+                self.vel = np.array(vel)
 
-            self.cur_steps += self.vel[0, 0]
+                self.cur_steps += self.vel[0, 0]
 
-            if self.cur_steps > self.member_size * 5:
-                if verbose:
-                    print(self)
-                if excel:
-                    output_list.append(self._dataToSave())
+                if self.cur_steps > self.member_size * 5:
+                    if verbose:
+                        print(self)
+                    if excel:
+                        output_list.append(self._dataToSave())
 
-            aux_n_steps += 1
+                aux_n_steps += 1
 
-            self._best()
-            self._global_best()
+                self._best()
+                self._global_best()
 
         if excel:
             columns = ['Step', 'Result']
