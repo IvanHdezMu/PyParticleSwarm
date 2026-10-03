@@ -183,11 +183,12 @@ def test_opt_type(make_solver, mode, expected):
     assert_array_equal(s.nIter, [0, 2, 3, 4, 0])
 
 
-def test_opt_type_unknown_current_behavior(solver):
+def test_opt_type_unknown_raises_value_error(solver):
     solver.nIter = np.zeros(4)
     solver.vel = np.array([[4, 1, .5]] * 4)
     before = solver.vel.copy()
-    solver._Opt_Type(99)
+    with pytest.raises(ValueError, match='Invalid optType: 99'):
+        solver._Opt_Type(99)
     assert_array_equal(solver.vel, before)
 
 
