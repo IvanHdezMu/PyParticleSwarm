@@ -1,56 +1,5 @@
 {
-  "datasets": {
-    "berlin52": {
-      "filename": "berlin52.tsp",
-      "format": "euc",
-      "verbose": false
-    },
-    "bays29": {
-      "filename": "bays29.tsp",
-      "format": "matrix",
-      "verbose": false
-    },
-    "st70": {
-      "filename": "st70.tsp",
-      "format": "euc",
-      "verbose": true
-    },
-    "ch150": {
-      "filename": "ch150.tsp",
-      "format": "euc",
-      "verbose": true
-    },
-    "kroA100": {
-      "filename": "kroA100.tsp",
-      "format": "euc",
-      "verbose": true
-    },
-    "rat195": {
-      "filename": "rat195.tsp",
-      "format": "euc",
-      "verbose": true
-    },
-    "Bahia30D": {
-      "filename": "ciudades_Bahia30D.xlsx",
-      "format": "excel",
-      "verbose": true
-    },
-    "Minas24D": {
-      "filename": "Minas24D.xlsx",
-      "format": "excel",
-      "verbose": true
-    },
-    "Minas30D": {
-      "filename": "Minas30D.xlsx",
-      "format": "excel",
-      "verbose": true
-    },
-    "Minas57D": {
-      "filename": "Minas57D.xlsx",
-      "format": "excel",
-      "verbose": true
-    }
-  },
+  "output_dir": "Results",
   "defaults": {
     "particles": [
       8
@@ -85,7 +34,6 @@
     "progress_warmup_multiplier": 5,
     "k": 10
   },
-  "output_dir": "Results",
   "experiments": [
     {
       "dataset": "berlin52",
@@ -426,52 +374,6 @@
       "refuel": true,
       "style": "fuel",
       "analysis_output": "Analysis_Minas24D.xlsx"
-    }
-  ],
-  "historical_analyses": [
-    {
-      "id": "00",
-      "label": "berlin52: 00 (historical)",
-      "parameters": {
-        "optType": [
-          1,
-          2,
-          3,
-          4,
-          5
-        ]
-      },
-      "repetitions": {
-        "start": 1,
-        "stop": 11
-      },
-      "input_template": "Results/berlin52/00/berlin52_{optType}_{number}.xlsx",
-      "columns": [
-        "optType"
-      ],
-      "output": null
-    },
-    {
-      "id": "02_08",
-      "label": "berlin52: 02_08 (historical)",
-      "parameters": {
-        "optType": [
-          1,
-          2,
-          3,
-          4,
-          5
-        ]
-      },
-      "repetitions": {
-        "start": 1,
-        "stop": 11
-      },
-      "input_template": "Results/berlin52/02_08/berlin52_{optType}_{number}.xlsx",
-      "columns": [
-        "optType"
-      ],
-      "output": null
     }
   ]
 }

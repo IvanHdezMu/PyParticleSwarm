@@ -12,7 +12,9 @@ Run `python3 main.py` and choose **run** to execute an experiment or **analysis*
 - `tsp_pso/analysis.py`: result validation and summaries.
 - `tsp_pso/solver.py`: particle swarm algorithm.
 - `tsp_pso/tsplib/`: TSPLIB distance-matrix readers.
-- `config/run_options.json`: datasets, run settings, and analysis output names.
+- `config/datasets.json`: dataset definitions.
+- `config/experiments.json`: output directory, experiment defaults, ordered runs, and analysis output names.
+- `config/historical_analyses.json`: analysis definitions for historical results.
 - `Datasets/`: input datasets; original file names are preserved.
 - `Results/<dataset>/`: generated run files and analysis workbooks. Run creates each directory as needed.
 

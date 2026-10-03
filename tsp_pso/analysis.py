@@ -1,4 +1,4 @@
-"""Analyze results using experiments defined in config/run_options.json."""
+"""Analyze results using experiments defined in config/experiments.json."""
 from itertools import product
 from pathlib import Path
 
