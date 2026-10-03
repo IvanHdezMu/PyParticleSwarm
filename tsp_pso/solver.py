@@ -204,7 +204,7 @@ class ParticleSwarm_VarOptMultiprocess:
         Returns:
         TSP objective function value of member
         """
-        return abs(self.min_value-self._calculate_distance(member))
+        return self._calculate_distance(member) - self.min_value
     
     def _calculate_distance(self, member):
         """
