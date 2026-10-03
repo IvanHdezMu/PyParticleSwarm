@@ -81,6 +81,7 @@
     "consumption": 7.0,
     "permut_reset": true,
     "reset_threshold_divisor": 1000,
+    "primary_operator_share": 0.2,
     "k": 10
   },
   "output_dir": "Results",

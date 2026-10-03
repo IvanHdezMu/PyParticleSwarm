@@ -40,7 +40,7 @@ class ParticleSwarm_VarOptMultiprocess:
     
     def __init__(self, N, c1, distance_matrix, ring_mode=False, refuel_mode=False,
                  prices=None, maxCapacity=None, consumption=None, fullinit=False,
-                 resetThresholdDivisor=1000):
+                 resetThresholdDivisor=1000, primaryOperatorShare=0.2):
         """
         Initialization function
 
@@ -55,6 +55,7 @@ class ParticleSwarm_VarOptMultiprocess:
         consumption: consumption of the vehicle in Km per liter
         fullinit: full tank at first
         resetThresholdDivisor: divisor used to scale the reset threshold
+        primaryOperatorShare: primary operator share in modes 12, 15, and 21
 
         Returns:
         None
@@ -69,6 +70,7 @@ class ParticleSwarm_VarOptMultiprocess:
 
         self.fullinit = fullinit
         self.resetThresholdDivisor = resetThresholdDivisor
+        self.primaryOperatorShare = primaryOperatorShare
         
         self.refuel_mode = refuel_mode
         if refuel_mode: 
@@ -502,17 +504,17 @@ class ParticleSwarm_VarOptMultiprocess:
                 else:
                     self.vel[i, 1] = 1
             elif optType == 12:
-                    if i < (self.swarm_size * 0.2):
+                    if i < (self.swarm_size * self.primaryOperatorShare):
                         self.vel[i, 1] = 1
                     else:
                         self.vel[i, 1] = 2
             elif optType == 15:
-                    if i < (self.swarm_size * 0.2):
+                    if i < (self.swarm_size * self.primaryOperatorShare):
                         self.vel[i, 1] = 1
                     else:
                         self.vel[i, 1] = 5
             elif optType == 21:
-                    if i < (self.swarm_size * 0.2):
+                    if i < (self.swarm_size * self.primaryOperatorShare):
                         self.vel[i, 1] = 2
                     else:
                         self.vel[i, 1] = 1
