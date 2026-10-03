@@ -314,7 +314,7 @@ class ParticleSwarm_VarOptMultiprocess:
             self.pos = self.pos[ordered_indexes]
             self.fx = self.fx[ordered_indexes]
             self.nIter = self.nIter[ordered_indexes]
-            self.vel[:][1] = self.vel[ordered_indexes][1]
+            self.vel = self.vel[ordered_indexes]
             
             min_index = np.argmin(self.f_best)    
             if self.f_best[min_index] < self.f_global_best[0]:
