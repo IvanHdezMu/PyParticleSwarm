@@ -167,7 +167,7 @@ class ParticleSwarm_VarOptMultiprocess:
         self.best = np.copy(self.pos)
         
         self.global_best = self.best # only because of the size
-        self.f_global_best = np.ones(self.member_size) * self.max_value
+        self.f_global_best = np.ones(self.swarm_size) * self.max_value
         self.f_best = self.fx.copy()
         
         self.cur_steps = 1
