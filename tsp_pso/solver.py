@@ -540,6 +540,7 @@ class ParticleSwarm_VarOptMultiprocess:
                 fx = self._objective(x)
                 nIter = 0
 
+            previous_nIter_aux = nIter_aux
             if vel[1] == 1:
                 for xn in self._two_opt_FLip(x):
                     nIter_aux += 1
@@ -606,6 +607,9 @@ class ParticleSwarm_VarOptMultiprocess:
 
                     if nIter_aux >= vel[0]:
                         break
+
+            if nIter_aux == previous_nIter_aux:
+                break
 
         return x, nIter, fx, vel
 
