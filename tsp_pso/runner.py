@@ -144,9 +144,6 @@ def execute(experiment, output_dir=None):
                       file_path=destination / result_filename(experiment, configuration),
                       permutReset=experiment.permut_reset, minPermut=minimum,
                       maxPermut=maximum, k=experiment.k)
-        if experiment.dataset == 'bays29' and (experiment.label == 'individual' or not experiment.excel):
-            print(algorithm.nIter)
-
 
 def choose_option(title, options, describe, numbers=None):
     numbered_options = dict(zip(numbers if numbers is not None else range(1, len(options) + 1),
