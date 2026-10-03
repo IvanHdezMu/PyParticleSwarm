@@ -379,6 +379,7 @@ class ParticleSwarm_VarOptMultiprocess:
             else:
                 cost += liters_aux * sorted_prices[i]
                 return cost
+        return np.inf
 
     def _path_prices(self, path):
         """
