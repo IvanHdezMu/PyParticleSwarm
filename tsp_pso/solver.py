@@ -168,7 +168,7 @@ class ParticleSwarm_VarOptMultiprocess:
         
         self.global_best = self.best # only because of the size
         self.f_global_best = np.ones(self.member_size) * self.max_value
-        self.f_best = self._score(self.best)
+        self.f_best = self.fx.copy()
         
         self.cur_steps = 1
         self._global_best()
@@ -261,14 +261,13 @@ class ParticleSwarm_VarOptMultiprocess:
             distance_liters = distance_km / self.consumption
             
             liters_aux = distance_liters
-            if (i <= len(member)-2):
-                for j in range(i+1, len(member)-1):
-                    if (path_price[j] < path_price[j+1]):
-                        liters_aux += self.distance_matrix[member[j], member[j+1]] / self.consumption
-                    else:
-                        break
-                if liters_aux + tank > 150.0:
-                    liters_aux = 150.0 - tank
+            for j in range(i+1, len(member)-1):
+                if (path_price[j] < path_price[j+1]):
+                    liters_aux += self.distance_matrix[member[j], member[j+1]] / self.consumption
+                else:
+                    break
+            if liters_aux + tank > 150.0:
+                liters_aux = 150.0 - tank
 
             if (liters_aux > tank):
                 cost += (liters_aux - tank) * path_price[i]
