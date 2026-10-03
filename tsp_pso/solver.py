@@ -435,6 +435,9 @@ class ParticleSwarm_VarOptMultiprocess:
 
                 self.cur_steps += self.vel[0, 0]
 
+                self._best()
+                self._global_best()
+
                 if self.cur_steps > self.member_size * 5:
                     if verbose:
                         print(self)
@@ -442,9 +445,6 @@ class ParticleSwarm_VarOptMultiprocess:
                         output_list.append(self._dataToSave())
 
                 aux_n_steps += 1
-
-                self._best()
-                self._global_best()
 
         if excel:
             columns = ['Step', 'Result']
