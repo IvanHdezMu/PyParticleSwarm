@@ -542,6 +542,7 @@ class ParticleSwarm_VarOptMultiprocess:
         reset_threshold = (self.max_steps / self.member_size) * (self.c1 / self.resetThresholdDivisor)
         while nIter_aux < vel[0]:
             if (nIter >= reset_threshold) and (np.random.rand() < vel[2]):
+                # Reset operator: split the route into four parts and reorder them as [1, 3, 0, 2].
                 x_parts = np.array_split(x, 4)
                 x = np.concatenate([x_parts[1], x_parts[3], x_parts[0], x_parts[2]])
                 fx = self._objective(x)
