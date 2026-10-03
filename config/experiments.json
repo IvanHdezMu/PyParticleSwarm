@@ -24,6 +24,7 @@
       "stop": 2
     },
     "excel": true,
+    "verbose": true,
     "refuel": false,
     "style": "standard",
     "max_capacity": 150.0,
@@ -37,6 +38,7 @@
   "experiments": [
     {
       "dataset": "berlin52",
+      "verbose": false,
       "label": "individual",
       "steps": [
         2500
@@ -44,6 +46,7 @@
     },
     {
       "dataset": "bays29",
+      "verbose": false,
       "label": "individual",
       "steps": [
         1000
@@ -131,6 +134,7 @@
     },
     {
       "dataset": "berlin52",
+      "verbose": false,
       "label": "c1 and probability sweep",
       "steps": [
         1000,
@@ -157,6 +161,7 @@
     },
     {
       "dataset": "berlin52",
+      "verbose": false,
       "label": "Opt 21",
       "steps": [
         2000,
@@ -178,6 +183,7 @@
     },
     {
       "dataset": "bays29",
+      "verbose": false,
       "label": "particle sweep",
       "steps": [
         2000

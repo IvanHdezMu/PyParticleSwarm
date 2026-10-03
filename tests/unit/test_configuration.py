@@ -95,7 +95,7 @@ def test_historical_analyses_preserved():
 def test_split_config_uses_sibling_files(tmp_path):
     expected = runner.load_run_options()
     expected['output_dir'] = 'alternate-results'
-    expected['datasets']['Minas24D']['verbose'] = False
+    expected['defaults']['verbose'] = False
     expected['historical_analyses'] = []
     for filename, keys in [
         ('datasets.json', ['datasets']),

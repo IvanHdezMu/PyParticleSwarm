@@ -25,7 +25,7 @@ def test_option_8_minas24d_finds_known_optimum(monkeypatch, tmp_path):
         permut_reset=True, k=10,
     )
     assert runner.DATASETS['Minas24D'] == {
-        'filename': 'Minas24D.xlsx', 'format': 'excel', 'verbose': True,
+        'filename': 'Minas24D.xlsx', 'format': 'excel',
     }
 
     # The original runner has no seed and uses the default Pool size. One real
@@ -95,7 +95,7 @@ def test_minas24d_refuel_ring_finds_known_best_cost(monkeypatch, tmp_path):
         analysis_output='Analysis_Minas24D.xlsx',
     )
     assert runner.DATASETS['Minas24D'] == {
-        'filename': 'Minas24D.xlsx', 'format': 'excel', 'verbose': True,
+        'filename': 'Minas24D.xlsx', 'format': 'excel',
     }
 
     # Seed 1 reproduces the reference cost. Seed both swarm initialization and

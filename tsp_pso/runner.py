@@ -54,6 +54,7 @@ class Experiment:
     reset_threshold_divisor: float = 1000
     primary_operator_share: float = 0.2
     progress_warmup_multiplier: float = 5
+    verbose: bool = True
 
     def configurations(self):
         return product(self.particles, self.steps, self.opts, self.minimums,
@@ -137,7 +138,7 @@ def execute(experiment, output_dir=None):
             resetThresholdDivisor=experiment.reset_threshold_divisor,
             primaryOperatorShare=experiment.primary_operator_share,
             progressWarmupMultiplier=experiment.progress_warmup_multiplier)
-        algorithm.run(verbose=DATASETS[experiment.dataset]['verbose']
+        algorithm.run(verbose=experiment.verbose
                       and (experiment.label == 'individual' or not experiment.excel),
                       optType=opt, excel=experiment.excel,
                       file_path=destination / result_filename(experiment, configuration),
