@@ -89,6 +89,11 @@ class ParticleSwarm_VarOptMultiprocess:
         if isinstance(N, (int, float)):
             self.N = int(N)
 
+            if self.N < 2:
+                raise ValueError('Number of particles must be at least 2')
+        else:
+            raise ValueError('Unacceptable value for N')
+
         if isinstance(c1, (int, float)):
             self.c1 = int(c1)
         
@@ -97,7 +102,7 @@ class ParticleSwarm_VarOptMultiprocess:
             
         self.member_size = distance_matrix.shape[0]
 
-        self.swarm_size = N
+        self.swarm_size = self.N
         
         # max_steps
         self.max_steps = self.c1 * self.member_size
@@ -153,7 +158,7 @@ class ParticleSwarm_VarOptMultiprocess:
         self.pos = np.array(aux) 
             
         self.fx = self._score(self.pos)   
-        self.nIter = np.zeros(self.member_size)
+        self.nIter = np.zeros(self.swarm_size)
 
         vel0 = np.full(self.swarm_size, self.member_size, dtype=int)
         vel1 = np.ones(self.swarm_size)
@@ -167,7 +172,7 @@ class ParticleSwarm_VarOptMultiprocess:
         self.best = np.copy(self.pos)
         
         self.global_best = self.best # only because of the size
-        self.f_global_best = np.ones(self.member_size) * self.max_value
+        self.f_global_best = np.ones(self.swarm_size) * self.max_value
         self.f_best = self.fx.copy()
         
         self.cur_steps = 1
@@ -266,8 +271,8 @@ class ParticleSwarm_VarOptMultiprocess:
                     liters_aux += self.distance_matrix[member[j], member[j+1]] / self.consumption
                 else:
                     break
-            if liters_aux + tank > 150.0:
-                liters_aux = 150.0 - tank
+            if liters_aux + tank > self.maxCapacity:
+                liters_aux = self.maxCapacity - tank
 
             if (liters_aux > tank):
                 cost += (liters_aux - tank) * path_price[i]
@@ -309,7 +314,7 @@ class ParticleSwarm_VarOptMultiprocess:
             self.pos = self.pos[ordered_indexes]
             self.fx = self.fx[ordered_indexes]
             self.nIter = self.nIter[ordered_indexes]
-            self.vel[:][1] = self.vel[ordered_indexes][1]
+            self.vel = self.vel[ordered_indexes]
             
             min_index = np.argmin(self.f_best)    
             if self.f_best[min_index] < self.f_global_best[0]:
@@ -648,6 +653,7 @@ class ParticleSwarm_VarOptMultiprocess:
         k-opt FLip
         """
         n = len(x)
+        k = min(k, n)
         if not self.ring_mode:
             node_init = 0
         else:
@@ -696,6 +702,7 @@ class ParticleSwarm_VarOptMultiprocess:
         k-opt Random
         """
         n = len(x)
+        k = min(k, n)
         if not self.ring_mode:
             node_init = 0
         else:

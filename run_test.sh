@@ -1,0 +1,1 @@
+PYTHONPATH=/tmp/tsp-pytest-deps python3 -m pytest -q
