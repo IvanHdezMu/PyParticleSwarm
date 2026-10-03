@@ -1,0 +1,44 @@
+{
+  "datasets": {
+    "berlin52": {
+      "filename": "berlin52.tsp",
+      "format": "euc"
+    },
+    "bays29": {
+      "filename": "bays29.tsp",
+      "format": "matrix"
+    },
+    "st70": {
+      "filename": "st70.tsp",
+      "format": "euc"
+    },
+    "ch150": {
+      "filename": "ch150.tsp",
+      "format": "euc"
+    },
+    "kroA100": {
+      "filename": "kroA100.tsp",
+      "format": "euc"
+    },
+    "rat195": {
+      "filename": "rat195.tsp",
+      "format": "euc"
+    },
+    "Bahia30D": {
+      "filename": "ciudades_Bahia30D.xlsx",
+      "format": "excel"
+    },
+    "Minas24D": {
+      "filename": "Minas24D.xlsx",
+      "format": "excel"
+    },
+    "Minas30D": {
+      "filename": "Minas30D.xlsx",
+      "format": "excel"
+    },
+    "Minas57D": {
+      "filename": "Minas57D.xlsx",
+      "format": "excel"
+    }
+  }
+}

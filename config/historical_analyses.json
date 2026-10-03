@@ -1,0 +1,48 @@
+{
+  "historical_analyses": [
+    {
+      "id": "00",
+      "label": "berlin52: 00 (historical)",
+      "parameters": {
+        "optType": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ]
+      },
+      "repetitions": {
+        "start": 1,
+        "stop": 11
+      },
+      "input_template": "Results/berlin52/00/berlin52_{optType}_{number}.xlsx",
+      "columns": [
+        "optType"
+      ],
+      "output": null
+    },
+    {
+      "id": "02_08",
+      "label": "berlin52: 02_08 (historical)",
+      "parameters": {
+        "optType": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ]
+      },
+      "repetitions": {
+        "start": 1,
+        "stop": 11
+      },
+      "input_template": "Results/berlin52/02_08/berlin52_{optType}_{number}.xlsx",
+      "columns": [
+        "optType"
+      ],
+      "output": null
+    }
+  ]
+}
