@@ -71,3 +71,73 @@ def test_option_8_minas24d_finds_known_optimum(monkeypatch, tmp_path):
     configuration, = experiment.configurations()
     workbook = tmp_path / 'Minas24D' / runner.result_filename(experiment, configuration)
     assert workbook.is_file()
+
+
+def test_minas24d_refuel_ring_finds_known_best_cost(monkeypatch, tmp_path):
+    from dataclasses import replace
+
+    fuel_experiment = next(
+        experiment for experiment in runner.EXPERIMENTS
+        if experiment.dataset == 'Minas24D'
+        and experiment.label == 'circuit and initial tank'
+    )
+    # Select one real fuel-sweep configuration and run it once with a fixed seed.
+    experiment = replace(
+        fuel_experiment, rings=(True,), full_tanks=(False,),
+        repetitions=range(1, 2),
+    )
+    assert experiment == runner.Experiment(
+        dataset='Minas24D', label='circuit and initial tank', steps=(1200,),
+        particles=(8,), opts=(10,), minimums=(0.2,), maximums=(0.8,),
+        rings=(True,), full_tanks=(False,), repetitions=range(1, 2),
+        excel=True, refuel=True, style='fuel', max_capacity=150.0,
+        consumption=7.0, permut_reset=True, k=10,
+        analysis_output='Analysis_Minas24D.xlsx',
+    )
+    assert runner.DATASETS['Minas24D'] == {
+        'filename': 'Minas24D.xlsx', 'format': 'excel', 'verbose': True,
+    }
+
+    # Seed 1 reproduces the reference cost. Seed both swarm initialization and
+    # one real spawned worker to remove scheduling-dependent random sequences.
+    seed = 1
+    np.random.seed(seed)
+    monkeypatch.setattr(
+        solver_module, 'Pool',
+        partial(get_context('spawn').Pool, processes=1,
+                initializer=np.random.seed, initargs=(seed,)),
+    )
+
+    created_solvers = []
+
+    def capture_solver(**kwargs):
+        # Preserve the real solver and retain its state after execute() returns.
+        solver = solver_module.ParticleSwarm_VarOptMultiprocess(**kwargs)
+        created_solvers.append(solver)
+        return solver
+
+    monkeypatch.setattr(runner, 'ParticleSwarm_VarOptMultiprocess', capture_solver)
+    # execute() loads both coordinates and fuel prices from the repository workbook.
+    runner.execute(experiment, output_dir=tmp_path)
+
+    assert len(created_solvers) == 1
+    solver = created_solvers[0]
+    assert solver.distance_matrix.shape == (24, 24)
+    assert solver.prices.shape == (24,)
+    assert solver.refuel_mode is True
+    assert solver.ring_mode is True
+    assert solver.fullinit is False
+    assert solver.max_steps == 1200 * 24
+    assert solver.cur_steps > solver.max_steps
+    route = solver.global_best[0]
+    assert_permutation(route, 24)
+
+    # Compare fuel cost, not distance, the shifted objective, or a specific route.
+    # The reference is rounded to six decimals, so use an absolute tolerance only.
+    cost = solver._calculate_refuel(route)
+    assert cost == pytest.approx(1426.297870, rel=0, abs=1e-6)
+    assert solver.f_global_best[0] == pytest.approx(solver._objective(route))
+
+    configuration, = experiment.configurations()
+    workbook = tmp_path / 'Minas24D' / runner.result_filename(experiment, configuration)
+    assert workbook.is_file()
