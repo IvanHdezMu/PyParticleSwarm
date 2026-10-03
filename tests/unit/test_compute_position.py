@@ -125,3 +125,26 @@ def test_compute_position_empty_two_node_ring_returns_without_evaluations(make_s
     assert_array_equal(vel, [2, operator, 0])
     assert_array_equal(route, [0, 1])
     assert_array_equal(velocity, [2, operator, 0])
+
+
+@pytest.mark.parametrize('kwargs, expected_x, expected_iter', [
+    ({}, [1, 3, 0, 2], 1),
+    ({'resetThresholdDivisor': 1000}, [1, 3, 0, 2], 1),
+    ({'resetThresholdDivisor': 1}, [0, 1, 2, 3], 2),
+])
+def test_compute_position_configurable_reset_threshold(make_solver, kwargs, expected_x, expected_iter):
+    s = make_solver(distance_matrix=np.ones((4, 4)) - np.eye(4), **kwargs)
+    assert s.resetThresholdDivisor == kwargs.get('resetThresholdDivisor', 1000)
+    s.k = 1
+    route = np.arange(4)
+    velocity = np.array([1., 4., 1.])
+    # With c1=2, thresholds are 0.004 and 4: an initial count of 1 only resets
+    # with the default divisor. The identity operator isolates this decision.
+    np.random.seed(7)
+    x, n_iter, fx, vel = s._compute_position((route, velocity, 1, s._objective(route)))
+    assert_array_equal(x, expected_x)
+    assert n_iter == expected_iter
+    assert fx == -1 == s._objective(x)
+    assert_array_equal(vel, [1, 4, 1])
+    assert_array_equal(route, np.arange(4))
+    assert_array_equal(velocity, [1, 4, 1])

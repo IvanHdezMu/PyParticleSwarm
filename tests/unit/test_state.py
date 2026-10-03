@@ -174,6 +174,7 @@ def test_global_best_does_not_replace_better_or_equal_record(known_state, previo
 ])
 def test_opt_type(make_solver, mode, expected):
     s = make_solver(N=5)
+    assert s.primaryOperatorShare == 0.2
     s.nIter = np.array([0, 2, 3, 4, 0])  # threshold is c1 == 2, strictly greater
     s.vel = np.array([[4, 1, .1], [4, 2, .2], [4, 1, .3], [4, 2, .4], [4, 5, .5]])
     before = s.vel.copy()
@@ -197,3 +198,21 @@ def test_run_excel_requires_path_before_mutating(solver):
         solver.run(excel=True)
     assert solver.pos is None
     assert solver.cur_steps is None
+
+
+@pytest.mark.parametrize('mode, expected', [
+    (12, [1, 1, 1, 2, 2]),
+    (15, [1, 1, 1, 5, 5]),
+    (21, [2, 2, 2, 1, 1]),
+])
+def test_opt_type_custom_primary_operator_share(make_solver, mode, expected):
+    s = make_solver(N=5, primaryOperatorShare=0.5)
+    assert s.primaryOperatorShare == 0.5
+    s.nIter = np.array([0, 2, 3, 4, 0])
+    s.vel = np.array([[4, 1, .1], [4, 2, .2], [4, 1, .3], [4, 2, .4], [4, 5, .5]])
+    before = s.vel.copy()
+    # Indices 0, 1, and 2 are below 5 * 0.5, preserving the existing comparison.
+    assert s._Opt_Type(mode) is None
+    assert_array_equal(s.vel[:, 1], expected)
+    assert_array_equal(s.vel[:, [0, 2]], before[:, [0, 2]])
+    assert_array_equal(s.nIter, [0, 2, 3, 4, 0])

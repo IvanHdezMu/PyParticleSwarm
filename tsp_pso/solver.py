@@ -39,7 +39,8 @@ class ParticleSwarm_VarOptMultiprocess:
     cur_steps = None
     
     def __init__(self, N, c1, distance_matrix, ring_mode=False, refuel_mode=False,
-                 prices=None, maxCapacity=None, consumption=None, fullinit=False):
+                 prices=None, maxCapacity=None, consumption=None, fullinit=False,
+                 resetThresholdDivisor=1000, primaryOperatorShare=0.2, progressWarmupMultiplier=5):
         """
         Initialization function
 
@@ -53,6 +54,9 @@ class ParticleSwarm_VarOptMultiprocess:
         maxCapacity: vehicle capacity in liters
         consumption: consumption of the vehicle in Km per liter
         fullinit: full tank at first
+        resetThresholdDivisor: divisor used to scale the reset threshold
+        primaryOperatorShare: primary operator share in modes 12, 15, and 21
+        progressWarmupMultiplier: route-length multiplier for the progress reporting threshold
 
         Returns:
         None
@@ -66,6 +70,9 @@ class ParticleSwarm_VarOptMultiprocess:
         self.ring_mode = ring_mode
 
         self.fullinit = fullinit
+        self.resetThresholdDivisor = resetThresholdDivisor
+        self.primaryOperatorShare = primaryOperatorShare
+        self.progressWarmupMultiplier = progressWarmupMultiplier
         
         self.refuel_mode = refuel_mode
         if refuel_mode: 
@@ -438,7 +445,7 @@ class ParticleSwarm_VarOptMultiprocess:
                 self._best()
                 self._global_best()
 
-                if self.cur_steps > self.member_size * 5:
+                if self.cur_steps > self.member_size * self.progressWarmupMultiplier:
                     if verbose:
                         print(self)
                     if excel:
@@ -499,17 +506,17 @@ class ParticleSwarm_VarOptMultiprocess:
                 else:
                     self.vel[i, 1] = 1
             elif optType == 12:
-                    if i < (self.swarm_size * 0.2):
+                    if i < (self.swarm_size * self.primaryOperatorShare):
                         self.vel[i, 1] = 1
                     else:
                         self.vel[i, 1] = 2
             elif optType == 15:
-                    if i < (self.swarm_size * 0.2):
+                    if i < (self.swarm_size * self.primaryOperatorShare):
                         self.vel[i, 1] = 1
                     else:
                         self.vel[i, 1] = 5
             elif optType == 21:
-                    if i < (self.swarm_size * 0.2):
+                    if i < (self.swarm_size * self.primaryOperatorShare):
                         self.vel[i, 1] = 2
                     else:
                         self.vel[i, 1] = 1
@@ -532,9 +539,10 @@ class ParticleSwarm_VarOptMultiprocess:
         x, vel, nIter, fx = args
 
         nIter_aux = 0
-        reset_threshold = (self.max_steps / self.member_size) * (self.c1 / 1000)
+        reset_threshold = (self.max_steps / self.member_size) * (self.c1 / self.resetThresholdDivisor)
         while nIter_aux < vel[0]:
             if (nIter >= reset_threshold) and (np.random.rand() < vel[2]):
+                # Reset operator: split the route into four parts and reorder them as [1, 3, 0, 2].
                 x_parts = np.array_split(x, 4)
                 x = np.concatenate([x_parts[1], x_parts[3], x_parts[0], x_parts[2]])
                 fx = self._objective(x)

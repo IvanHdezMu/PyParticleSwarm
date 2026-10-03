@@ -107,6 +107,7 @@ def test_run_reinitializes_same_instance(solver):
 @pytest.mark.parametrize('refuel', [False, True])
 def test_run_verbose_and_excel(make_solver, refuel, tmp_path, capsys):
     s = make_solver(c1=6, refuel_mode=refuel)
+    assert s.progressWarmupMultiplier == 5
     destination = tmp_path / 'progress.xlsx'
     np.random.seed(7)
     result = s.run(verbose=True, optType=3, excel=True, file_path=destination, permutReset=False, k=2)
@@ -137,3 +138,24 @@ def test_run_zero_iterations(solver):
     result = solver.run(verbose=False, permutReset=False, k=2)
     assert_consistent_result(solver, result)
     assert solver.cur_steps == 1
+
+
+@pytest.mark.parametrize('multiplier, expected_steps', [
+    (5, [25]),
+    (1, [5, 13, 25]),
+    (1.25, [13, 25]),
+])
+def test_run_progress_warmup_multiplier(make_solver, multiplier, expected_steps, tmp_path, capsys):
+    s = make_solver(c1=6, progressWarmupMultiplier=multiplier)
+    assert s.progressWarmupMultiplier == multiplier
+    destination = tmp_path / 'progress.xlsx'
+    np.random.seed(7)
+    result = s.run(verbose=True, optType=3, excel=True, file_path=destination,
+                   permutReset=False, k=2)
+    assert_consistent_result(s, result)
+    frame = pd.read_excel(destination)
+    assert list(frame.columns) == ['Step', 'Result']
+    # Four nodes produce steps 5, 13, 25; equality at 4 * 1.25 must not record.
+    assert frame['Step'].tolist() == expected_steps
+    assert np.all(np.isfinite(frame['Result']))
+    assert capsys.readouterr().out.count('PARTICLE SWARM:') == len(expected_steps) + 1
