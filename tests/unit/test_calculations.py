@@ -33,15 +33,15 @@ def test_calculate_distance_directed(make_solver):
     assert s._calculate_distance(np.array([2, 1, 0])) == 16
 
 
-@pytest.mark.parametrize("ring, expected", [(False, 2), (True, 5)])
-def test_objective_tsp_absolute_difference(solver, ring, expected):
+@pytest.mark.parametrize("ring, expected", [(False, -2), (True, 5)])
+def test_objective_tsp_signed_difference(solver, ring, expected):
     solver.ring_mode = ring
     route = np.arange(4)
-    assert solver._objectiveTSP(route) == expected  # abs(11 - (9 or 16))
+    assert solver._objectiveTSP(route) == expected  # (9 or 16) - 11
     assert_array_equal(route, np.arange(4))
 
 
-@pytest.mark.parametrize("refuel, expected", [(False, 2), (True, 7)])
+@pytest.mark.parametrize("refuel, expected", [(False, -2), (True, 7)])
 def test_objective_dispatch(make_solver, refuel, expected):
     s = make_solver(refuel_mode=refuel)
     route = np.arange(4)
@@ -100,7 +100,7 @@ def test_objective_tspwr(make_solver, ring, expected):
     assert_array_equal(route, np.arange(4))
 
 
-@pytest.mark.parametrize("refuel, expected", [(False, [2, 9]), (True, [7, 23.5])])
+@pytest.mark.parametrize("refuel, expected", [(False, [-2, 9]), (True, [7, 23.5])])
 def test_score(make_solver, refuel, expected):
     s = make_solver(refuel_mode=refuel)
     positions = np.array([[0, 1, 2, 3], [0, 2, 1, 3]])
@@ -112,7 +112,7 @@ def test_score(make_solver, refuel, expected):
 
 
 def test_score_one_member(solver):
-    assert_array_equal(solver._score(np.array([[0, 1, 2, 3]])), [2])
+    assert_array_equal(solver._score(np.array([[0, 1, 2, 3]])), [-2])
 
 
 @pytest.mark.parametrize("refuel, minimum, maximum", [(False, 11, 34), (True, 11, 85)])
