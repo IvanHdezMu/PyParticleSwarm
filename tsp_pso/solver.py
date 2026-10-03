@@ -488,7 +488,7 @@ class ParticleSwarm_VarOptMultiprocess:
         """
 
         for i, nIter in enumerate(self.nIter):
-            if optType <= 5:
+            if 1 <= optType <= 5:
                     self.vel[i, 1] = optType
             elif optType == 10:
                 if nIter > (self.max_steps / self.member_size):
@@ -513,6 +513,8 @@ class ParticleSwarm_VarOptMultiprocess:
                         self.vel[i, 1] = 2
                     else:
                         self.vel[i, 1] = 1
+            else:
+                raise ValueError(f"Invalid optType: {optType}")
 
 
 
