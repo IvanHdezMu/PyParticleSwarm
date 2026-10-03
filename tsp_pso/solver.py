@@ -271,8 +271,8 @@ class ParticleSwarm_VarOptMultiprocess:
                     liters_aux += self.distance_matrix[member[j], member[j+1]] / self.consumption
                 else:
                     break
-            if liters_aux + tank > 150.0:
-                liters_aux = 150.0 - tank
+            if liters_aux + tank > self.maxCapacity:
+                liters_aux = self.maxCapacity - tank
 
             if (liters_aux > tank):
                 cost += (liters_aux - tank) * path_price[i]
