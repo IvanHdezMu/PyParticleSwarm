@@ -73,14 +73,17 @@ def test_run_refuel_tank_and_resets(make_solver, ring, fullinit):
     assert_array_equal(s.vel[:, 2], np.ones(4))
 
 
-@pytest.mark.parametrize('particles', [1, 2, 6])
+@pytest.mark.parametrize('particles', [2, 6])
 def test_run_particle_count_independent_of_nodes(make_solver, particles):
     s = make_solver(N=particles)
     np.random.seed(7)
     result = s.run(verbose=False, optType=3, permutReset=False, k=2)
     assert_consistent_result(s, result)
 
-
+def test_rejects_single_particle(make_solver):
+    with pytest.raises(ValueError, match='Number of particles must be at least 2'):
+        make_solver(N=1)
+        
 def test_run_defaults(make_solver):
     s = make_solver()
     np.random.seed(7)

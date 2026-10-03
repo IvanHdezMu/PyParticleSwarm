@@ -167,20 +167,6 @@ def test_global_best_does_not_replace_better_or_equal_record(known_state, previo
     assert_array_equal(s.global_best, before)
     assert_array_equal(s.f_global_best, [previous] * 4)
 
-
-def test_global_best_single_particle(make_solver):
-    s = make_solver(N=1)
-    s.pos = s.best = np.array([[0, 1, 2, 3]])
-    s.fx = s.f_best = np.array([2.])
-    s.nIter = np.zeros(1)
-    s.vel = np.array([[4., 1., 0.]])
-    s.global_best = np.array([[3, 0, 1, 2]])
-    s.f_global_best = np.array([34.])
-    s._global_best()
-    assert_array_equal(s.f_global_best, [2])
-    assert_array_equal(s.global_best, [[0, 1, 2, 3]])
-
-
 @pytest.mark.parametrize('mode, expected', [
     (1, [1]*5), (2, [2]*5), (3, [3]*5), (4, [4]*5), (5, [5]*5),
     (10, [1, 1, 2, 1, 1]), (12, [1, 2, 2, 2, 2]),
