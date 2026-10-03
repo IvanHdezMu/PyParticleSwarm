@@ -524,8 +524,9 @@ class ParticleSwarm_VarOptMultiprocess:
         x, vel, nIter, fx = args
 
         nIter_aux = 0
+        reset_threshold = (self.max_steps / self.member_size) * (self.c1 / 1000)
         while nIter_aux <= vel[0]:
-            if (nIter >= (self.max_steps / self.member_size) * (self.c1/1000)) and (np.random.rand() < vel[2]):
+            if (nIter >= reset_threshold) and (np.random.rand() < vel[2]):
                 x_parts = np.array_split(x, 4)
                 x = np.concatenate([x_parts[1], x_parts[3], x_parts[0], x_parts[2]])
                 fx = self._objective(x)
