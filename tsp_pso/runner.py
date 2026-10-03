@@ -138,8 +138,7 @@ def execute(experiment, output_dir=None):
             resetThresholdDivisor=experiment.reset_threshold_divisor,
             primaryOperatorShare=experiment.primary_operator_share,
             progressWarmupMultiplier=experiment.progress_warmup_multiplier)
-        algorithm.run(verbose=experiment.verbose
-                      and (experiment.label == 'individual' or not experiment.excel),
+        algorithm.run(verbose=experiment.verbose,
                       optType=opt, excel=experiment.excel,
                       file_path=destination / result_filename(experiment, configuration),
                       permutReset=experiment.permut_reset, minPermut=minimum,

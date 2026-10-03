@@ -92,7 +92,7 @@ def test_minas24d_refuel_ring_finds_known_best_cost(monkeypatch, tmp_path):
         rings=(True,), full_tanks=(False,), repetitions=range(1, 2),
         excel=True, refuel=True, style='fuel', max_capacity=150.0,
         consumption=7.0, permut_reset=True, k=10,
-        analysis_output='Analysis_Minas24D.xlsx',
+        analysis_output='Analysis_Minas24D.xlsx', verbose=False,
     )
     assert runner.DATASETS['Minas24D'] == {
         'filename': 'Minas24D.xlsx', 'format': 'excel',

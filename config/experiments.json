@@ -209,6 +209,7 @@
     {
       "dataset": "st70",
       "label": "c1 sweep",
+      "verbose": false,
       "steps": [
         3400,
         3600,
@@ -225,6 +226,7 @@
     {
       "dataset": "ch150",
       "label": "c1 sweep",
+      "verbose": false,
       "steps": [
         6000,
         7000,
@@ -242,6 +244,7 @@
     {
       "dataset": "kroA100",
       "label": "repetitions 17–20",
+      "verbose": false,
       "steps": [
         3600
       ],
@@ -258,6 +261,7 @@
     {
       "dataset": "rat195",
       "label": "repetitions 6–10",
+      "verbose": false,
       "steps": [
         20000
       ],
@@ -271,6 +275,7 @@
     {
       "dataset": "Bahia30D",
       "label": "circuit and initial tank",
+      "verbose": false,
       "steps": [
         1200
       ],
@@ -294,6 +299,7 @@
     {
       "dataset": "Minas24D",
       "label": "circuit and initial tank",
+      "verbose": false,
       "steps": [
         1200
       ],
@@ -317,6 +323,7 @@
     {
       "dataset": "Minas30D",
       "label": "circuit and initial tank",
+      "verbose": false,
       "steps": [
         1500
       ],
@@ -340,6 +347,7 @@
     {
       "dataset": "Minas57D",
       "label": "circuit and initial tank",
+      "verbose": false,
       "steps": [
         3000
       ],
@@ -363,6 +371,7 @@
     {
       "dataset": "Minas24D",
       "label": "circuit fuel regression",
+      "verbose": false,
       "steps": [
         1200
       ],

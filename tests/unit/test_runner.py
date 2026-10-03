@@ -77,9 +77,10 @@ def test_existing_experiment_verbose_behavior(monkeypatch, tmp_path):
     factory = Mock()
     monkeypatch.setattr(runner, 'ParticleSwarm_VarOptMultiprocess', factory)
     monkeypatch.setattr(runner, 'load_dataset', lambda name: (np.array([[0, 2], [2, 0]]), None))
+    assert len(runner.EXPERIMENTS) == 22
     for number, experiment in enumerate(runner.EXPERIMENTS, 1):
         # Berlin52 and Bays29 were quiet; the other individual runs were verbose.
-        assert experiment.verbose is (experiment.dataset not in ('berlin52', 'bays29'))
+        assert experiment.verbose is (3 <= number <= 10)
         factory.reset_mock()
         runner.execute(experiment, output_dir=tmp_path)
         assert factory.return_value.run.call_count == experiment.count
@@ -88,7 +89,8 @@ def test_existing_experiment_verbose_behavior(monkeypatch, tmp_path):
 
 
 @pytest.mark.parametrize('verbose', [False, True])
-@pytest.mark.parametrize('label, excel', [('individual', True), ('sweep', True), ('sweep', False)])
+@pytest.mark.parametrize('label', ['individual', 'renamed experiment'])
+@pytest.mark.parametrize('excel', [False, True])
 def test_experiment_verbose_override(monkeypatch, tmp_path, verbose, label, excel):
     options = runner.load_run_options()
     options['defaults']['verbose'] = not verbose
@@ -103,6 +105,5 @@ def test_experiment_verbose_override(monkeypatch, tmp_path, verbose, label, exce
     monkeypatch.setattr(runner, 'load_dataset', lambda name: (np.array([[0, 2], [2, 0]]), None))
     runner.execute(experiment, output_dir=tmp_path)
     factory.return_value.run.assert_called_once()
-    assert factory.return_value.run.call_args.kwargs['verbose'] is (
-        verbose and (label == 'individual' or not excel)
-    )
+    assert factory.return_value.run.call_args.kwargs['verbose'] is verbose
+    assert factory.return_value.run.call_args.kwargs['excel'] is excel
