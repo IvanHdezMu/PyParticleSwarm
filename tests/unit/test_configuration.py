@@ -18,6 +18,10 @@ pytestmark = pytest.mark.unit
     ('Minas30D', 30, True), ('Minas57D', 57, True),
 ])
 def test_configured_dataset_loads(name, size, has_prices):
+    dataset = runner.DATASETS[name]
+    assert dataset['source'] == ('Ottoni et al. (2022)' if has_prices else 'TSPLIB')
+    assert dataset['problem_types'] == (['tsp', 'tspwr'] if has_prices else ['tsp'])
+    assert dataset['filename'].startswith('Ottoni/' if has_prices else 'TSPLIB/')
     matrix, prices = runner.load_dataset(name)
     assert matrix.shape == (size, size)
     assert np.all(np.isfinite(matrix))
@@ -29,6 +33,7 @@ def test_configured_dataset_loads(name, size, has_prices):
 
 
 def test_experiment_count_and_order():
+    assert len(runner.DATASETS) == 10
     experiments = runner.build_experiments(runner.load_run_options())
     assert len(experiments) == 22
     assert experiments == runner.EXPERIMENTS

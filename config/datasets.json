@@ -1,44 +1,64 @@
 {
   "datasets": {
     "berlin52": {
-      "filename": "berlin52.tsp",
-      "format": "euc"
+      "filename": "TSPLIB/berlin52.tsp",
+      "format": "euc",
+      "source": "TSPLIB",
+      "problem_types": ["tsp"]
     },
     "bays29": {
-      "filename": "bays29.tsp",
-      "format": "matrix"
+      "filename": "TSPLIB/bays29.tsp",
+      "format": "matrix",
+      "source": "TSPLIB",
+      "problem_types": ["tsp"]
     },
     "st70": {
-      "filename": "st70.tsp",
-      "format": "euc"
+      "filename": "TSPLIB/st70.tsp",
+      "format": "euc",
+      "source": "TSPLIB",
+      "problem_types": ["tsp"]
     },
     "ch150": {
-      "filename": "ch150.tsp",
-      "format": "euc"
+      "filename": "TSPLIB/ch150.tsp",
+      "format": "euc",
+      "source": "TSPLIB",
+      "problem_types": ["tsp"]
     },
     "kroA100": {
-      "filename": "kroA100.tsp",
-      "format": "euc"
+      "filename": "TSPLIB/kroA100.tsp",
+      "format": "euc",
+      "source": "TSPLIB",
+      "problem_types": ["tsp"]
     },
     "rat195": {
-      "filename": "rat195.tsp",
-      "format": "euc"
+      "filename": "TSPLIB/rat195.tsp",
+      "format": "euc",
+      "source": "TSPLIB",
+      "problem_types": ["tsp"]
     },
     "Bahia30D": {
-      "filename": "ciudades_Bahia30D.xlsx",
-      "format": "excel"
+      "filename": "Ottoni/ciudades_Bahia30D.xlsx",
+      "format": "excel",
+      "source": "Ottoni et al. (2022)",
+      "problem_types": ["tsp", "tspwr"]
     },
     "Minas24D": {
-      "filename": "Minas24D.xlsx",
-      "format": "excel"
+      "filename": "Ottoni/Minas24D.xlsx",
+      "format": "excel",
+      "source": "Ottoni et al. (2022)",
+      "problem_types": ["tsp", "tspwr"]
     },
     "Minas30D": {
-      "filename": "Minas30D.xlsx",
-      "format": "excel"
+      "filename": "Ottoni/Minas30D.xlsx",
+      "format": "excel",
+      "source": "Ottoni et al. (2022)",
+      "problem_types": ["tsp", "tspwr"]
     },
     "Minas57D": {
-      "filename": "Minas57D.xlsx",
-      "format": "excel"
+      "filename": "Ottoni/Minas57D.xlsx",
+      "format": "excel",
+      "source": "Ottoni et al. (2022)",
+      "problem_types": ["tsp", "tspwr"]
     }
   }
 }
