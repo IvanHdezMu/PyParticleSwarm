@@ -152,3 +152,26 @@ def test_json_and_existing_ottoni_excel_have_identical_values(tmp_path, monkeypa
     matrix, prices = runner.load_dataset('sample')
     np.testing.assert_array_equal(matrix, expected_matrix)
     np.testing.assert_array_equal(prices, expected_prices)
+
+
+def test_available_options_come_from_snapshot(snapshot):
+    snapshot['ListaEESSPrecio'][0]['Provincia'] = 'TOLEDO'
+    regions, fuels = generator.available_options(json.dumps(snapshot).encode())
+    assert regions == ['MADRID', 'TOLEDO']
+    assert fuels == ['Gasoleo A', 'Gasolina 95 E5']
+
+
+@pytest.mark.parametrize('snapshot', [
+    {'ResultadoConsulta': 'ERROR', 'ListaEESSPrecio': []},
+    {'ListaEESSPrecio': None}, {'ListaEESSPrecio': []},
+])
+def test_available_options_reject_unusable_source(snapshot):
+    with pytest.raises(ValueError, match='MITECO'):
+        generator.available_options(json.dumps(snapshot).encode())
+
+
+def test_shared_dataset_filename():
+    assert generator.dataset_filename('Comunidad de Madrid', 20, 42) == 'Comunidad de Madrid_20_seed42.json'
+    assert generator.dataset_filename(' A/B: ', 2, -1) == 'A_B__2_seed-1.json'
+    with pytest.raises(ValueError, match='usable filename'):
+        generator.dataset_filename(' ', 2, 42)

@@ -65,14 +65,32 @@ def select_stations(snapshot, region, fuel, size, seed, region_field='Provincia'
     return random.Random(seed).sample(valid, size), len(rows), len(valid), price_field
 
 
+def available_options(raw):
+    """Return province and fuel names exposed by a successful source snapshot."""
+    snapshot = json.loads(raw)
+    rows = snapshot.get('ListaEESSPrecio')
+    if snapshot.get('ResultadoConsulta', 'OK') != 'OK' or not isinstance(rows, list):
+        raise ValueError('Invalid MITECO snapshot: expected a successful ListaEESSPrecio response')
+    regions = sorted({row['Provincia'].strip() for row in rows if row.get('Provincia')}, key=normalize)
+    fuels = sorted({key[7:] for row in rows for key in row if key.startswith('Precio ')}, key=normalize)
+    if not regions or not fuels:
+        raise ValueError('MITECO data contains no provinces or fuel types')
+    return regions, fuels
+
+
+def dataset_filename(region, size, seed):
+    """Use the same readable, filesystem-safe name in the CLI and desktop UI."""
+    safe_region = re.sub(r'[<>:"/\\|?*\x00-\x1f]', '_', region.strip()).rstrip('. ')
+    if not safe_region:
+        raise ValueError('Region must have a usable filename')
+    return f'{safe_region}_{size}_seed{seed}.json'
+
+
 def generate(raw, region, fuel, size, seed, output=None, region_field='Provincia'):
     selected, inspected, valid, price_field = select_stations(
         json.loads(raw), region, fuel, size, seed, region_field)
     if output is None:
-        safe_region = re.sub(r'[<>:"/\\|?*\x00-\x1f]', '_', region.strip()).rstrip('. ')
-        if not safe_region:
-            raise ValueError('Region must have a usable filename')
-        output = DEFAULT_OUTPUT / f'{safe_region}_{size}_seed{seed}.json'
+        output = DEFAULT_OUTPUT / dataset_filename(region, size, seed)
     output = Path(output)
     if output.suffix.lower() != '.json':
         raise ValueError('Output must be a .json file')

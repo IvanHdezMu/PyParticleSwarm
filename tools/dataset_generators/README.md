@@ -91,3 +91,33 @@ route distances, not road-network distances.
 See [source and provenance](../../datasets/MITECO_Spain/README.md) for the exact
 endpoint and reuse terms. Tests use synthetic in-memory snapshots and never
 require the live service.
+
+## Desktop GUI
+
+Install the existing requirements (which include `customtkinter>=5.2,<6`):
+
+```bash
+python3 -m pip install -r .devcontainer/requirements.txt
+python3 tools/dataset_generators/gui.py
+```
+
+A desktop display and Tk are required. On Ubuntu/Debian, install Tk with
+`sudo apt-get install python3-tk`; the devcontainer Dockerfile includes this
+package, but a container still needs access to a graphical display. The CLI and
+the headless test suite do not require a display.
+
+The single window offers source (MITECO Spain), province, fuel, dataset size,
+seed, and an output directory selected with **Browse…**. Size defaults to 20,
+seed to 42, and output to `datasets/MITECO_Spain/`. Province and fuel choices
+come from the downloaded snapshot, with no fixed regional or fuel list. The
+first available choices are selected; choose the desired fuel before generating.
+**Reload source** retries a failed download or retrieves a fresh snapshot.
+
+Downloading and generation run in background threads while UI updates stay on
+the main thread. **Generate** uses the same selection, validation, naming, and
+JSON-writing functions as the CLI. Errors appear in the status area; success
+shows the filename, province, fuel, node count, seed, and full output path.
+The loaded snapshot is reused until reloaded. Existing output files are not
+overwritten, and generated datasets are not automatically registered. The JSON
+schema and CLI commands above remain unchanged. Use the CLI's snapshot options
+when you need to save or replay the full national source input.
