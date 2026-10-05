@@ -15,7 +15,7 @@ Run `python3 main.py` and choose **run** to execute an experiment or **analysis*
 - `config/datasets.json`: dataset definitions.
 - `config/experiments.json`: output directory, experiment defaults, ordered runs, and analysis output names.
 - `config/historical_analyses.json`: analysis definitions for historical results.
-- `Datasets/`: input datasets; original file names are preserved.
+- `datasets/TSPLIB/` and `datasets/Ottoni/`: input datasets grouped by source; original file names are preserved.
 - `Results/<dataset>/<timestamp>_<parameters>/`: one directory per experiment execution, containing raw Excel files, `run_config.json`, and the analysis workbook.
 
 The devcontainer installs the Python dependencies automatically.

@@ -93,7 +93,7 @@ EXPERIMENTS = build_experiments()
 def load_dataset(name):
     dataset = DATASETS[name]
     fmt = dataset['format']
-    path = ROOT / 'Datasets' / dataset['filename']
+    path = ROOT / 'datasets' / dataset['filename']
     if fmt == 'euc':
         return np.round(read_euc2d_matrix(path), 0), None
     if fmt == 'matrix':
