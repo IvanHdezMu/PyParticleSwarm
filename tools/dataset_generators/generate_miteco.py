@@ -1,4 +1,4 @@
-"""Generate loader-compatible TSPWR workbooks from official MITECO JSON."""
+"""Generate loader-compatible TSPWR JSON datasets from official MITECO JSON."""
 
 import argparse
 from datetime import datetime, timezone
@@ -11,8 +11,6 @@ import re
 import unicodedata
 from urllib.error import URLError
 from urllib.request import urlopen
-
-import pandas as pd
 
 SOURCE_URL = ('https://sedeaplicaciones.minetur.gob.es/ServiciosRESTCarburantes/'
               'PreciosCarburantes/EstacionesTerrestres/')
@@ -57,13 +55,13 @@ def select_stations(snapshot, region, fuel, size, seed, region_field='Provincia'
             continue
         if not (-90 <= lat <= 90 and -180 <= lon <= 180) or price <= 0:
             continue
-        valid.append({'station_id': str(row.get('IDEESS') or ''),
+        valid.append({'id': str(row.get('IDEESS') or ''),
                       'latitude': lat, 'longitude': lon, 'price': price})
     if len(valid) < size:
         raise ValueError(f'Requested {size} stations, but only {len(valid)} valid stations '
                          f'match {region!r} and {fuel!r}')
     # Canonical ordering makes selection independent of the service row order.
-    valid.sort(key=lambda row: (row['station_id'], row['latitude'], row['longitude'], row['price']))
+    valid.sort(key=lambda row: (row['id'], row['latitude'], row['longitude'], row['price']))
     return random.Random(seed).sample(valid, size), len(rows), len(valid), price_field
 
 
@@ -74,13 +72,12 @@ def generate(raw, region, fuel, size, seed, output=None, region_field='Provincia
         safe_region = re.sub(r'[<>:"/\\|?*\x00-\x1f]', '_', region.strip()).rstrip('. ')
         if not safe_region:
             raise ValueError('Region must have a usable filename')
-        output = DEFAULT_OUTPUT / f'{safe_region}_{size}_seed{seed}.xlsx'
+        output = DEFAULT_OUTPUT / f'{safe_region}_{size}_seed{seed}.json'
     output = Path(output)
-    if output.suffix.lower() != '.xlsx':
-        raise ValueError('Output must be an .xlsx file')
-    sidecar = output.with_suffix('.json')
-    if output.exists() or sidecar.exists():
-        raise ValueError(f'Output already exists: {output} or {sidecar}')
+    if output.suffix.lower() != '.json':
+        raise ValueError('Output must be a .json file')
+    if output.exists():
+        raise ValueError(f'Output already exists: {output}')
     metadata = {
         'source': 'MITECO Spain', 'source_url': SOURCE_URL,
         'source_organization': 'Ministerio para la Transición Ecológica y el Reto Demográfico',
@@ -90,16 +87,16 @@ def generate(raw, region, fuel, size, seed, output=None, region_field='Provincia
         'region': region, 'region_field': region_field, 'fuel': fuel,
         'price_field': price_field, 'size': size, 'seed': seed,
         'source_rows': inspected, 'valid_rows': valid,
-        'selected_station_ids': [row['station_id'] for row in selected],
+        'selected_station_ids': [row['id'] for row in selected],
         'license': None,
         'license_url': 'https://www.datosabiertos.miteco.gob.es/es/aviso-legal.html',
         'license_note': 'General MITECO reuse terms; no dataset-specific license verified.',
         'generator': 'tools/dataset_generators/generate_miteco.py',
-        'generator_version': 1,
+        'generator_version': 2,
     }
     output.parent.mkdir(parents=True, exist_ok=True)
-    pd.DataFrame(selected).to_excel(output, index=False)
-    sidecar.write_text(json.dumps(metadata, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+    output.write_text(json.dumps({'metadata': metadata, 'nodes': selected},
+                                 ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
     return output, metadata
 
 
@@ -110,7 +107,7 @@ def main(argv=None):
     parser.add_argument('--fuel', required=True, help='Official fuel name, e.g. Gasóleo A')
     parser.add_argument('--size', required=True, type=int)
     parser.add_argument('--seed', required=True, type=int)
-    parser.add_argument('--output', type=Path, help='Destination .xlsx file')
+    parser.add_argument('--output', type=Path, help='Destination .json file')
     parser.add_argument('--input', type=Path, help='Use a saved official JSON snapshot offline')
     parser.add_argument('--save-snapshot', type=Path, help='Save the exact source JSON for later replay')
     args = parser.parse_args(argv)
@@ -129,7 +126,7 @@ def main(argv=None):
     except (ValueError, OSError, URLError) as error:
         parser.exit(1, f'Error: {error}\n')
     print(f"Inspected {metadata['source_rows']} source rows; {metadata['valid_rows']} valid; "
-          f"selected {metadata['size']} stations.\n{output}\n{output.with_suffix('.json')}")
+          f"selected {metadata['size']} stations.\n{output}")
 
 
 if __name__ == '__main__':

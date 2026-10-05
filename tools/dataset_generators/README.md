@@ -21,13 +21,13 @@ Replay a saved snapshot (no network required), choosing another destination:
 python3 tools/dataset_generators/generate_miteco.py \
   --input /tmp/miteco-source.json \
   --region "Comunidad de Madrid" --fuel "Gasóleo A" --size 20 --seed 42 \
-  --output /tmp/Madrid_20_seed42.xlsx
+  --output /tmp/Madrid_20_seed42.json
 ```
 
 The default destination is `datasets/MITECO_Spain/` relative to the repository,
 independent of the current working directory. The default filename is
-`<region>_<size>_seed<seed>.xlsx`; unsafe filename characters are replaced.
-Existing workbooks, sidecars, and saved snapshots are not overwritten. Different
+`<region>_<size>_seed<seed>.json`; unsafe filename characters are replaced.
+Existing datasets and saved snapshots are not overwritten. Different
 fuels can share a default name; use `--output` to distinguish them.
 
 | Argument | Meaning |
@@ -37,7 +37,7 @@ fuels can share a default name; use `--output` to distinguish them.
 | `--fuel` | Required official fuel name, e.g. `Gasóleo A` or `Gasolina 95 E5`; optional `Precio ` prefix. |
 | `--size` | Required positive number of stations. |
 | `--seed` | Required integer seed for deterministic sampling without replacement. |
-| `--output` | Optional full destination `.xlsx` path. |
+| `--output` | Optional full destination `.json` path. |
 | `--input` | Optional saved official JSON snapshot instead of a live download. |
 | `--save-snapshot` | Optional path to preserve the exact input bytes for replay. |
 
@@ -60,16 +60,29 @@ Candidates are sorted by station ID, coordinates, and price before sampling with
 a local seeded random generator. Given identical snapshot data, region, fuel,
 size, seed, and generator version, selected stations have the same order. The
 live service changes over time: a seed alone cannot reproduce a past download.
-Keep `--save-snapshot` output for exact replay; the sidecar's SHA-256 identifies
-its bytes but does not replace the snapshot. Workbooks and metadata are not
+Keep `--save-snapshot` output for exact replay; the metadata's SHA-256 identifies
+its bytes but does not replace the snapshot. Dataset JSON files are not
 byte-identical across generations because creation timestamps can differ.
 
-The Excel columns are `station_id`, `latitude`, `longitude`, `price`, in that
-order, with no extra index column. This matches the existing Excel loader's
-positional interpretation. IDs are retained in the workbook and as strings in
-the JSON sidecar; missing IDs are empty strings. The sidecar also records source,
-source date/hash, generation time, selection parameters, row counts, and reuse
-information. Metadata does not affect solver behavior. Fuel prices retain the
+The official source and generated project datasets are both JSON; no Excel
+conversion is performed. Each output is one self-contained object:
+
+```json
+{
+  "metadata": {"source": "MITECO Spain", "region": "Madrid", "size": 1, "seed": 42},
+  "nodes": [{"id": "123", "latitude": 40.0, "longitude": -3.0, "price": 1.5}]
+}
+```
+
+The abbreviated metadata above also includes source URL/date/hash, generation
+time, fuel, selection parameters, row counts, generator version, and reuse
+information. Node IDs are strings; missing IDs are empty strings. Coordinates
+and prices are numbers. PyParticleSwarm loads these files directly with
+`format: "json"`, preserving the `nodes` array order. No separate metadata file
+is needed. The loader uses the same geographic distance calculation as Ottoni
+Excel datasets and returns a distance matrix and price array.
+
+Metadata does not affect solver behavior. Fuel prices retain the
 source's units; Gasóleo A and gasoline prices are EUR/L. When choosing another
 product, check that its units are compatible with the experiment's capacity and
 consumption settings. Coordinates produce the project's existing geodesic
