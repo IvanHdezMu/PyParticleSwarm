@@ -17,11 +17,12 @@ else:
 class ThemedDropdown(ctk.CTkFrame):
     """Read-only selector with a themed, bounded floating option list."""
 
-    def __init__(self, master, values=(), state='readonly', height=38, **kwargs):
+    def __init__(self, master, values=(), state='readonly', height=38, command=None, **kwargs):
         theme = ctk.ThemeManager.theme['CTkComboBox']
         super().__init__(master, height=height, corner_radius=theme['corner_radius'],
                          fg_color=theme['fg_color'], border_width=theme['border_width'],
                          border_color=theme['border_color'], **kwargs)
+        self._command = command
         self._values = list(values)
         self._state = state
         self._value = ''
@@ -148,6 +149,8 @@ class ThemedDropdown(ctk.CTkFrame):
     def _select(self, value):
         self.set(value)
         self._button.focus_set()
+        if self._command is not None:
+            self._command(value)
 
     def _close(self):
         if self._opened:
@@ -202,6 +205,10 @@ class DatasetGeneratorApp(ctk.CTk):
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(5, weight=1)
         self.raw = None
+        self._source_cache = {}
+        self._loaded_source = None
+        self._loading_source = None
+        self._busy = False
         self.results = Queue()
         self.output = ctk.StringVar(value=str(generator.DEFAULT_OUTPUT))
 
@@ -231,8 +238,9 @@ class DatasetGeneratorApp(ctk.CTk):
         source_card.grid_columnconfigure(0, weight=1)
         ctk.CTkLabel(source_card, text='Source', font=section_font).grid(
             row=0, column=0, columnspan=2, padx=20, pady=(12, 8), sticky='w')
-        self.source = ThemedDropdown(source_card, values=['MITECO Spain'],
-                                     state='readonly', height=control_height)
+        self.source = ThemedDropdown(
+            source_card, values=['MITECO Spain'], state='readonly', height=control_height,
+            command=lambda value: self.load_source(force=False))
         self.source.set('MITECO Spain')
         self.source.grid(row=1, column=0, padx=(20, 12), pady=(0, 18), sticky='ew')
         self.reload_button = ctk.CTkButton(
@@ -246,15 +254,17 @@ class DatasetGeneratorApp(ctk.CTk):
         ctk.CTkLabel(dataset_card, text='Dataset', font=section_font).grid(
             row=0, column=0, columnspan=2, padx=20, pady=(12, 8), sticky='w')
         self.region = ThemedDropdown(dataset_card, values=[], state='disabled',
-                                     height=control_height)
+                                     height=control_height,
+                                     command=lambda value: self.update_generate_state())
         self.fuel = ThemedDropdown(dataset_card, values=[], state='disabled',
-                                   height=control_height)
+                                   height=control_height,
+                                   command=lambda value: self.update_generate_state())
         self.region.set('')
         self.fuel.set('')
-        self.size = ctk.CTkEntry(dataset_card, height=control_height)
-        self.size.insert(0, '20')
-        self.seed = ctk.CTkEntry(dataset_card, height=control_height)
-        self.seed.insert(0, '42')
+        self.size_value = ctk.StringVar(value='20')
+        self.seed_value = ctk.StringVar(value='42')
+        self.size = ctk.CTkEntry(dataset_card, height=control_height, textvariable=self.size_value)
+        self.seed = ctk.CTkEntry(dataset_card, height=control_height, textvariable=self.seed_value)
         fields = (('Region (province)', self.region), ('Fuel', self.fuel),
                   ('Dataset size', self.size), ('Seed', self.seed))
         for index, (label, widget) in enumerate(fields):
@@ -303,8 +313,10 @@ class DatasetGeneratorApp(ctk.CTk):
         status_content.bind(
             '<Configure>',
             lambda event: self.status.configure(wraplength=max(1, event.width - 16)))
+        for variable in (self.size_value, self.seed_value, self.output):
+            variable.trace_add('write', lambda *args: self.update_generate_state())
         self.after(100, self.poll_results)
-        self.load_source()
+        self.load_source(force=False)
 
     def show_status(self, text):
         self.status.configure(text=text)
@@ -316,6 +328,9 @@ class DatasetGeneratorApp(ctk.CTk):
             self.output.set(directory)
 
     def start_work(self, kind, work):
+        self._busy = True
+        # Serialize source changes with work so results always belong to the visible source.
+        self.source.configure(state='disabled')
         self.generate_button.configure(state='disabled')
         self.reload_button.configure(state='disabled')
 
@@ -328,10 +343,42 @@ class DatasetGeneratorApp(ctk.CTk):
 
         Thread(target=worker, daemon=True).start()
 
-    def load_source(self):
+    def update_generate_state(self):
+        try:
+            valid_numbers = int(self.size_value.get()) > 0
+            int(self.seed_value.get())
+        except ValueError:
+            valid_numbers = False
+        ready = (not self._busy and self.raw is not None and self.region.get()
+                 and self.fuel.get() and self.output.get() and valid_numbers)
+        self.generate_button.configure(state='normal' if ready else 'disabled')
+
+    def apply_source(self, source, result):
+        self.raw, (regions, fuels) = result
+        self._loaded_source = source
+        self.region.configure(values=regions, state='readonly' if regions else 'disabled')
+        self.fuel.configure(values=fuels, state='readonly' if fuels else 'disabled')
+        self.region.set(regions[0] if regions else '')
+        self.fuel.set(fuels[0] if fuels else '')
+        self.show_status('MITECO data loaded. Select a province and fuel, then generate.')
+        self.update_generate_state()
+
+    def load_source(self, force=True):
+        if self._busy:
+            return
+        source = self.source.get()
+        if not force and source == self._loaded_source and self.raw is not None:
+            return
+        if not force and source in self._source_cache:
+            self.apply_source(source, self._source_cache[source])
+            return
+        self._loading_source = source
+        self._loaded_source = None
         self.raw = None
-        self.region.configure(state='disabled')
-        self.fuel.configure(state='disabled')
+        self.region.configure(values=[], state='disabled')
+        self.fuel.configure(values=[], state='disabled')
+        self.region.set('')
+        self.fuel.set('')
         self.show_status('Loading MITECO data...')
 
         def download():
@@ -375,16 +422,14 @@ class DatasetGeneratorApp(ctk.CTk):
         except Empty:
             pass
         else:
+            self._busy = False
+            self.source.configure(state='readonly')
             if error is not None:
                 prefix = 'Could not load MITECO data' if kind == 'load' else 'Could not generate dataset'
                 self.show_status(f'{prefix}: {error}')
             elif kind == 'load':
-                self.raw, (regions, fuels) = result
-                self.region.configure(values=regions, state='readonly')
-                self.fuel.configure(values=fuels, state='readonly')
-                self.region.set(regions[0])
-                self.fuel.set(fuels[0])
-                self.show_status('MITECO data loaded. Select a province and fuel, then generate.')
+                self._source_cache[self._loading_source] = result
+                self.apply_source(self._loading_source, result)
             else:
                 path, metadata = result
                 self.show_status(
@@ -393,7 +438,7 @@ class DatasetGeneratorApp(ctk.CTk):
                     f"Nodes: {metadata['size']}\nSeed: {metadata['seed']}\n"
                     f"Full path: {path.resolve()}")
             self.reload_button.configure(state='normal')
-            self.generate_button.configure(state='normal' if self.raw is not None else 'disabled')
+            self.update_generate_state()
         self.after(100, self.poll_results)
 
 
