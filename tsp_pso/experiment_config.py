@@ -115,9 +115,12 @@ class ExperimentConfiguration:
     excel: bool = True
     output_dir: Path = Path('Results')
     legacy_style: str = 'standard'
+    legacy_label: str | None = None
     analysis_output: str | None = None
 
     def __post_init__(self):
+        if self.legacy_label is not None and (not isinstance(self.legacy_label, str) or not self.legacy_label.strip()):
+            raise ValueError('legacy_label must be a nonempty string')
         if self.legacy_style not in ('standard', 'berlin_grid', 'bays', 'fuel'):
             raise ValueError('Unsupported legacy_style')
         if self.analysis_output is not None:

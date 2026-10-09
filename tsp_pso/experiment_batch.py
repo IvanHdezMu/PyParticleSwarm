@@ -59,6 +59,7 @@ class ConcreteRunConfiguration:
     output_dir: Path
     name: str
     legacy_style: str
+    legacy_label: str | None
     analysis_output: str | None
     legacy_values: tuple[tuple[str, object], ...]
 
@@ -124,7 +125,7 @@ def iterate_runs(plan):
                     permutation_reset=reset, particles=n, c1=c1, ring=ring, **science,
                     repetition_id=c.repetitions.first_id + offset, verbose=c.verbose,
                     excel=c.excel, output_dir=c.output_dir, name=c.name,
-                    legacy_style=c.legacy_style, analysis_output=c.analysis_output,
+                    legacy_style=c.legacy_style, legacy_label=c.legacy_label, analysis_output=c.analysis_output,
                     legacy_values=effective)
 
 
@@ -154,5 +155,5 @@ def load_presets():
             repetitions=RepetitionSpec(e['repetitions']['stop'] - e['repetitions']['start'],
                                        e['repetitions']['start']),
             verbose=e['verbose'], excel=e['excel'], output_dir=options['output_dir'],
-            legacy_style=e['style'], analysis_output=e.get('analysis_output')))
+            legacy_style=e['style'], legacy_label=e['label'], analysis_output=e.get('analysis_output')))
     return tuple(presets)

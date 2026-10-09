@@ -63,6 +63,7 @@ def test_adapter_preserves_legacy_names_and_arguments():
     for preset, old in zip(load_presets(), runner.EXPERIMENTS):
         for run in iterate_runs(compile_plan(preset)):
             converted = to_legacy_experiment(run)
+            assert converted.label == old.label
             assert converted.k == old.k
             assert converted.refuel == old.refuel
             assert converted.style == old.style

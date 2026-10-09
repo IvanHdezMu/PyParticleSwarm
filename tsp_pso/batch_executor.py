@@ -1,5 +1,6 @@
 """Sequential CPU adapter and process entry point; no solver semantics live here."""
 import json
+import re
 from pathlib import Path
 import sys
 
@@ -16,7 +17,7 @@ def to_legacy_experiment(run):
     from .runner import Experiment
     e = dict(run.legacy_values)
     return Experiment(
-        dataset=run.dataset, label=run.name, particles=(run.particles,), steps=(run.c1,),
+        dataset=run.dataset, label=re.sub(r'[<>:"/\\|?*\x00-\x1f]', '-', run.legacy_label or run.name), particles=(run.particles,), steps=(run.c1,),
         opts=(run.operator,), minimums=(e['minimum_reset_probability'],),
         maximums=(e['maximum_reset_probability'],), rings=(run.ring,),
         full_tanks=(e['full_initial_tank'],),
