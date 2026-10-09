@@ -114,8 +114,17 @@ class ExperimentConfiguration:
     verbose: bool = False
     excel: bool = True
     output_dir: Path = Path('Results')
+    legacy_style: str = 'standard'
+    analysis_output: str | None = None
 
     def __post_init__(self):
+        if self.legacy_style not in ('standard', 'berlin_grid', 'bays', 'fuel'):
+            raise ValueError('Unsupported legacy_style')
+        if self.analysis_output is not None:
+            if (not isinstance(self.analysis_output, str)
+                    or Path(self.analysis_output).name != self.analysis_output
+                    or not self.analysis_output.endswith('.xlsx')):
+                raise ValueError('analysis_output must be an Excel basename')
         if not isinstance(self.name, str) or not self.name.strip():
             raise ValueError('name must be a nonempty string')
         for name in _SWEEP_FIELDS:
