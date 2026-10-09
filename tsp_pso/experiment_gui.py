@@ -11,9 +11,20 @@ import customtkinter as ctk
 from tools.dataset_generators.gui import ThemedDropdown
 from .experiment_config import ExperimentConfiguration, RepetitionSpec, is_parameter_active
 from .experiment_batch import ROOT, load_catalog, load_presets
-from .experiment_editor import NUMERIC_FIELDS, OPERATOR_LABELS, add_numeric, remove_value, toggle_value, review
+from .experiment_editor import NUMERIC_FIELDS, OPERATOR_LABELS, add_numeric, parse_numeric, remove_value, toggle_value, review
 from .batch_store import create_batch, batch_status, finish_batch
 from .experiment_process import BatchProcess
+
+
+FIELD_HELP = {
+    'c1': 'Search budget multiplier. The effective budget scales with the number of nodes.',
+    'k': 'Size of the route segment used by k-based operators.',
+    'primary_operator_share': 'Fraction of particles assigned to the primary operator in mixed modes. 0.2 = 20%.',
+    'minimum_reset_probability': 'Probability in [0, 1]. 0.2 = 20%.',
+    'maximum_reset_probability': 'Probability in [0, 1]. 0.2 = 20%.',
+    'reset_threshold_divisor': 'Controls the threshold used by the permutation-reset logic.',
+    'progress_warmup_multiplier': 'Controls when periodic progress/history recording begins relative to problem size.',
+}
 
 
 class NumericValues(ctk.CTkFrame):
@@ -23,7 +34,8 @@ class NumericValues(ctk.CTkFrame):
         self.field, self.owner = field, owner
         self.active = True
         self.grid_columnconfigure(0, weight=1)
-        ctk.CTkLabel(self, text=NUMERIC_FIELDS[field][0], anchor='w').grid(row=0, column=0, columnspan=2, sticky='ew')
+        self.label = ctk.CTkLabel(self, text=NUMERIC_FIELDS[field][0], anchor='w')
+        self.label.grid(row=0, column=0, columnspan=2, sticky='ew')
         self.text = tk.StringVar()
         self.entry = ctk.CTkEntry(self, textvariable=self.text, height=36, placeholder_text='Enter a value')
         self.entry.grid(row=1, column=0, sticky='ew', padx=(0,8))
@@ -31,6 +43,11 @@ class NumericValues(ctk.CTkFrame):
         self.add_button.grid(row=1, column=1)
         self.chips = ctk.CTkFrame(self, fg_color='transparent')
         self.chips.grid(row=2, column=0, columnspan=2, sticky='ew', pady=(6,10))
+        if field in FIELD_HELP:
+            self.help_label = ctk.CTkLabel(self, text=FIELD_HELP[field], anchor='w', justify='left',
+                                         font=ctk.CTkFont(size=12), wraplength=300)
+            self.help_label.grid(row=3, column=0, columnspan=2, sticky='ew', pady=(0,10))
+            self.bind('<Configure>', lambda event: self.help_label.configure(wraplength=max(100, event.width-8)))
         self.entry.bind('<Return>', lambda event: self.add())
         self.text.trace_add('write', lambda *args: self.owner.refresh_review())
 
@@ -79,7 +96,9 @@ class ExperimentRunnerApp(ctk.CTk):
         self.configuration = ExperimentConfiguration(datasets=(self.catalog[0].id,))
         self.numeric = {}
         self.choice_controls = []
-        self.dataset_controls = []
+        self.scalar_entries = {}
+        self.scalar_rows = {}
+        self.advanced_open = False
         self.process = None
         self.batch_directory = None
         self.closing = False
@@ -106,27 +125,25 @@ class ExperimentRunnerApp(ctk.CTk):
                                             command=lambda value: self.filter_datasets())
         self.source_filter.set('All sources')
         self.source_filter.pack(fill='x', padx=18, pady=(0,8))
-        datasets = ctk.CTkFrame(card, fg_color='transparent')
-        datasets.pack(fill='x', padx=18)
-        for i, dataset in enumerate(self.catalog):
-            var = tk.BooleanVar()
-            check = ctk.CTkCheckBox(datasets, text=dataset.id, variable=var,
-                                    command=lambda d=dataset: self.toggle('datasets', d.id))
-            check.grid(row=i//3, column=i%3, sticky='w', padx=(0,20), pady=6)
-            self.dataset_controls.append((dataset, var, check))
-        self.selected_text = ctk.CTkLabel(card, text='', anchor='w', wraplength=650)
-        self.selected_text.pack(fill='x', padx=18, pady=6)
-        self.choices(card, 'Problem modes', 'problem_modes', [('tsp','TSP'),('tspwr','TSPWR')])
+        self.dataset_selector = ThemedDropdown(card, values=[d.id for d in self.catalog],
+                                                command=self.select_dataset)
+        self.dataset_selector.pack(fill='x', padx=18, pady=(0,8))
+        ctk.CTkLabel(card, text='Problem type', anchor='w').pack(fill='x', padx=18)
+        self.problem_selector = ThemedDropdown(card, values=['TSP'], command=self.select_problem)
+        self.problem_selector.pack(fill='x', padx=18, pady=(0,16))
         card = self.card('Algorithm')
         self.numeric_rows(card, ('particles','c1'))
         self.choices(card, 'Operators', 'operators', list(OPERATOR_LABELS.items()), columns=2)
         self.numeric_rows(card, ('k','primary_operator_share'))
         self.choices(card, 'Ring — return to the first node', 'ring', [(False,'Off'),(True,'On')])
         self.choices(card, 'Permutation reset', 'permutation_reset', [(False,'Off'),(True,'On')])
-        self.numeric_rows(card, ('minimum_reset_probability','maximum_reset_probability','reset_threshold_divisor'))
-        card = self.card('Refuel — active for TSPWR')
-        self.numeric_rows(card, ('fuel_capacity','consumption'))
-        self.choices(card, 'Full initial tank', 'full_initial_tank', [(False,'Off'),(True,'On')])
+        self.numeric_rows(card, ('minimum_reset_probability','maximum_reset_probability'))
+        self.refuel_card = self.card('Refuel')
+        self.fuel_capacity_var = tk.StringVar(value=str(self.configuration.fuel_capacity[0]))
+        self.consumption_var = tk.StringVar(value=str(self.configuration.consumption[0]))
+        self.scalar_row(self.refuel_card, 'fuel_capacity', 'Fuel capacity (L)', self.fuel_capacity_var)
+        self.scalar_row(self.refuel_card, 'consumption', 'Fuel efficiency (km/L)', self.consumption_var)
+        self.choices(self.refuel_card, 'Initial tank', 'full_initial_tank', [(False,'Empty'),(True,'Full')])
         card = self.card('Execution')
         self.name_var = tk.StringVar(value=self.configuration.name)
         self.count_var = tk.StringVar(value='1')
@@ -134,18 +151,22 @@ class ExperimentRunnerApp(ctk.CTk):
         self.output_var = tk.StringVar(value=str(self.configuration.output_dir))
         self.verbose_var = tk.BooleanVar(value=False)
         self.excel_var = tk.BooleanVar(value=True)
-        for label, variable in [('Batch name',self.name_var),('Repetitions',self.count_var),
-                                ('First repetition ID (not a seed)',self.first_var),('Output directory',self.output_var)]:
-            row = ctk.CTkFrame(card, fg_color='transparent')
-            row.pack(fill='x', padx=18, pady=5)
-            ctk.CTkLabel(row, text=label, anchor='w', width=235).pack(side='left')
-            ctk.CTkEntry(row, textvariable=variable, height=36).pack(side='left', fill='x', expand=True)
-        ctk.CTkButton(card, text='Browse output…', command=self.choose_output, height=32).pack(anchor='e', padx=18,pady=6)
+        self.scalar_row(card, 'name', 'Batch name', self.name_var)
+        self.scalar_row(card, 'repetitions', 'Repetitions', self.count_var)
         ctk.CTkCheckBox(card, text='Verbose console output (saved in execution.log)', variable=self.verbose_var,
                         command=self.refresh).pack(anchor='w', padx=18,pady=6)
         ctk.CTkCheckBox(card, text='Save Excel result histories', variable=self.excel_var,
                         command=self.refresh).pack(anchor='w', padx=18,pady=6)
-        self.numeric_rows(card, ('progress_warmup_multiplier',))
+        advanced_card = self.card('Advanced settings')
+        self.advanced_toggle = ctk.CTkButton(advanced_card, text='Show settings', command=self.toggle_advanced)
+        self.advanced_toggle.pack(anchor='w', padx=18, pady=(0,12))
+        self.advanced_content = ctk.CTkFrame(advanced_card, fg_color='transparent')
+        self.numeric_rows(self.advanced_content, ('reset_threshold_divisor','progress_warmup_multiplier'))
+        self.scalar_row(self.advanced_content, 'first_id', 'First repetition ID', self.first_var,
+                        'Starting label used for repetition numbering. It is not a random seed.')
+        self.scalar_row(self.advanced_content, 'output_dir', 'Output directory', self.output_var)
+        ctk.CTkButton(self.advanced_content, text='Browse output…', command=self.choose_output,
+                      height=32).pack(anchor='e', padx=18, pady=(6,12))
         footer = ctk.CTkFrame(self, corner_radius=12)
         footer.grid(row=2,column=0,sticky='ew',padx=28,pady=(12,20))
         self.count_label = ctk.CTkLabel(footer, text='', font=ctk.CTkFont(size=18,weight='bold'))
@@ -154,12 +175,49 @@ class ExperimentRunnerApp(ctk.CTk):
         self.status.pack(fill='x',padx=18,pady=(0,8))
         self.run_button = ctk.CTkButton(footer,text='Run batch',height=42,command=self.launch)
         self.run_button.pack(fill='x',padx=18,pady=(0,16))
-        for variable in (self.name_var,self.count_var,self.first_var,self.output_var):
+        for variable in (self.name_var,self.count_var,self.first_var,self.output_var,
+                         self.fuel_capacity_var,self.consumption_var):
             variable.trace_add('write',lambda *args: self.refresh_review())
         self._building = False
         self.refresh()
         self.protocol('WM_DELETE_WINDOW',self.close)
         self.after(300,self.poll_execution)
+
+    def scalar_row(self, parent, field, label, variable, help_text=None):
+        row = ctk.CTkFrame(parent, fg_color='transparent')
+        row.pack(fill='x', padx=18, pady=5)
+        ctk.CTkLabel(row, text=label, anchor='w', width=235).pack(side='left')
+        entry = ctk.CTkEntry(row, textvariable=variable, height=36)
+        entry.pack(side='left', fill='x', expand=True)
+        self.scalar_entries[field] = entry
+        self.scalar_rows[field] = row
+        if help_text:
+            ctk.CTkLabel(parent, text=help_text, anchor='w', justify='left', wraplength=650,
+                         font=ctk.CTkFont(size=12)).pack(fill='x', padx=18, pady=(0,8))
+
+    def toggle_advanced(self):
+        self.advanced_open = not self.advanced_open
+        if self.advanced_open:
+            self.advanced_content.pack(fill='x')
+        else:
+            self.advanced_content.pack_forget()
+        self.advanced_toggle.configure(text='Hide settings' if self.advanced_open else 'Show settings')
+
+    def select_dataset(self, name):
+        descriptor = next(d for d in self.catalog if d.id == name)
+        mode = self.configuration.problem_modes[0]
+        if mode not in descriptor.problem_types:
+            mode = descriptor.problem_types[0]
+        self.configuration = replace(self.configuration, datasets=(name,), problem_modes=(mode,))
+        self.refresh()
+
+    def select_problem(self, label):
+        mode = label.lower()
+        descriptor = next(d for d in self.catalog if d.id == self.configuration.datasets[0])
+        if mode not in descriptor.problem_types:
+            return
+        self.configuration = replace(self.configuration, problem_modes=(mode,))
+        self.refresh()
 
     def scroll_form(self, event, direction):
         if self.form.check_if_master_is_canvas(event.widget):
@@ -202,13 +260,23 @@ class ExperimentRunnerApp(ctk.CTk):
         if self._building:
             return
         for field,widget in self.numeric.items():
-            widget.render(self.field_active(field))
+            active = self.field_active(field)
+            widget.render(active)
+            if active:
+                widget.grid()
+            else:
+                widget.grid_remove()
         for field,value,var,button in self.choice_controls:
             var.set(value in getattr(self.configuration,field))
             button.configure(state='normal' if self.field_active(field) else 'disabled')
-        for dataset,var,_ in self.dataset_controls:
-            var.set(dataset.id in self.configuration.datasets)
-        self.selected_text.configure(text='Selected: '+', '.join(self.configuration.datasets))
+        descriptor = next(d for d in self.catalog if d.id == self.configuration.datasets[0])
+        self.dataset_selector.set(descriptor.id)
+        self.problem_selector.configure(values=[mode.upper() for mode in descriptor.problem_types])
+        self.problem_selector.set(self.configuration.problem_modes[0].upper())
+        if self.configuration.problem_modes == ('tspwr',):
+            self.refuel_card.grid()
+        else:
+            self.refuel_card.grid_remove()
         self.refresh_review()
 
     def toggle(self, field, value):
@@ -222,11 +290,10 @@ class ExperimentRunnerApp(ctk.CTk):
 
     def filter_datasets(self):
         source = self.source_filter.get()
-        for dataset,_,button in self.dataset_controls:
-            if source == 'All sources' or dataset.source == source:
-                button.grid()
-            else:
-                button.grid_remove()
+        datasets = [d.id for d in self.catalog if source == 'All sources' or d.source == source]
+        self.dataset_selector.configure(values=datasets)
+        if self.configuration.datasets[0] not in datasets:
+            self.select_dataset(datasets[0])
 
     def select_preset(self, name):
         self._building = True
@@ -235,6 +302,8 @@ class ExperimentRunnerApp(ctk.CTk):
         c = self.configuration
         for widget in self.numeric.values():
             widget.text.set('')
+        self.fuel_capacity_var.set(str(c.fuel_capacity[0]))
+        self.consumption_var.set(str(c.consumption[0]))
         self.name_var.set(c.name)
         self.count_var.set(str(c.repetitions.count))
         self.first_var.set(str(c.repetitions.first_id))
@@ -253,7 +322,11 @@ class ExperimentRunnerApp(ctk.CTk):
             repeats = RepetitionSpec(int(self.count_var.get()),int(self.first_var.get()))
         except ValueError:
             raise ValueError('Repetition count and first ID must be positive integers') from None
-        return replace(self.configuration,name=self.name_var.get(),repetitions=repeats,
+        fuel = {}
+        if self.configuration.problem_modes == ('tspwr',):
+            fuel = dict(fuel_capacity=(parse_numeric('fuel_capacity', self.fuel_capacity_var.get()),),
+                        consumption=(parse_numeric('consumption', self.consumption_var.get()),))
+        return replace(self.configuration, **fuel, name=self.name_var.get(),repetitions=repeats,
                        verbose=self.verbose_var.get(),excel=self.excel_var.get(),output_dir=Path(self.output_var.get()))
 
     def validated_review(self):

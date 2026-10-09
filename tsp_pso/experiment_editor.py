@@ -5,14 +5,14 @@ from .experiment_config import ExperimentConfiguration
 from .experiment_batch import compile_plan, count_runs
 
 NUMERIC_FIELDS = {
-    'particles': ('Particles', int), 'c1': ('Search budget (c1)', int),
-    'k': ('k — segment length', int),
+    'particles': ('Number of particles', int), 'c1': ('Search effort (c1)', int),
+    'k': ('Segment length (k)', int),
     'minimum_reset_probability': ('Minimum reset probability', float),
     'maximum_reset_probability': ('Maximum reset probability', float),
     'reset_threshold_divisor': ('Reset threshold divisor', float),
     'primary_operator_share': ('Primary operator share', float),
-    'fuel_capacity': ('Fuel capacity (liters)', float),
-    'consumption': ('Consumption (km/liter)', float),
+    'fuel_capacity': ('Fuel capacity (L)', float),
+    'consumption': ('Fuel efficiency (km/L)', float),
     'progress_warmup_multiplier': ('Progress warmup multiplier', float),
 }
 OPERATOR_LABELS = {
@@ -23,7 +23,7 @@ OPERATOR_LABELS = {
 }
 
 
-def add_numeric(configuration, field, text):
+def parse_numeric(field, text):
     if field not in NUMERIC_FIELDS:
         raise ValueError(f'Unknown numeric field: {field}')
     try:
@@ -36,6 +36,11 @@ def add_numeric(configuration, field, text):
             value = float(text)
     except (ValueError, TypeError):
         raise ValueError(f'{NUMERIC_FIELDS[field][0]} requires a valid number') from None
+    return value
+
+
+def add_numeric(configuration, field, text):
+    value = parse_numeric(field, text)
     return replace(configuration, **{field: (*getattr(configuration, field), value)})
 
 

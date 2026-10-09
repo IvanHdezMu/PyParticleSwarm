@@ -9,12 +9,17 @@ unchanged legacy run/analysis menus, including historical result analysis.
 
 ## Experiment Runner
 
-Start with **Custom configuration** or any of the 22 editable presets. Select one
-or more registered datasets and problem modes, then enter your own numeric values.
+Start with **Custom configuration** or any of the 22 editable presets. Select one registered dataset and one compatible problem type, then enter your
+own numeric values. Fuel capacity and efficiency are single values in the GUI;
+other scientific numeric controls retain their editable sweeps.
 Numeric fields have an **Add** button (or press Enter) and removable value chips.
 Values retain insertion order; duplicates and invalid values are rejected. Add a
 replacement before removing the last value. Boolean sweep controls allow Off,
 On, or both. Presets populate the form without executing anything.
+
+The collapsed **Advanced settings** section contains the reset threshold divisor,
+first repetition ID, progress warmup multiplier, and output directory. Legacy
+presets retain non-1 repetition IDs even when that section is collapsed.
 
 The exact **Planned runs** count comes from the same lazy expansion used for
 execution. Conditional fields do not multiply irrelevant runs: k applies only to
@@ -28,7 +33,7 @@ Consumption is **km/liter**. Numeric inputs are not restricted to preset values,
 and requested k is never clamped by the editor. The existing solver may internally
 handle k larger than node count; its semantics are unchanged.
 
-All selected datasets must support all selected problem modes. Browsing reads
+The problem-type selector shows only modes supported by the selected dataset. Browsing reads
 metadata only. Inactive settings remain in the configuration for later edits.
 Click **Run batch**, review the exact count and destination, and confirm. Execution
 runs sequentially in a separate CPU process while the GUI remains responsive.
