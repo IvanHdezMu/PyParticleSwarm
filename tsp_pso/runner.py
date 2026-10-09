@@ -98,15 +98,22 @@ def load_dataset(name):
         return np.round(read_euc2d_matrix(path), 0), None
     if fmt == 'matrix':
         return read_geo_matrix(path), None
-    if fmt != 'excel':
+    if fmt == 'json':
+        with path.open(encoding='utf-8') as stream:
+            nodes = json.load(stream)['nodes']
+        coordinates = np.array([[node['latitude'], node['longitude']] for node in nodes], dtype=float)
+        prices = np.array([node['price'] for node in nodes], dtype=float)
+    elif fmt == 'excel':
+        df = pd.read_excel(path)
+        coordinates = df.iloc[:, 1:3].to_numpy()
+        prices = df.iloc[:, 3].to_numpy()
+    else:
         raise ValueError(f'Unknown dataset format: {fmt}')
-    df = pd.read_excel(path)
-    coordinates = df.iloc[:, 1:3].to_numpy()
     matrix = np.zeros((len(coordinates), len(coordinates)))
     for i, start in enumerate(coordinates):
         for j in range(i + 1, len(coordinates)):
             matrix[i, j] = matrix[j, i] = distance.distance(start, coordinates[j]).km
-    return matrix, df.iloc[:, 3].to_numpy()
+    return matrix, prices
 
 
 def extra_filename_fields(experiment):

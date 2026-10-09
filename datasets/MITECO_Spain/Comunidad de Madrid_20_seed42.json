@@ -1,0 +1,167 @@
+{
+  "metadata": {
+    "source": "MITECO Spain",
+    "source_url": "https://sedeaplicaciones.minetur.gob.es/ServiciosRESTCarburantes/PreciosCarburantes/EstacionesTerrestres/",
+    "source_organization": "Ministerio para la Transición Ecológica y el Reto Demográfico",
+    "generated_at": "2026-10-05T18:09:53.944752+00:00",
+    "source_date": "05/10/2026 20:06:47",
+    "source_sha256": "cc783a42ec9820ae8edce83fd10df0dc0209083de0cc55f3f8ae8c657999ddd2",
+    "region": "Comunidad de Madrid",
+    "region_field": "Provincia",
+    "fuel": "Gasóleo A",
+    "price_field": "Precio Gasoleo A",
+    "size": 20,
+    "seed": 42,
+    "source_rows": 11500,
+    "valid_rows": 864,
+    "selected_station_ids": [
+      "4525",
+      "12980",
+      "10720",
+      "4657",
+      "15187",
+      "14833",
+      "14607",
+      "13392",
+      "4649",
+      "12796",
+      "4579",
+      "4656",
+      "4322",
+      "12464",
+      "4456",
+      "3085",
+      "10885",
+      "10847",
+      "12643",
+      "14558"
+    ],
+    "license": null,
+    "license_url": "https://www.datosabiertos.miteco.gob.es/es/aviso-legal.html",
+    "license_note": "General MITECO reuse terms; no dataset-specific license verified.",
+    "generator": "tools/dataset_generators/generate_miteco.py",
+    "generator_version": 1
+  },
+  "nodes": [
+    {
+      "id": "4525",
+      "latitude": 40.441,
+      "longitude": -3.625361,
+      "price": 1.995
+    },
+    {
+      "id": "12980",
+      "latitude": 40.194778,
+      "longitude": -3.692417,
+      "price": 1.989
+    },
+    {
+      "id": "10720",
+      "latitude": 40.53775,
+      "longitude": -3.634389,
+      "price": 1.975
+    },
+    {
+      "id": "4657",
+      "latitude": 40.426472,
+      "longitude": -3.626083,
+      "price": 1.979
+    },
+    {
+      "id": "15187",
+      "latitude": 40.440667,
+      "longitude": -3.840611,
+      "price": 1.867
+    },
+    {
+      "id": "14833",
+      "latitude": 40.508333,
+      "longitude": -3.396917,
+      "price": 1.859
+    },
+    {
+      "id": "14607",
+      "latitude": 40.30925,
+      "longitude": -3.701222,
+      "price": 1.819
+    },
+    {
+      "id": "13392",
+      "latitude": 40.387889,
+      "longitude": -3.489083,
+      "price": 1.869
+    },
+    {
+      "id": "4649",
+      "latitude": 40.447361,
+      "longitude": -3.481333,
+      "price": 1.984
+    },
+    {
+      "id": "12796",
+      "latitude": 40.437889,
+      "longitude": -4.011194,
+      "price": 1.829
+    },
+    {
+      "id": "4579",
+      "latitude": 40.407389,
+      "longitude": -3.652028,
+      "price": 1.979
+    },
+    {
+      "id": "4656",
+      "latitude": 40.426528,
+      "longitude": -3.611694,
+      "price": 1.944
+    },
+    {
+      "id": "4322",
+      "latitude": 40.230861,
+      "longitude": -3.776083,
+      "price": 2.009
+    },
+    {
+      "id": "12464",
+      "latitude": 40.565556,
+      "longitude": -3.605472,
+      "price": 1.939
+    },
+    {
+      "id": "4456",
+      "latitude": 40.596639,
+      "longitude": -3.510278,
+      "price": 1.999
+    },
+    {
+      "id": "3085",
+      "latitude": 40.521389,
+      "longitude": -3.884917,
+      "price": 1.999
+    },
+    {
+      "id": "10885",
+      "latitude": 40.477556,
+      "longitude": -3.691194,
+      "price": 1.984
+    },
+    {
+      "id": "10847",
+      "latitude": 40.072083,
+      "longitude": -3.6085,
+      "price": 1.975
+    },
+    {
+      "id": "12643",
+      "latitude": 40.365306,
+      "longitude": -3.73775,
+      "price": 1.869
+    },
+    {
+      "id": "14558",
+      "latitude": 40.298556,
+      "longitude": -3.823139,
+      "price": 1.767
+    }
+  ]
+}
