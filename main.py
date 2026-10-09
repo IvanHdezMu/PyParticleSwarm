@@ -1,7 +1,18 @@
-"""Command-line entry point for TSP experiments and analysis."""
+"""Desktop Experiment Runner, with the historical terminal interface available."""
+import argparse
 
-from tsp_pso.runner import main
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--terminal', action='store_true',
+                        help='Open the legacy run/analysis terminal menu')
+    args = parser.parse_args()
+    if args.terminal:
+        from tsp_pso.runner import main as start
+    else:
+        from tsp_pso.experiment_gui import main as start
+    start()
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

@@ -26,7 +26,7 @@ def connect(directory):
 
 
 def create_batch(plan):
-    root = plan.configuration.output_dir
+    root = plan.configuration.output_dir.expanduser()
     if not root.is_absolute():
         root = ROOT / root
     identifier = uuid4().hex
