@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from tsp_pso import solver
+from tsp_pso import base_solver as solver
 from tsp_pso.batch_executor import execute_batch
 from tsp_pso.batch_store import create_batch, batch_status, connect
 from tsp_pso.experiment_batch import DatasetDescriptor, compile_plan

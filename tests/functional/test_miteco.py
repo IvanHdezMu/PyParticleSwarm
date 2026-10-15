@@ -8,6 +8,7 @@ import pytest
 
 from conftest import assert_permutation
 from tsp_pso import runner
+import tsp_pso.base_solver as base_solver_module
 import tsp_pso.solver as solver_module
 
 pytestmark = pytest.mark.functional
@@ -28,7 +29,7 @@ def test_miteco_json_runs_in_refuel_mode(monkeypatch, tmp_path):
     # Seed initialization and one real spawned worker independently of scheduling.
     np.random.seed(42)
     monkeypatch.setattr(
-        solver_module, 'Pool',
+        base_solver_module, 'Pool',
         partial(get_context('spawn').Pool, processes=1,
                 initializer=np.random.seed, initargs=(42,)),
     )

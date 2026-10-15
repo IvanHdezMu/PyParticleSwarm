@@ -8,6 +8,7 @@ import pandas as pd
 import pytest
 from numpy.testing import assert_allclose, assert_array_equal
 
+import tsp_pso.base_solver as base_solver_module
 import tsp_pso.solver as solver_module
 from conftest import assert_permutation
 
@@ -17,7 +18,7 @@ pytestmark = pytest.mark.functional
 @pytest.fixture(autouse=True)
 def seeded_real_pool(monkeypatch):
     # Real subprocess and serialization, also reproducible on spawn platforms.
-    monkeypatch.setattr(solver_module, 'Pool',
+    monkeypatch.setattr(base_solver_module, 'Pool',
                         partial(Pool, processes=1, initializer=np.random.seed, initargs=(7,)))
 
 

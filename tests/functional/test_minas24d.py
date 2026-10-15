@@ -7,6 +7,7 @@ import numpy as np
 import pytest
 
 from tsp_pso import runner
+import tsp_pso.base_solver as base_solver_module
 import tsp_pso.solver as solver_module
 
 from conftest import assert_permutation
@@ -35,7 +36,7 @@ def test_option_8_minas24d_finds_known_optimum(monkeypatch, tmp_path):
     seed = 7
     np.random.seed(seed)
     monkeypatch.setattr(
-        solver_module, 'Pool',
+        base_solver_module, 'Pool',
         partial(get_context('spawn').Pool, processes=1,
                 initializer=np.random.seed, initargs=(seed,)),
     )
@@ -105,7 +106,7 @@ def test_minas24d_refuel_ring_finds_known_best_cost(monkeypatch, tmp_path):
     seed = 1
     np.random.seed(seed)
     monkeypatch.setattr(
-        solver_module, 'Pool',
+        base_solver_module, 'Pool',
         partial(get_context('spawn').Pool, processes=1,
                 initializer=np.random.seed, initargs=(seed,)),
     )
