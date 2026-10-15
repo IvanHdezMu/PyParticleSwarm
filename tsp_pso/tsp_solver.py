@@ -1,7 +1,7 @@
-from .base_solver import BaseParticleSwarm
+from .particle_swarm import ParticleSwarm
 
 
-class TSPParticleSwarm(BaseParticleSwarm):
+class TSPParticleSwarm(ParticleSwarm):
     _result_label = 'DISTANCE'
 
     def __init__(self, N, c1, distance_matrix, ring_mode=False, refuel_mode=False,

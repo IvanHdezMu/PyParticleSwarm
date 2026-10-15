@@ -12,7 +12,7 @@ from typing import Generator
 from multiprocessing import Pool
 import pandas as pd
 
-class BaseParticleSwarm:
+class ParticleSwarm:
     """
     Particle swarm
     """

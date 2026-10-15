@@ -90,7 +90,7 @@ configuration, lazy expansion, persistence, the GUI, and the legacy solver adapt
 - `.devcontainer/requirements.txt`: Python dependencies installed automatically by the devcontainer.
 - `tsp_pso/runner.py`: experiment setup, dataset loading, and execution.
 - `tsp_pso/analysis.py`: result validation and summaries.
-- `tsp_pso/solver.py`: particle swarm algorithm.
+- `tsp_pso/particle_swarm.py`: shared particle swarm algorithm.
 - `tsp_pso/tsplib/`: TSPLIB distance-matrix readers.
 - `config/datasets.json`: dataset definitions.
 - `config/experiments.json`: output directory, experiment defaults, ordered runs, and analysis output names.

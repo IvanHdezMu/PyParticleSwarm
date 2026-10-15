@@ -8,7 +8,7 @@ import pytest
 
 from conftest import assert_permutation
 from tsp_pso import runner
-import tsp_pso.base_solver as base_solver_module
+import tsp_pso.particle_swarm as particle_swarm_module
 from tsp_pso.tspwr_solver import TSPWRParticleSwarm
 
 pytestmark = pytest.mark.functional
@@ -29,7 +29,7 @@ def test_miteco_json_runs_in_refuel_mode(monkeypatch, tmp_path):
     # Seed initialization and one real spawned worker independently of scheduling.
     np.random.seed(42)
     monkeypatch.setattr(
-        base_solver_module, 'Pool',
+        particle_swarm_module, 'Pool',
         partial(get_context('spawn').Pool, processes=1,
                 initializer=np.random.seed, initargs=(42,)),
     )
@@ -40,7 +40,7 @@ def test_miteco_json_runs_in_refuel_mode(monkeypatch, tmp_path):
         created_solvers.append(solver)
         return solver
 
-    monkeypatch.setattr(runner, 'TSPWRParticleSwarm', capture_solver)
+    monkeypatch.setitem(runner.SOLVER_REGISTRY, 'tspwr', capture_solver)
     experiment = runner.Experiment(
         dataset='MITECO_Madrid20', label='JSON refuel compatibility',
         particles=(4,), steps=(2,), opts=(3,), rings=(True,), full_tanks=(False,),

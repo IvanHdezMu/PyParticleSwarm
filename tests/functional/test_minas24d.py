@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 
 from tsp_pso import runner
-import tsp_pso.base_solver as base_solver_module
+import tsp_pso.particle_swarm as particle_swarm_module
 from tsp_pso.tsp_solver import TSPParticleSwarm
 from tsp_pso.tspwr_solver import TSPWRParticleSwarm
 
@@ -37,7 +37,7 @@ def test_option_8_minas24d_finds_known_optimum(monkeypatch, tmp_path):
     seed = 7
     np.random.seed(seed)
     monkeypatch.setattr(
-        base_solver_module, 'Pool',
+        particle_swarm_module, 'Pool',
         partial(get_context('spawn').Pool, processes=1,
                 initializer=np.random.seed, initargs=(seed,)),
     )
@@ -50,7 +50,7 @@ def test_option_8_minas24d_finds_known_optimum(monkeypatch, tmp_path):
         created_solvers.append(solver)
         return solver
 
-    monkeypatch.setattr(runner, 'TSPParticleSwarm', capture_solver)
+    monkeypatch.setitem(runner.SOLVER_REGISTRY, 'tsp', capture_solver)
     run_directory = runner.execute(experiment, output_dir=tmp_path)
 
     assert len(created_solvers) == 1
@@ -108,7 +108,7 @@ def test_minas24d_refuel_ring_finds_known_best_cost(monkeypatch, tmp_path):
     seed = 1
     np.random.seed(seed)
     monkeypatch.setattr(
-        base_solver_module, 'Pool',
+        particle_swarm_module, 'Pool',
         partial(get_context('spawn').Pool, processes=1,
                 initializer=np.random.seed, initargs=(seed,)),
     )
@@ -121,7 +121,7 @@ def test_minas24d_refuel_ring_finds_known_best_cost(monkeypatch, tmp_path):
         created_solvers.append(solver)
         return solver
 
-    monkeypatch.setattr(runner, 'TSPWRParticleSwarm', capture_solver)
+    monkeypatch.setitem(runner.SOLVER_REGISTRY, 'tspwr', capture_solver)
     # execute() loads both coordinates and fuel prices from the repository workbook.
     run_directory = runner.execute(experiment, output_dir=tmp_path)
 

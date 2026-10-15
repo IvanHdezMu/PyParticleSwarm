@@ -22,8 +22,8 @@ def test_reset_threshold_divisor_config_and_forwarding(monkeypatch, tmp_path, ov
     assert experiment.reset_threshold_divisor == (1000 if override is None else override)
 
     factory = Mock()
-    monkeypatch.setattr(runner, 'TSPParticleSwarm', factory)
-    monkeypatch.setattr(runner, 'TSPWRParticleSwarm', factory)
+    monkeypatch.setitem(runner.SOLVER_REGISTRY, 'tsp', factory)
+    monkeypatch.setitem(runner.SOLVER_REGISTRY, 'tspwr', factory)
     monkeypatch.setattr(runner, 'load_dataset', lambda name: (np.array([[0, 2], [2, 0]]), None))
     runner.execute(experiment, output_dir=tmp_path)
     factory.assert_called_once()
@@ -43,8 +43,8 @@ def test_primary_operator_share_config_and_forwarding(monkeypatch, tmp_path, ove
     assert experiment.primary_operator_share == (0.2 if override is None else override)
 
     factory = Mock()
-    monkeypatch.setattr(runner, 'TSPParticleSwarm', factory)
-    monkeypatch.setattr(runner, 'TSPWRParticleSwarm', factory)
+    monkeypatch.setitem(runner.SOLVER_REGISTRY, 'tsp', factory)
+    monkeypatch.setitem(runner.SOLVER_REGISTRY, 'tspwr', factory)
     monkeypatch.setattr(runner, 'load_dataset', lambda name: (np.array([[0, 2], [2, 0]]), None))
     runner.execute(experiment, output_dir=tmp_path)
     factory.assert_called_once()
@@ -64,8 +64,8 @@ def test_progress_warmup_multiplier_config_and_forwarding(monkeypatch, tmp_path,
     assert experiment.progress_warmup_multiplier == (5 if override is None else override)
 
     factory = Mock()
-    monkeypatch.setattr(runner, 'TSPParticleSwarm', factory)
-    monkeypatch.setattr(runner, 'TSPWRParticleSwarm', factory)
+    monkeypatch.setitem(runner.SOLVER_REGISTRY, 'tsp', factory)
+    monkeypatch.setitem(runner.SOLVER_REGISTRY, 'tspwr', factory)
     monkeypatch.setattr(runner, 'load_dataset', lambda name: (np.array([[0, 2], [2, 0]]), None))
     runner.execute(experiment, output_dir=tmp_path)
     factory.assert_called_once()
@@ -78,8 +78,8 @@ def test_existing_experiment_verbose_behavior(monkeypatch, tmp_path):
     assert runner.Experiment(dataset='Minas24D', label='individual', steps=(1200,)).verbose is True
     assert all('verbose' not in dataset for dataset in runner.DATASETS.values())
     factory = Mock()
-    monkeypatch.setattr(runner, 'TSPParticleSwarm', factory)
-    monkeypatch.setattr(runner, 'TSPWRParticleSwarm', factory)
+    monkeypatch.setitem(runner.SOLVER_REGISTRY, 'tsp', factory)
+    monkeypatch.setitem(runner.SOLVER_REGISTRY, 'tspwr', factory)
     monkeypatch.setattr(runner, 'load_dataset', lambda name: (np.array([[0, 2], [2, 0]]), None))
     assert len(runner.EXPERIMENTS) == 22
     for number, experiment in enumerate(runner.EXPERIMENTS, 1):
@@ -105,8 +105,8 @@ def test_experiment_verbose_override(monkeypatch, tmp_path, verbose, label, exce
     experiment, = runner.build_experiments(options)
     assert experiment.verbose is verbose
     factory = Mock()
-    monkeypatch.setattr(runner, 'TSPParticleSwarm', factory)
-    monkeypatch.setattr(runner, 'TSPWRParticleSwarm', factory)
+    monkeypatch.setitem(runner.SOLVER_REGISTRY, 'tsp', factory)
+    monkeypatch.setitem(runner.SOLVER_REGISTRY, 'tspwr', factory)
     monkeypatch.setattr(runner, 'load_dataset', lambda name: (np.array([[0, 2], [2, 0]]), None))
     runner.execute(experiment, output_dir=tmp_path)
     factory.return_value.run.assert_called_once()
@@ -118,8 +118,8 @@ def test_experiment_verbose_override(monkeypatch, tmp_path, verbose, label, exce
 def test_solver_class_selection(monkeypatch, tmp_path, refuel):
     tsp_factory = Mock()
     tspwr_factory = Mock()
-    monkeypatch.setattr(runner, 'TSPParticleSwarm', tsp_factory)
-    monkeypatch.setattr(runner, 'TSPWRParticleSwarm', tspwr_factory)
+    monkeypatch.setitem(runner.SOLVER_REGISTRY, 'tsp', tsp_factory)
+    monkeypatch.setitem(runner.SOLVER_REGISTRY, 'tspwr', tspwr_factory)
     matrix = np.array([[0, 2], [2, 0]])
     prices = np.array([1.5, 1.7])
     monkeypatch.setattr(runner, 'load_dataset', lambda name: (matrix, prices))
@@ -136,3 +136,43 @@ def test_solver_class_selection(monkeypatch, tmp_path, refuel):
     assert selected.call_args.kwargs['distance_matrix'] is matrix
     assert selected.call_args.kwargs['prices'] is prices
     selected.return_value.run.assert_called_once()
+
+
+def test_registry_contains_specialized_solvers():
+    from tsp_pso.solver_registry import SOLVER_REGISTRY
+    from tsp_pso.tsp_solver import TSPParticleSwarm
+    from tsp_pso.tspwr_solver import TSPWRParticleSwarm
+
+    assert SOLVER_REGISTRY['tsp'] is TSPParticleSwarm
+    assert SOLVER_REGISTRY['tspwr'] is TSPWRParticleSwarm
+
+
+def test_execute_additional_registered_solver(monkeypatch, tmp_path):
+    class AdditionalSolver:
+        def __init__(self, **kwargs):
+            self.options = kwargs
+            created.append(self)
+
+        def run(self, **kwargs):
+            self.run_options = kwargs
+
+    created = []
+    monkeypatch.setitem(runner.SOLVER_REGISTRY, 'additional', AdditionalSolver)
+    matrix = np.array([[0, 2], [2, 0]])
+    monkeypatch.setattr(runner, 'load_dataset', lambda name: (matrix, None))
+    experiment = runner.Experiment(dataset='Minas24D', label='registry', steps=(2,))
+
+    runner.execute(experiment, output_dir=tmp_path, problem_type='additional')
+
+    assert len(created) == 1
+    assert type(created[0]) is AdditionalSolver
+    assert created[0].options['distance_matrix'] is matrix
+    assert created[0].options['refuel_mode'] is False
+    assert created[0].run_options['optType'] == experiment.opts[0]
+
+
+def test_unknown_solver_is_rejected_before_writing(tmp_path):
+    experiment = runner.Experiment(dataset='Minas24D', label='unknown', steps=(2,))
+    with pytest.raises(KeyError, match='unknown'):
+        runner.execute(experiment, output_dir=tmp_path, problem_type='unknown')
+    assert not list(tmp_path.iterdir())

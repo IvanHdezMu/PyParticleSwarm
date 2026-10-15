@@ -1,9 +1,9 @@
 import numpy as np
 
-from .base_solver import BaseParticleSwarm
+from .particle_swarm import ParticleSwarm
 
 
-class TSPWRParticleSwarm(BaseParticleSwarm):
+class TSPWRParticleSwarm(ParticleSwarm):
     _result_label = 'REFUEL COST'
 
     def __init__(self, N, c1, distance_matrix, ring_mode=False, refuel_mode=True,

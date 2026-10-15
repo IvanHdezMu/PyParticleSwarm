@@ -8,8 +8,8 @@ import pandas as pd
 import pytest
 from numpy.testing import assert_allclose, assert_array_equal
 
-import tsp_pso.base_solver as base_solver_module
-import tsp_pso.solver as solver_module
+import tsp_pso.particle_swarm as particle_swarm_module
+from tsp_pso.solver_registry import SOLVER_REGISTRY
 from conftest import assert_permutation
 
 pytestmark = pytest.mark.functional
@@ -18,7 +18,7 @@ pytestmark = pytest.mark.functional
 @pytest.fixture(autouse=True)
 def seeded_real_pool(monkeypatch):
     # Real subprocess and serialization, also reproducible on spawn platforms.
-    monkeypatch.setattr(base_solver_module, 'Pool',
+    monkeypatch.setattr(particle_swarm_module, 'Pool',
                         partial(Pool, processes=1, initializer=np.random.seed, initargs=(7,)))
 
 
@@ -163,8 +163,9 @@ def test_run_progress_warmup_multiplier(make_solver, multiplier, expected_steps,
 
 
 @pytest.mark.parametrize('refuel', [False, True])
-def test_compatibility_alias_runs_both_modes(distance_matrix, refuel):
-    s = solver_module.ParticleSwarm_VarOptMultiprocess(
+def test_registered_solvers_run_both_modes(distance_matrix, refuel):
+    solver_class = SOLVER_REGISTRY['tspwr' if refuel else 'tsp']
+    s = solver_class(
         N=4, c1=2, distance_matrix=distance_matrix, refuel_mode=refuel,
         prices=np.array([4., 2., 3., 5.]), maxCapacity=20, consumption=2,
     )

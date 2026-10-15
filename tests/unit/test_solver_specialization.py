@@ -1,12 +1,11 @@
-"""Specialized construction and legacy constructor compatibility."""
+"""Specialized construction and serialization."""
 
 import pickle
 
 import numpy as np
 import pytest
 
-from tsp_pso.base_solver import BaseParticleSwarm
-from tsp_pso.solver import ParticleSwarm_VarOptMultiprocess
+from tsp_pso.particle_swarm import ParticleSwarm
 from tsp_pso.tsp_solver import TSPParticleSwarm
 from tsp_pso.tspwr_solver import TSPWRParticleSwarm
 
@@ -35,16 +34,16 @@ def test_specialized_constructor_rejects_conflicting_mode(distance_matrix, solve
 @pytest.mark.parametrize('refuel, solver_class, expected', [
     (False, TSPParticleSwarm, -2), (True, TSPWRParticleSwarm, 7),
 ])
-def test_legacy_constructor_and_pickle(distance_matrix, positional, refuel, solver_class, expected):
+def test_specialized_constructor_and_pickle(distance_matrix, positional, refuel, solver_class, expected):
     options = dict(N=4, c1=2, distance_matrix=distance_matrix, ring_mode=False,
                    refuel_mode=refuel, prices=np.array([4., 2., 3., 5.]),
                    maxCapacity=20, consumption=2, fullinit=False,
                    resetThresholdDivisor=500, primaryOperatorShare=0.4,
                    progressWarmupMultiplier=3)
     if positional:
-        solver = ParticleSwarm_VarOptMultiprocess(*options.values())
+        solver = solver_class(*options.values())
     else:
-        solver = ParticleSwarm_VarOptMultiprocess(**options)
+        solver = solver_class(**options)
     restored = pickle.loads(pickle.dumps(solver))
     for instance in (solver, restored):
         assert type(instance) is solver_class
@@ -56,7 +55,7 @@ def test_legacy_constructor_and_pickle(distance_matrix, positional, refuel, solv
 
 
 def test_base_supports_problem_independent_objective(distance_matrix):
-    class ConstantSwarm(BaseParticleSwarm):
+    class ConstantSwarm(ParticleSwarm):
         _result_label = 'CONSTANT'
 
         def _objective(self, member):

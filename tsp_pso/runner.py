@@ -10,8 +10,7 @@ import re
 import numpy as np
 import pandas as pd
 from geopy import distance
-from .tsp_solver import TSPParticleSwarm
-from .tspwr_solver import TSPWRParticleSwarm
+from .solver_registry import SOLVER_REGISTRY
 from .tsplib.euc2d import read_euc2d_matrix
 from .tsplib.geo import read_geo_matrix
 
@@ -180,7 +179,11 @@ def create_run_directory(experiment, output_dir=None):
     return destination
 
 
-def execute(experiment, output_dir=None):
+def execute(experiment, output_dir=None, *, problem_type=None):
+    """Run a registered problem, defaulting to the legacy refuel configuration."""
+    if problem_type is None:
+        problem_type = 'tspwr' if experiment.refuel else 'tsp'
+    solver_class = SOLVER_REGISTRY[problem_type]
     matrix, prices = load_dataset(experiment.dataset)
     if experiment.excel:
         filenames = [result_filename(experiment, c) for c in experiment.configurations()]
@@ -191,7 +194,6 @@ def execute(experiment, output_dir=None):
         n, c1, opt, minimum, maximum, ring, full, _ = configuration
         print(f'\nRun {index}/{experiment.count}: N={n}, c1={c1}, '
               f'Opt={opt}, circuit={ring}, full tank={full}')
-        solver_class = TSPWRParticleSwarm if experiment.refuel else TSPParticleSwarm
         algorithm = solver_class(
             N=n, c1=c1, distance_matrix=matrix, ring_mode=ring,
             refuel_mode=experiment.refuel, prices=prices,
