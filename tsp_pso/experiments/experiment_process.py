@@ -18,7 +18,7 @@ class BatchProcess:
             'creationflags': subprocess.CREATE_NEW_PROCESS_GROUP}
         with (self.directory / 'execution.log').open('w', encoding='utf-8') as stream:
             self.process = subprocess.Popen(
-                [sys.executable, '-m', 'tsp_pso.batch_executor', str(self.directory)],
+                [sys.executable, '-m', 'tsp_pso.experiments.batch_executor', str(self.directory)],
                 cwd=ROOT, stdout=stream, stderr=subprocess.STDOUT, **options)
 
     def interrupt(self):

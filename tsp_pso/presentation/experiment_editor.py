@@ -1,8 +1,8 @@
 """Small GUI-independent editing operations; validation remains in the model."""
 from dataclasses import replace
 
-from .experiment_config import ExperimentConfiguration
-from .experiment_batch import compile_plan, count_runs
+from ..experiments.experiment_config import ExperimentConfiguration
+from ..experiments.experiment_batch import compile_plan, count_runs
 
 NUMERIC_FIELDS = {
     'particles': ('Number of particles', int), 'c1': ('Search effort (c1)', int),

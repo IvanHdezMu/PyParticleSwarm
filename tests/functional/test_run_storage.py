@@ -11,7 +11,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from tsp_pso import analysis, runner
+from tsp_pso.analysis import analysis
+from tsp_pso.application import runner
 
 pytestmark = pytest.mark.functional
 

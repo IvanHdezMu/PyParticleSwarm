@@ -4,11 +4,11 @@ from dataclasses import replace
 from itertools import islice
 import pytest
 
-from tsp_pso.experiment_config import ExperimentConfiguration, RepetitionSpec
-from tsp_pso.experiment_batch import (
+from tsp_pso.experiments.experiment_config import ExperimentConfiguration, RepetitionSpec
+from tsp_pso.experiments.experiment_batch import (
     DatasetDescriptor, compile_plan, count_runs, iterate_runs, load_presets, preview_runs,
 )
-from tsp_pso import runner
+from tsp_pso.application import runner
 
 pytestmark = pytest.mark.unit
 CATALOG = tuple(DatasetDescriptor(n, n+'.json', 'json', 'test', ('tsp', 'tspwr')) for n in ('a', 'b'))

@@ -62,7 +62,7 @@ the unconfirmed active run is marked interrupted and later runs stay pending.
 Partial active-run artifacts may remain. If the OS kills the entire application
 or power is lost, a manifest can retain a stale running state; there is no automatic
 recovery/resume UI yet. Batches can also be started headlessly, once created, with
-`python3 -m tsp_pso.batch_executor PATH_TO_BATCH` (new pending batches only).
+`python3 -m tsp_pso.experiments.batch_executor PATH_TO_BATCH` (new pending batches only).
 
 Current limitations:
 
@@ -84,14 +84,14 @@ configuration, lazy expansion, persistence, the GUI, and the legacy solver adapt
 ## Project layout
 
 - `main.py`: desktop entry point, with `--terminal` compatibility mode.
-- `tsp_pso/experiment_config.py`, `experiment_batch.py`: validated configuration, preset import, lazy expansion and counting.
-- `tsp_pso/batch_store.py`, `batch_executor.py`: persistent sequential execution and legacy solver adapter.
-- `tsp_pso/experiment_gui.py`: CustomTkinter batch editor.
+- `tsp_pso/experiments/experiment_config.py`, `experiment_batch.py`: validated configuration, preset import, lazy expansion and counting.
+- `tsp_pso/experiments/batch_store.py`, `batch_executor.py`: persistent sequential execution and legacy solver adapter.
+- `tsp_pso/presentation/experiment_gui.py`: CustomTkinter batch editor.
 - `.devcontainer/requirements.txt`: Python dependencies installed automatically by the devcontainer.
-- `tsp_pso/runner.py`: experiment setup, dataset loading, and execution.
-- `tsp_pso/analysis.py`: result validation and summaries.
-- `tsp_pso/particle_swarm.py`: shared particle swarm algorithm.
-- `tsp_pso/tsplib/`: TSPLIB distance-matrix readers.
+- `tsp_pso/application/runner.py`: experiment setup, dataset loading, and execution.
+- `tsp_pso/analysis/analysis.py`: result validation and summaries.
+- `tsp_pso/algorithms/particle_swarm.py`: shared particle swarm algorithm.
+- `tsp_pso/infrastructure/tsplib/`: TSPLIB distance-matrix readers.
 - `config/datasets.json`: dataset definitions.
 - `config/experiments.json`: output directory, experiment defaults, ordered runs, and analysis output names.
 - `config/historical_analyses.json`: analysis definitions for historical results.
@@ -122,7 +122,7 @@ configuration, and its summary is written into the same directory. Malformed
 snapshots, runs without Excel output, and incomplete or invalid workbooks are
 skipped; incomplete workbook runs produce a diagnostic. No results are combined
 across run directories. Analysis can be invoked directly with
-`analyze_runs(dataset_directory)` from `tsp_pso.analysis`.
+`analyze_runs(dataset_directory)` from `tsp_pso.analysis.analysis`.
 
 Historical analysis definitions retain their existing paths and behavior. Old
 flat-layout results are not automatically migrated into timestamped runs.

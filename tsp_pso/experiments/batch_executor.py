@@ -14,7 +14,7 @@ from .batch_store import (
 
 
 def to_legacy_experiment(run):
-    from .runner import Experiment
+    from ..application.runner import Experiment
     e = dict(run.legacy_values)
     return Experiment(
         dataset=run.dataset, label=re.sub(r'[<>:"/\\|?*\x00-\x1f]', '-', run.legacy_label or run.name), particles=(run.particles,), steps=(run.c1,),
@@ -32,7 +32,7 @@ def to_legacy_experiment(run):
 
 
 def execute_one(run, output_dir, descriptor):
-    from . import runner
+    from ..application import runner
     # This adapter runs in the dedicated coordinator process, never a GUI thread.
     original = runner.DATASETS.get(descriptor.id)
     runner.DATASETS[descriptor.id] = dict(filename=descriptor.filename, format=descriptor.format,
@@ -85,7 +85,7 @@ def execute_batch(directory, run_function=None):
 
 def main():
     if len(sys.argv) != 2:
-        raise SystemExit('Usage: python -m tsp_pso.batch_executor BATCH_DIRECTORY')
+        raise SystemExit('Usage: python -m tsp_pso.experiments.batch_executor BATCH_DIRECTORY')
     execute_batch(sys.argv[1])
 
 

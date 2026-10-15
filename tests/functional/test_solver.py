@@ -8,8 +8,8 @@ import pandas as pd
 import pytest
 from numpy.testing import assert_allclose, assert_array_equal
 
-import tsp_pso.particle_swarm as particle_swarm_module
-from tsp_pso.solver_registry import SOLVER_REGISTRY
+import tsp_pso.algorithms.particle_swarm as particle_swarm_module
+from tsp_pso.algorithms.solver_registry import SOLVER_REGISTRY
 from conftest import assert_permutation
 
 pytestmark = pytest.mark.functional

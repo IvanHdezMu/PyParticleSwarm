@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 
 from tools.dataset_generators import generate_miteco as generator
-from tsp_pso import runner
+from tsp_pso.application import runner
 
 pytestmark = pytest.mark.unit
 

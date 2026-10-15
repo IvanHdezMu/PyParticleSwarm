@@ -5,7 +5,7 @@ from unittest.mock import Mock
 import numpy as np
 import pytest
 
-from tsp_pso import runner
+from tsp_pso.application import runner
 
 pytestmark = pytest.mark.unit
 
@@ -139,9 +139,9 @@ def test_solver_class_selection(monkeypatch, tmp_path, refuel):
 
 
 def test_registry_contains_specialized_solvers():
-    from tsp_pso.solver_registry import SOLVER_REGISTRY
-    from tsp_pso.tsp_solver import TSPParticleSwarm
-    from tsp_pso.tspwr_solver import TSPWRParticleSwarm
+    from tsp_pso.algorithms.solver_registry import SOLVER_REGISTRY
+    from tsp_pso.algorithms.tsp_solver import TSPParticleSwarm
+    from tsp_pso.algorithms.tspwr_solver import TSPWRParticleSwarm
 
     assert SOLVER_REGISTRY['tsp'] is TSPParticleSwarm
     assert SOLVER_REGISTRY['tspwr'] is TSPWRParticleSwarm

@@ -3,10 +3,10 @@ from dataclasses import replace
 import json
 import pytest
 
-from tsp_pso.experiment_config import ExperimentConfiguration, RepetitionSpec
-from tsp_pso.experiment_batch import compile_plan, iterate_runs, load_presets
-from tsp_pso.batch_store import create_batch, batch_status, connect, mark_interrupted
-from tsp_pso.batch_executor import execute_batch, to_legacy_experiment
+from tsp_pso.experiments.experiment_config import ExperimentConfiguration, RepetitionSpec
+from tsp_pso.experiments.experiment_batch import compile_plan, iterate_runs, load_presets
+from tsp_pso.experiments.batch_store import create_batch, batch_status, connect, mark_interrupted
+from tsp_pso.experiments.batch_executor import execute_batch, to_legacy_experiment
 
 pytestmark = pytest.mark.unit
 
@@ -59,7 +59,7 @@ def test_failure_and_interrupt_preserve_completed_and_pending(tmp_path, error, s
 
 
 def test_adapter_preserves_legacy_names_and_arguments():
-    from tsp_pso import runner
+    from tsp_pso.application import runner
     for preset, old in zip(load_presets(), runner.EXPERIMENTS):
         for run in iterate_runs(compile_plan(preset)):
             converted = to_legacy_experiment(run)

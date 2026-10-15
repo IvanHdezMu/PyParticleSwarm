@@ -7,9 +7,9 @@ import numpy as np
 import pytest
 
 from conftest import assert_permutation
-from tsp_pso import runner
-import tsp_pso.particle_swarm as particle_swarm_module
-from tsp_pso.tspwr_solver import TSPWRParticleSwarm
+from tsp_pso.application import runner
+import tsp_pso.algorithms.particle_swarm as particle_swarm_module
+from tsp_pso.algorithms.tspwr_solver import TSPWRParticleSwarm
 
 pytestmark = pytest.mark.functional
 

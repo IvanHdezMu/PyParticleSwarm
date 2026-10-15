@@ -8,9 +8,9 @@ def main():
                         help='Open the legacy run/analysis terminal menu')
     args = parser.parse_args()
     if args.terminal:
-        from tsp_pso.runner import main as start
+        from tsp_pso.application.runner import main as start
     else:
-        from tsp_pso.experiment_gui import main as start
+        from tsp_pso.presentation.experiment_gui import main as start
     start()
 
 

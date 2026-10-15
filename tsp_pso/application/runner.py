@@ -10,11 +10,11 @@ import re
 import numpy as np
 import pandas as pd
 from geopy import distance
-from .solver_registry import SOLVER_REGISTRY
-from .tsplib.euc2d import read_euc2d_matrix
-from .tsplib.geo import read_geo_matrix
+from ..algorithms.solver_registry import SOLVER_REGISTRY
+from ..infrastructure.tsplib.euc2d import read_euc2d_matrix
+from ..infrastructure.tsplib.geo import read_geo_matrix
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 
 
 def load_run_options(path=None):
@@ -251,7 +251,7 @@ def main():
             if experiment is not None:
                 execute(experiment)
         elif mode == 'analysis':
-            from .analysis import analyze, first_missing_result, load_analysis_options
+            from ..analysis.analysis import analyze, first_missing_result, load_analysis_options
             numbered = analysis_menu_options(load_analysis_options())
             counts = {(experiment.dataset, experiment.label): experiment.count
                       for experiment in EXPERIMENTS}

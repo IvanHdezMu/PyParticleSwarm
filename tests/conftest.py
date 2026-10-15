@@ -3,8 +3,8 @@
 import numpy as np
 import pytest
 
-from tsp_pso.tsp_solver import TSPParticleSwarm
-from tsp_pso.tspwr_solver import TSPWRParticleSwarm
+from tsp_pso.algorithms.tsp_solver import TSPParticleSwarm
+from tsp_pso.algorithms.tspwr_solver import TSPWRParticleSwarm
 
 
 @pytest.fixture(autouse=True)
