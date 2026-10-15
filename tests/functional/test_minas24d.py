@@ -8,7 +8,8 @@ import pytest
 
 from tsp_pso import runner
 import tsp_pso.base_solver as base_solver_module
-import tsp_pso.solver as solver_module
+from tsp_pso.tsp_solver import TSPParticleSwarm
+from tsp_pso.tspwr_solver import TSPWRParticleSwarm
 
 from conftest import assert_permutation
 
@@ -45,15 +46,16 @@ def test_option_8_minas24d_finds_known_optimum(monkeypatch, tmp_path):
 
     def capture_solver(**kwargs):
         # Retain the real instance for assertions; execute() discards run's return.
-        solver = solver_module.ParticleSwarm_VarOptMultiprocess(**kwargs)
+        solver = TSPParticleSwarm(**kwargs)
         created_solvers.append(solver)
         return solver
 
-    monkeypatch.setattr(runner, 'ParticleSwarm_VarOptMultiprocess', capture_solver)
+    monkeypatch.setattr(runner, 'TSPParticleSwarm', capture_solver)
     run_directory = runner.execute(experiment, output_dir=tmp_path)
 
     assert len(created_solvers) == 1
     solver = created_solvers[0]
+    assert type(solver) is TSPParticleSwarm
     assert solver.distance_matrix.shape == (24, 24)
     assert solver.max_steps == 1200 * 24
     assert solver.cur_steps > solver.max_steps
@@ -115,16 +117,17 @@ def test_minas24d_refuel_ring_finds_known_best_cost(monkeypatch, tmp_path):
 
     def capture_solver(**kwargs):
         # Preserve the real solver and retain its state after execute() returns.
-        solver = solver_module.ParticleSwarm_VarOptMultiprocess(**kwargs)
+        solver = TSPWRParticleSwarm(**kwargs)
         created_solvers.append(solver)
         return solver
 
-    monkeypatch.setattr(runner, 'ParticleSwarm_VarOptMultiprocess', capture_solver)
+    monkeypatch.setattr(runner, 'TSPWRParticleSwarm', capture_solver)
     # execute() loads both coordinates and fuel prices from the repository workbook.
     run_directory = runner.execute(experiment, output_dir=tmp_path)
 
     assert len(created_solvers) == 1
     solver = created_solvers[0]
+    assert type(solver) is TSPWRParticleSwarm
     assert solver.distance_matrix.shape == (24, 24)
     assert solver.prices.shape == (24,)
     assert solver.refuel_mode is True

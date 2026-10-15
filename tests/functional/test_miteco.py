@@ -9,7 +9,7 @@ import pytest
 from conftest import assert_permutation
 from tsp_pso import runner
 import tsp_pso.base_solver as base_solver_module
-import tsp_pso.solver as solver_module
+from tsp_pso.tspwr_solver import TSPWRParticleSwarm
 
 pytestmark = pytest.mark.functional
 
@@ -36,11 +36,11 @@ def test_miteco_json_runs_in_refuel_mode(monkeypatch, tmp_path):
     created_solvers = []
 
     def capture_solver(**kwargs):
-        solver = solver_module.ParticleSwarm_VarOptMultiprocess(**kwargs)
+        solver = TSPWRParticleSwarm(**kwargs)
         created_solvers.append(solver)
         return solver
 
-    monkeypatch.setattr(runner, 'ParticleSwarm_VarOptMultiprocess', capture_solver)
+    monkeypatch.setattr(runner, 'TSPWRParticleSwarm', capture_solver)
     experiment = runner.Experiment(
         dataset='MITECO_Madrid20', label='JSON refuel compatibility',
         particles=(4,), steps=(2,), opts=(3,), rings=(True,), full_tanks=(False,),
@@ -51,6 +51,7 @@ def test_miteco_json_runs_in_refuel_mode(monkeypatch, tmp_path):
 
     assert len(created_solvers) == 1
     solver = created_solvers[0]
+    assert type(solver) is TSPWRParticleSwarm
     assert solver.refuel_mode is True
     assert solver.ring_mode is True
     assert solver.fullinit is False

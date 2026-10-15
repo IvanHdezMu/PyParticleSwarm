@@ -10,7 +10,8 @@ import re
 import numpy as np
 import pandas as pd
 from geopy import distance
-from .solver import ParticleSwarm_VarOptMultiprocess
+from .tsp_solver import TSPParticleSwarm
+from .tspwr_solver import TSPWRParticleSwarm
 from .tsplib.euc2d import read_euc2d_matrix
 from .tsplib.geo import read_geo_matrix
 
@@ -190,7 +191,8 @@ def execute(experiment, output_dir=None):
         n, c1, opt, minimum, maximum, ring, full, _ = configuration
         print(f'\nRun {index}/{experiment.count}: N={n}, c1={c1}, '
               f'Opt={opt}, circuit={ring}, full tank={full}')
-        algorithm = ParticleSwarm_VarOptMultiprocess(
+        solver_class = TSPWRParticleSwarm if experiment.refuel else TSPParticleSwarm
+        algorithm = solver_class(
             N=n, c1=c1, distance_matrix=matrix, ring_mode=ring,
             refuel_mode=experiment.refuel, prices=prices,
             maxCapacity=experiment.max_capacity, consumption=experiment.consumption, fullinit=full,
