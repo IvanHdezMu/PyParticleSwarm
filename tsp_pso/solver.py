@@ -1,3 +1,3 @@
 """Compatibility imports for the particle swarm solver."""
 
-from .base_solver import BaseParticleSwarm as ParticleSwarm_VarOptMultiprocess
+from .tspwr_solver import TSPWRParticleSwarm as ParticleSwarm_VarOptMultiprocess

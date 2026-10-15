@@ -3,7 +3,8 @@
 import numpy as np
 import pytest
 
-from tsp_pso.solver import ParticleSwarm_VarOptMultiprocess
+from tsp_pso.tsp_solver import TSPParticleSwarm
+from tsp_pso.tspwr_solver import TSPWRParticleSwarm
 
 
 @pytest.fixture(autouse=True)
@@ -30,7 +31,8 @@ def make_solver(distance_matrix):
             options.setdefault("prices", np.array([4., 2., 3., 5.]))
             options.setdefault("maxCapacity", 20)
             options.setdefault("consumption", 2)
-        return ParticleSwarm_VarOptMultiprocess(**options)
+        solver_class = TSPWRParticleSwarm if options.get("refuel_mode") else TSPParticleSwarm
+        return solver_class(**options)
     return make
 
 

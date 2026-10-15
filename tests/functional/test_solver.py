@@ -160,3 +160,14 @@ def test_run_progress_warmup_multiplier(make_solver, multiplier, expected_steps,
     assert frame['Step'].tolist() == expected_steps
     assert np.all(np.isfinite(frame['Result']))
     assert capsys.readouterr().out.count('PARTICLE SWARM:') == len(expected_steps) + 1
+
+
+@pytest.mark.parametrize('refuel', [False, True])
+def test_compatibility_alias_runs_both_modes(distance_matrix, refuel):
+    s = solver_module.ParticleSwarm_VarOptMultiprocess(
+        N=4, c1=2, distance_matrix=distance_matrix, refuel_mode=refuel,
+        prices=np.array([4., 2., 3., 5.]), maxCapacity=20, consumption=2,
+    )
+    assert s.refuel_mode is refuel
+    assert s._objective(np.arange(4)) == (7 if refuel else -2)
+    assert_consistent_result(s, s.run(verbose=False, optType=3, permutReset=False, k=3))
