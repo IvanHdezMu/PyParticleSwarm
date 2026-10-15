@@ -4,6 +4,46 @@ from .base_solver import BaseParticleSwarm
 
 
 class TSPWRParticleSwarm(BaseParticleSwarm):
+    _result_label = 'REFUEL COST'
+
+    def __init__(self, N, c1, distance_matrix, ring_mode=False, refuel_mode=True,
+                 prices=None, maxCapacity=None, consumption=None, fullinit=False,
+                 resetThresholdDivisor=1000, primaryOperatorShare=0.2, progressWarmupMultiplier=5):
+        if bool(refuel_mode) is not True:
+            raise ValueError("TSPWRParticleSwarm requires refuel_mode=True")
+        self.refuel_mode = refuel_mode
+        self.fullinit = fullinit
+        self.prices = prices
+        self.maxCapacity = maxCapacity
+        self.consumption = consumption
+        super().__init__(N, c1, distance_matrix, ring_mode,
+                         resetThresholdDivisor, primaryOperatorShare, progressWarmupMultiplier)
+
+    def _initialize_problem(self):
+        if len(self.prices) != self.distance_matrix.shape[0]:
+            raise ValueError('Prices must have as many values as there '
+                             'are nodes in distance_matrix')
+        if not (isinstance(self.maxCapacity, (int, float)) and self.maxCapacity > 0):
+            raise ValueError('Unacceptable value for maxCapacity')
+        if not (isinstance(self.consumption, (int, float)) and self.consumption > 0):
+            raise ValueError('Unacceptable value for consumption')
+
+    def _objective(self, member):
+        return self._objectiveTSPWR(member)
+
+    def _min_values(self):
+        min_distance = self._min_distance()
+        sorted_prices = np.sort(self.prices)
+        return self._calculate_path_cost(min_distance, sorted_prices)
+
+    def _max_values(self):
+        max_distance = self._max_distance()
+        reverse_sorted_prices = np.sort(self.prices)[::-1]
+        return self._calculate_path_cost(max_distance, reverse_sorted_prices)
+
+    def _dataToSave(self):
+        return [self.cur_steps, self._calculate_refuel(self.global_best[0])]
+
     def _objectiveTSPWR(self, member):
         """
         Returns objective function for TSPWR

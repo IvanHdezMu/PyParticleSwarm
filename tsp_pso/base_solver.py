@@ -38,8 +38,7 @@ class BaseParticleSwarm:
 
     cur_steps = None
     
-    def __init__(self, N, c1, distance_matrix, ring_mode=False, refuel_mode=False,
-                 prices=None, maxCapacity=None, consumption=None, fullinit=False,
+    def __init__(self, N, c1, distance_matrix, ring_mode=False,
                  resetThresholdDivisor=1000, primaryOperatorShare=0.2, progressWarmupMultiplier=5):
         """
         Initialization function
@@ -49,11 +48,6 @@ class BaseParticleSwarm:
         C1: x Number of nodes = max steps
         distance_matrix: distance between nodes
         ring_mode: add distance from the last node to the first node
-        refuel_mode: false->TSP mode active; true->TSPWR mode active
-        prices: array with refueling prices
-        maxCapacity: vehicle capacity in liters
-        consumption: consumption of the vehicle in Km per liter
-        fullinit: full tank at first
         resetThresholdDivisor: divisor used to scale the reset threshold
         primaryOperatorShare: primary operator share in modes 12, 15, and 21
         progressWarmupMultiplier: route-length multiplier for the progress reporting threshold
@@ -69,29 +63,11 @@ class BaseParticleSwarm:
         
         self.ring_mode = ring_mode
 
-        self.fullinit = fullinit
         self.resetThresholdDivisor = resetThresholdDivisor
         self.primaryOperatorShare = primaryOperatorShare
         self.progressWarmupMultiplier = progressWarmupMultiplier
         
-        self.refuel_mode = refuel_mode
-        if refuel_mode: 
-            
-            if len(prices) == distance_matrix.shape[0]:
-                self.prices = prices
-            
-                if isinstance(maxCapacity, (int, float)) and maxCapacity > 0:
-                    self.maxCapacity = maxCapacity
-                else:
-                    raise ValueError('Unacceptable value for maxCapacity')
-                    
-                if isinstance(consumption, (int, float)) and consumption > 0:
-                    self.consumption = consumption
-                else:
-                    raise ValueError('Unacceptable value for consumption')  
-            else:
-                raise ValueError('Prices must have as many values as there '
-                 'are nodes in distance_matrix')
+        self._initialize_problem()
 
         if isinstance(N, (int, float)):
             self.N = int(N)
@@ -116,24 +92,16 @@ class BaseParticleSwarm:
                       
         
     def __str__(self):
-        """
-        Special method to return a string representation of a class instance depending on whether it is TSP or TSPWR
+        step, result = self._dataToSave()
+        return ('PARTICLE SWARM: \n' +
+                'CURRENT STEPS: %d \n' +
+                'BEST %s: %f \n' +
+                'BEST MEMBER: %s \n\n') % (
+                    step, self._result_label, result, str(self.global_best[0]))
 
-        Returns:
-        String representative of the best result achieved by the swarm
-        """
-        if not self.refuel_mode:
-            return ('PARTICLE SWARM: \n' +
-                    'CURRENT STEPS: %d \n' +
-                    'BEST DISTANCE: %f \n' +
-                    'BEST MEMBER: %s \n\n') % \
-                   (self.cur_steps, self._calculate_distance(self.global_best[0]), str(self.global_best[0]))
-        else:
-            return ('PARTICLE SWARM: \n' +
-                    'CURRENT STEPS: %d \n' +
-                    'BEST REFUEL COST: %f \n' +
-                    'BEST MEMBER: %s \n\n') % \
-                   (self.cur_steps, self._calculate_refuel(self.global_best[0]), str(self.global_best[0]))                   
+    def _initialize_problem(self):
+        """Initialize specialized state before computing objective bounds."""
+        pass
 
     def __repr__(self):
         """
@@ -187,49 +155,11 @@ class BaseParticleSwarm:
             
      
     def _objective(self, member):
-        """
-        Returns objective function value for a member of swarm depending on whether it is TSP or TSPWR
-
-        Args:
-        member: a member
-
-        Returns:
-        Objective function value of member
-        """
-        if not self.refuel_mode:
-            return self._objectiveTSP(member)
-        else:
-            return self._objectiveTSPWR(member)
+        raise NotImplementedError
     
-    def _objectiveTSP(self, member):
-        """
-        Returns objective function for TSP
 
-        Args:
-        member: a member
-
-        Returns:
-        TSP objective function value of member
-        """
-        return self._calculate_distance(member) - self.min_value
     
-    def _calculate_distance(self, member):
-        """
-        Returns the total distance traveled taking into account if the ring mode is active
 
-        Args:
-        member: a member
-
-        Returns:
-        Total distance traveled
-        """
-
-        total_distance = self.distance_matrix[member[:-1], member[1:]].sum()
-
-        if self.ring_mode:
-            total_distance += self.distance_matrix[member[-1], member[0]]
-            
-        return total_distance
         
     
         
@@ -276,10 +206,9 @@ class BaseParticleSwarm:
 
                   
             
-    def _min_values(self):
+    def _min_distance(self):
         """
-        TSP: Minimum distance calculation
-        TSPWR: Minimum price calculation
+        Shared minimum-distance bound.
         """
         min_distance = 0
         for raw in self.distance_matrix:
@@ -287,28 +216,24 @@ class BaseParticleSwarm:
             if non_zero_values:        
                 min_distance += min(non_zero_values)
                 
-        if not self.refuel_mode:
-            return min_distance
-        else:
-            sorted_prices = np.sort(self.prices)
-            return self._calculate_path_cost(min_distance, sorted_prices)
+        return min_distance
+
+    def _min_values(self):
+        raise NotImplementedError
                
 
-    def _max_values(self):
+    def _max_distance(self):
         """
-        TSP: Maximum distance calculation
-        TSPWR: Maximum price calculation
+        Shared maximum-distance bound.
         """
         max_distance = 0
         for raw in self.distance_matrix:
             max_distance += max(raw)
             
-        if not self.refuel_mode:
-            return max_distance
-        else:
-            reverse_sorted_prices = np.sort(self.prices)[::-1]
-            return self._calculate_path_cost(max_distance,
-                                             reverse_sorted_prices)
+        return max_distance
+
+    def _max_values(self):
+        raise NotImplementedError
 
 
 
@@ -374,16 +299,7 @@ class BaseParticleSwarm:
         return self.global_best[0], self._objective(self.global_best[0])
 
     def _dataToSave(self):
-        """
-        Return a string representation of a class instance depending on whether it is TSP or TSPWR
-
-        Returns:
-        String representative of the best result achieved by the swarm
-        """
-        if not self.refuel_mode:
-            return [self.cur_steps, self._calculate_distance(self.global_best[0])]
-        else:
-            return [self.cur_steps, self._calculate_refuel(self.global_best[0])]
+        raise NotImplementedError
 
     def _Opt_Type(self, optType):
         """
