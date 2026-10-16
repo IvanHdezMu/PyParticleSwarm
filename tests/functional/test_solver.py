@@ -11,7 +11,7 @@ from tsp_pso.algorithms.core.pso_config import PSOConfig
 from tsp_pso.algorithms.tspwr.refuel_config import RefuelConfig
 from numpy.testing import assert_allclose, assert_array_equal
 
-import tsp_pso.infrastructure.executors.particle_executor as particle_swarm_module
+import tsp_pso.infrastructure.executors.particle_executor as executor_module
 from tsp_pso.algorithms.solver_registry import SOLVER_REGISTRY
 from conftest import assert_permutation
 
@@ -21,7 +21,7 @@ pytestmark = pytest.mark.functional
 @pytest.fixture(autouse=True)
 def seeded_real_pool(monkeypatch):
     # Real subprocess and serialization, also reproducible on spawn platforms.
-    monkeypatch.setattr(particle_swarm_module, 'Pool',
+    monkeypatch.setattr(executor_module, 'Pool',
                         partial(Pool, processes=1, initializer=np.random.seed, initargs=(7,)))
 
 

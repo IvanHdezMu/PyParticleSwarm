@@ -8,7 +8,7 @@ import pytest
 
 from conftest import assert_permutation
 from tsp_pso.application import runner
-import tsp_pso.infrastructure.executors.particle_executor as particle_swarm_module
+import tsp_pso.infrastructure.executors.particle_executor as executor_module
 from tsp_pso.algorithms.tspwr.tspwr_particle_swarm import TSPWRParticleSwarm
 
 pytestmark = pytest.mark.functional
@@ -29,7 +29,7 @@ def test_miteco_json_runs_in_refuel_mode(monkeypatch, tmp_path):
     # Seed initialization and one real spawned worker independently of scheduling.
     np.random.seed(42)
     monkeypatch.setattr(
-        particle_swarm_module, 'Pool',
+        executor_module, 'Pool',
         partial(get_context('spawn').Pool, processes=1,
                 initializer=np.random.seed, initargs=(42,)),
     )

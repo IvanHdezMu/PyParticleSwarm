@@ -98,6 +98,11 @@ configuration, lazy expansion, persistence, the GUI, and the legacy solver adapt
 - `datasets/TSPLIB/` and `datasets/Ottoni/`: input datasets grouped by source; original file names are preserved.
 - `Results/<dataset>/<timestamp>_<parameters>/`: one directory per experiment execution, containing raw Excel files, `run_config.json`, and the analysis workbook.
 
+`ParticleSwarm` provides the common implementation for the TSP and TSPWR route
+optimization problems, using permutations and distance matrices. Its shared
+representation and operators are designed for these route-based problems;
+it is not a universal PSO engine for arbitrary optimization problems.
+
 The devcontainer installs the Python dependencies automatically.
 
 ## Execution output

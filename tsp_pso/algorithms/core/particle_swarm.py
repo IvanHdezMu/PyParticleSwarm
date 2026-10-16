@@ -60,7 +60,7 @@ class ParticleSwarm:
 
     # Zero-argument factory; the active executor stays local to run().
     particle_executor_factory = None
-    
+
     def __init__(self, matrix, config: PSOConfig):
         """Initialize shared state, preserving validation and conversion order.
 

@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-import tsp_pso.infrastructure.executors.particle_executor as swarm_module
+import tsp_pso.infrastructure.executors.particle_executor as executor_module
 from tsp_pso.presentation.console_presenter import ConsolePresenter
 from tsp_pso.infrastructure.writers.excel_result_writer import ExcelResultWriter
 
@@ -45,7 +45,7 @@ def test_presenter_with_real_spawn(monkeypatch, make_solver, tmp_path, capsys,
             yield pool
         events.append(('pool closed', solver.cur_steps))
 
-    monkeypatch.setattr(swarm_module, 'Pool', tracked_pool)
+    monkeypatch.setattr(executor_module, 'Pool', tracked_pool)
     original_measure = cls._dataToSave
     original_best = cls._best
     original_global = cls._global_best
@@ -168,7 +168,7 @@ def test_completion_is_printed_before_final_measure_failure(monkeypatch, solver,
         yield None
 
     solver.max_steps = 0
-    monkeypatch.setattr(swarm_module, 'Pool', empty_pool)
+    monkeypatch.setattr(executor_module, 'Pool', empty_pool)
     failure = ValueError('cannot calculate final measure')
 
     def measure(instance):

@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-import tsp_pso.infrastructure.executors.particle_executor as swarm_module
+import tsp_pso.infrastructure.executors.particle_executor as executor_module
 from tsp_pso.infrastructure.writers.excel_result_writer import ExcelResultWriter
 
 pytestmark = pytest.mark.functional
@@ -34,7 +34,7 @@ def test_external_writer_with_spawn(monkeypatch, make_solver, tmp_path, capsys,
             yield pool
         events.append('pool closed')
 
-    monkeypatch.setattr(swarm_module, 'Pool', tracked_pool)
+    monkeypatch.setattr(executor_module, 'Pool', tracked_pool)
 
     class ParentOnlyWriter:
         def __reduce__(self):
@@ -86,7 +86,7 @@ def test_external_writer_with_spawn(monkeypatch, make_solver, tmp_path, capsys,
 
 
 def test_writer_failure_prevents_final_print_and_return(monkeypatch, solver, tmp_path, capsys):
-    monkeypatch.setattr(swarm_module, 'Pool', partial(get_context('spawn').Pool, processes=1))
+    monkeypatch.setattr(executor_module, 'Pool', partial(get_context('spawn').Pool, processes=1))
     failure = OSError('write failed')
     calls = []
 

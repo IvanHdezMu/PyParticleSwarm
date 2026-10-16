@@ -54,6 +54,5 @@ class TSPParticleSwarm(ParticleSwarm):
 
         if self.ring_mode:
             total_distance += self.distance_matrix[member[-1], member[0]]
-            
-        return total_distance
 
+        return total_distance

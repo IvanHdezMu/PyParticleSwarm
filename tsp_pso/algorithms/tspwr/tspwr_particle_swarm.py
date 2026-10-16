@@ -63,7 +63,7 @@ class TSPWRParticleSwarm(ParticleSwarm):
         Returns:
         TSPWR objective function value of member
         """
-        return abs(self.min_value-self._calculate_refuel(member)) 
+        return abs(self.min_value-self._calculate_refuel(member))
 
     def _calculate_refuel(self, member):
         """
@@ -91,7 +91,7 @@ class TSPWRParticleSwarm(ParticleSwarm):
         for i in range(len(member)-1): # In the last city it is never refuel
             distance_km = self.distance_matrix[member[i], member[i+1]]
             distance_liters = distance_km / self.consumption
-            
+
             liters_aux = distance_liters
             for j in range(i+1, len(member)-1):
                 if (path_price[j] < path_price[j+1]):
@@ -104,9 +104,9 @@ class TSPWRParticleSwarm(ParticleSwarm):
             if (liters_aux > tank):
                 cost += (liters_aux - tank) * path_price[i]
                 tank += liters_aux - tank
-                
+
             tank -= distance_liters
-           
+
         return cost
 
     def _calculate_path_cost(self, km, sorted_prices):

@@ -11,4 +11,3 @@ class PSOConfig:
     reset_threshold_divisor: int | float = 1000
     primary_operator_share: float = 0.2
     progress_warmup_multiplier: int | float = 5
-

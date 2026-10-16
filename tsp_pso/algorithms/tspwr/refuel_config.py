@@ -12,4 +12,3 @@ class RefuelConfig:
     max_capacity: int | float | None = None
     consumption: int | float | None = None
     full_init: bool = False
-

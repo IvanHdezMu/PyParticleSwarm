@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 
 from tsp_pso.application import runner
-import tsp_pso.infrastructure.executors.particle_executor as particle_swarm_module
+import tsp_pso.infrastructure.executors.particle_executor as executor_module
 from tsp_pso.algorithms.tsp.tsp_particle_swarm import TSPParticleSwarm
 from tsp_pso.algorithms.tspwr.tspwr_particle_swarm import TSPWRParticleSwarm
 
@@ -37,7 +37,7 @@ def test_option_8_minas24d_finds_known_optimum(monkeypatch, tmp_path):
     seed = 7
     np.random.seed(seed)
     monkeypatch.setattr(
-        particle_swarm_module, 'Pool',
+        executor_module, 'Pool',
         partial(get_context('spawn').Pool, processes=1,
                 initializer=np.random.seed, initargs=(seed,)),
     )
@@ -108,7 +108,7 @@ def test_minas24d_refuel_ring_finds_known_best_cost(monkeypatch, tmp_path):
     seed = 1
     np.random.seed(seed)
     monkeypatch.setattr(
-        particle_swarm_module, 'Pool',
+        executor_module, 'Pool',
         partial(get_context('spawn').Pool, processes=1,
                 initializer=np.random.seed, initargs=(seed,)),
     )
