@@ -43,6 +43,10 @@ class ParticleSwarm:
     # It must expose write(history, file_path). Never store it on the instance:
     # bound worker methods serialize the solver's instance state.
     result_writer = None
+
+    # Optional presenter supplied on the class, never in serialized instance state.
+    # Receives scalar values and preformatted route/result strings only.
+    console_presenter = None
     
     def __init__(self, matrix, config: PSOConfig):
         """Initialize shared state, preserving validation and conversion order."""
@@ -84,13 +88,17 @@ class ParticleSwarm:
         self.max_steps = self.c1 * self.member_size
                       
         
+    def _get_console_presenter(self):
+        presenter = type(self).console_presenter
+        if presenter is None:
+            from ...presentation.console_presenter import ConsolePresenter
+            presenter = ConsolePresenter()
+        return presenter
+
     def __str__(self):
         step, result = self._dataToSave()
-        return ('PARTICLE SWARM: \n' +
-                'CURRENT STEPS: %d \n' +
-                'BEST %s: %f \n' +
-                'BEST MEMBER: %s \n\n') % (
-                    step, self._result_label, result, str(self.global_best[0]))
+        return self._get_console_presenter().format_result(
+            step, self._result_label, result, str(self.global_best[0]))
 
     def _initialize_problem(self):
         """Initialize specialized state before computing objective bounds."""
@@ -276,7 +284,7 @@ class ParticleSwarm:
 
                 if self.cur_steps > self.member_size * self.progressWarmupMultiplier:
                     if verbose:
-                        print(self)
+                        self._get_console_presenter().present_result(str(self))
                     if excel:
                         output_list.append(self._dataToSave())
 
@@ -289,8 +297,9 @@ class ParticleSwarm:
                 writer = ExcelResultWriter()
             writer.write(output_list, file_path)
 
-        print("TERMINATING - REACHED MAXIMUM STEPS")
-        print(self)
+        presenter = self._get_console_presenter()
+        presenter.present_completion()
+        presenter.present_result(str(self))
         return self.global_best[0], self._objective(self.global_best[0])
 
     def _dataToSave(self):
