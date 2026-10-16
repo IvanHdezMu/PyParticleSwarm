@@ -218,3 +218,41 @@ def test_opt_type_custom_primary_operator_share(make_solver, mode, expected):
     assert_array_equal(s.vel[:, 1], expected)
     assert_array_equal(s.vel[:, [0, 2]], before[:, [0, 2]])
     assert_array_equal(s.nIter, [0, 2, 3, 4, 0])
+
+
+@pytest.mark.parametrize('refuel', [False, True])
+def test_unstarted_representation_has_no_side_effects(make_solver, monkeypatch, refuel):
+    import pickle
+
+    s = make_solver(refuel_mode=refuel)
+    before = pickle.dumps(vars(s))
+    random_before = pickle.dumps(np.random.get_state())
+
+    def unexpected(*args):
+        pytest.fail('Representing an unstarted solver must not initialize or evaluate it')
+
+    for method in ('_clear', '_objective', '_dataToSave', '_get_console_presenter'):
+        monkeypatch.setattr(type(s), method, unexpected)
+    expected = f'{type(s).__name__}(not run)'
+    assert str(s) == expected
+    assert repr(s) == expected
+    assert pickle.dumps(vars(s)) == before
+    assert pickle.dumps(np.random.get_state()) == random_before
+    assert s.global_best is None
+
+
+@pytest.mark.parametrize('refuel', [False, True])
+def test_swarm_state_is_not_shared_between_instances(make_solver, refuel):
+    first = make_solver(refuel_mode=refuel)
+    second = make_solver(refuel_mode=refuel)
+    state_names = ('pos', 'best', 'global_best', 'fx', 'f_best', 'f_global_best',
+                   'vel', 'nIter', 'cur_steps', 'k')
+    first._clear(False, .2, .8, 3)
+    for name in state_names:
+        assert name in vars(first)
+        assert getattr(second, name) is None
+        assert getattr(type(first), name) is None
+    second._clear(False, .2, .8, 3)
+    for name in state_names:
+        if isinstance(getattr(first, name), np.ndarray):
+            assert not np.shares_memory(getattr(first, name), getattr(second, name))

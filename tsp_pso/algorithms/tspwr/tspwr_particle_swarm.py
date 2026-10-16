@@ -6,9 +6,11 @@ from .refuel_config import RefuelConfig
 
 
 class TSPWRParticleSwarm(ParticleSwarm):
+    # Label for the physical measure returned by _dataToSave(), not the objective.
     _result_label = 'REFUEL COST'
 
     def __init__(self, matrix, config: PSOConfig, prices, refuel: RefuelConfig):
+        """Set fuel state before the base invokes validation and bound hooks."""
         self.refuel = refuel
         self.fullinit = refuel.full_init
         self.prices = prices
@@ -17,6 +19,7 @@ class TSPWRParticleSwarm(ParticleSwarm):
         super().__init__(matrix=matrix, config=config)
 
     def _initialize_problem(self):
+        """Validate fuel data set before super().__init__; distance_matrix is ready."""
         if len(self.prices) != self.distance_matrix.shape[0]:
             raise ValueError('Prices must have as many values as there '
                              'are nodes in distance_matrix')
@@ -26,19 +29,23 @@ class TSPWRParticleSwarm(ParticleSwarm):
             raise ValueError('Unacceptable value for consumption')
 
     def _objective(self, member):
+        """Return the refueling-based scalar objective to minimize."""
         return self._objectiveTSPWR(member)
 
     def _min_values(self):
+        """Return the lower fuel-cost reference using validated fuel data."""
         min_distance = self._min_distance()
         sorted_prices = np.sort(self.prices)
         return self._calculate_path_cost(min_distance, sorted_prices)
 
     def _max_values(self):
+        """Return the upper fuel-cost reference using validated fuel data."""
         max_distance = self._max_distance()
         reverse_sorted_prices = np.sort(self.prices)[::-1]
         return self._calculate_path_cost(max_distance, reverse_sorted_prices)
 
     def _dataToSave(self):
+        """Return [cur_steps, fuel cost] for an initialized best route."""
         return [self.cur_steps, self._calculate_refuel(self.global_best[0])]
 
     def _objectiveTSPWR(self, member):

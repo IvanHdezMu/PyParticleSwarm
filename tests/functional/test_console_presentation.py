@@ -30,6 +30,8 @@ def test_presenter_with_real_spawn(monkeypatch, make_solver, tmp_path, capsys,
     solver = make_solver(refuel_mode=refuel, c1=6,
                          progressWarmupMultiplier=1 if samples else 100)
     cls = type(solver)
+    assert str(solver) == repr(solver) == f'{cls.__name__}(not run)'
+    assert solver.global_best is None
     destination = tmp_path / 'result.xlsx'
     events = []
     measures = []

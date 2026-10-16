@@ -16,10 +16,19 @@ from ...infrastructure.writers.excel_result_writer import ExcelResultWriter
 from ...infrastructure.executors.particle_executor import ParticleExecutor
 
 class ParticleSwarm:
+    """Shared swarm search over permutations, minimizing scalar objectives.
+
+    Subclasses implement _objective(), _min_values(), _max_values() and
+    _dataToSave(), and provide a string _result_label for the displayed measure.
+    That measure may differ from the objective returned by run().
+
+    Before super().__init__(), subclasses must set any problem-specific state
+    needed by _initialize_problem() or the bound calculations. Construction
+    validates the problem and computes bounds; only _clear() creates the swarm.
     """
-    Particle swarm
-    """
-    
+
+    # Immutable sentinels preserve access during construction and before _clear().
+    # Constructors and _clear() assign the effective state on each instance.
     swarm_size = None
     member_size = None
 
@@ -37,7 +46,6 @@ class ParticleSwarm:
     N = None
     c1 = None
     k = None
-    v = None
 
     cur_steps = None
 
@@ -100,12 +108,23 @@ class ParticleSwarm:
         return presenter
 
     def __str__(self):
+        """Describe an unstarted solver without computing or creating its swarm."""
+        if self.global_best is None:
+            return f'{type(self).__name__}(not run)'
         step, result = self._dataToSave()
         return self._get_console_presenter().format_result(
             step, self._result_label, result, str(self.global_best[0]))
 
     def _initialize_problem(self):
-        """Initialize specialized state before computing objective bounds."""
+        """Validate or initialize problem-specific state; default is a no-op.
+
+        config, distance_matrix (checked square), ring_mode,
+        resetThresholdDivisor, primaryOperatorShare and progressWarmupMultiplier
+        are available. Subclass state must already be set before super().__init__.
+        N and c1 have not been converted or validated yet; sizes, bounds and
+        max_steps are not initialized. No swarm exists at this stage.
+        Return None; do not rely on later initialization stages.
+        """
         pass
 
     def __repr__(self):
@@ -160,6 +179,12 @@ class ParticleSwarm:
             
      
     def _objective(self, member):
+        """Return the scalar objective to minimize for a candidate permutation.
+
+        Called after construction, including from _clear() before best-result
+        state exists, and from workers. Use initialized problem data and bounds;
+        do not require an active swarm or mutate solver state during evaluation.
+        """
         raise NotImplementedError
     
 
@@ -224,6 +249,12 @@ class ParticleSwarm:
         return min_distance
 
     def _min_values(self):
+        """Return the problem's scalar lower reference used as min_value.
+
+        Called after _initialize_problem() and numeric parameter conversion.
+        Problem data and effective N/c1 are available, but min_value, max_value,
+        member_size, swarm_size, max_steps and the swarm are not initialized.
+        """
         raise NotImplementedError
                
 
@@ -238,6 +269,12 @@ class ParticleSwarm:
         return max_distance
 
     def _max_values(self):
+        """Return the scalar upper reference used to initialize best scores.
+
+        Has the same initialization preconditions as _min_values(), except that
+        min_value is now available. Sizes, max_steps and swarm state are not yet
+        initialized. Preserve the problem's existing objective/bound convention.
+        """
         raise NotImplementedError
 
 
@@ -309,6 +346,13 @@ class ParticleSwarm:
         return self.global_best[0], self._objective(self.global_best[0])
 
     def _dataToSave(self):
+        """Return [step, measure] for history and presentation without mutation.
+
+        Requires initialized cur_steps and global_best (normally from _clear()).
+        The scalar measure is described by the subclass's string _result_label
+        and need not equal the minimized objective. This hook also serves str()
+        and repr() after initialization, independently of Excel output.
+        """
         raise NotImplementedError
 
     def _Opt_Type(self, optType):
@@ -369,8 +413,9 @@ class ParticleSwarm:
         Args:
         args: current position, current velocity, current number of unimproved iterations and current best objective
 
-        Returs:
-        New position, new velocity, new number of unimproved iterations and new best objective
+        Returns:
+        (x, nIter, fx, vel): new position, number of unimproved iterations,
+        objective value and velocity. The input order is (x, vel, nIter, fx).
 
         """
         x, vel, nIter, fx = args
@@ -459,7 +504,7 @@ class ParticleSwarm:
         return x, nIter, fx, vel
 
     
-    def _two_opt_FLip(self, x: np.ndarray) -> Generator[np.ndarray, np.ndarray, None]:
+    def _two_opt_FLip(self, x: np.ndarray) -> Generator[np.ndarray, None, None]:
         """
         2-opt Flip
         """
@@ -479,7 +524,7 @@ class ParticleSwarm:
                 yield xn    
                          
    
-    def _two_opt(self, x: np.ndarray) -> Generator[np.ndarray, np.ndarray, None]:
+    def _two_opt(self, x: np.ndarray) -> Generator[np.ndarray, None, None]:
         """
         2-opt
         """
@@ -500,7 +545,7 @@ class ParticleSwarm:
                 xn[j] = x[i]
                 yield xn                   
 
-    def _k_opt_Flip(self, x: np.ndarray, k: int) -> Generator[np.ndarray, np.ndarray, None]:
+    def _k_opt_Flip(self, x: np.ndarray, k: int) -> Generator[np.ndarray, None, None]:
         """
         k-opt FLip
         """
@@ -531,7 +576,7 @@ class ParticleSwarm:
  
 
                         
-    def _two_and_a_half_opt(self, x: np.ndarray) -> Generator[np.ndarray, np.ndarray, None]:
+    def _two_and_a_half_opt(self, x: np.ndarray) -> Generator[np.ndarray, None, None]:
         """
         2,5-opt
         """
@@ -549,7 +594,7 @@ class ParticleSwarm:
                 ))
                 yield xn
                 
-    def _k_opt_Random(self, x: np.ndarray, k: int) -> Generator[np.ndarray, np.ndarray, None]:
+    def _k_opt_Random(self, x: np.ndarray, k: int) -> Generator[np.ndarray, None, None]:
         """
         k-opt Random
         """
