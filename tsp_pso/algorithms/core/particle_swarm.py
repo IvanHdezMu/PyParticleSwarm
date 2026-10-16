@@ -11,6 +11,9 @@ import numpy as np
 from typing import Generator
 
 from .pso_config import PSOConfig
+from ...presentation.console_presenter import ConsolePresenter
+from ...infrastructure.writers.excel_result_writer import ExcelResultWriter
+from ...infrastructure.executors.particle_executor import ParticleExecutor
 
 class ParticleSwarm:
     """
@@ -93,7 +96,6 @@ class ParticleSwarm:
     def _get_console_presenter(self):
         presenter = type(self).console_presenter
         if presenter is None:
-            from ...presentation.console_presenter import ConsolePresenter
             presenter = ConsolePresenter()
         return presenter
 
@@ -267,7 +269,6 @@ class ParticleSwarm:
         
         executor_factory = type(self).particle_executor_factory
         if executor_factory is None:
-            from ...infrastructure.executors.particle_executor import ParticleExecutor
             executor_factory = ParticleExecutor
         with executor_factory() as p:
             while self.cur_steps <= self.max_steps:
@@ -299,7 +300,6 @@ class ParticleSwarm:
         if excel:
             writer = type(self).result_writer
             if writer is None:
-                from ...infrastructure.writers.excel_result_writer import ExcelResultWriter
                 writer = ExcelResultWriter()
             writer.write(output_list, file_path)
 
