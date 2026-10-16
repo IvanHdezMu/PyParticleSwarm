@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from tsp_pso.algorithms.core import particle_swarm as solver
+from tsp_pso.infrastructure.executors import particle_executor as solver
 from tsp_pso.experiments.batch_executor import execute_batch
 from tsp_pso.experiments.batch_store import create_batch, batch_status, connect
 from tsp_pso.experiments.experiment_batch import DatasetDescriptor, compile_plan

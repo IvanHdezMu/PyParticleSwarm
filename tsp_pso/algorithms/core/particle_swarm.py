@@ -9,7 +9,6 @@ Algorithm based on Solid's ParticleSwarm (Python framework for gradient-free opt
 
 import numpy as np
 from typing import Generator
-from multiprocessing import Pool
 
 from .pso_config import PSOConfig
 
@@ -47,6 +46,9 @@ class ParticleSwarm:
     # Optional presenter supplied on the class, never in serialized instance state.
     # Receives scalar values and preformatted route/result strings only.
     console_presenter = None
+
+    # Zero-argument factory; the active executor stays local to run().
+    particle_executor_factory = None
     
     def __init__(self, matrix, config: PSOConfig):
         """Initialize shared state, preserving validation and conversion order."""
@@ -263,7 +265,11 @@ class ParticleSwarm:
         output_list = []
         aux_n_steps = 1
         
-        with Pool() as p:
+        executor_factory = type(self).particle_executor_factory
+        if executor_factory is None:
+            from ...infrastructure.executors.particle_executor import ParticleExecutor
+            executor_factory = ParticleExecutor
+        with executor_factory() as p:
             while self.cur_steps <= self.max_steps:
 
                 self.vel[:,0] = self.member_size * aux_n_steps

@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-import tsp_pso.algorithms.core.particle_swarm as swarm_module
+import tsp_pso.infrastructure.executors.particle_executor as swarm_module
 from tsp_pso.presentation.console_presenter import ConsolePresenter
 from tsp_pso.infrastructure.writers.excel_result_writer import ExcelResultWriter
 
