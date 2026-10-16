@@ -6,6 +6,7 @@ import numpy as np
 import pytest
 
 from tsp_pso.application import runner
+from tsp_pso.algorithms.solver_config import PSOConfig, RefuelConfig
 
 pytestmark = pytest.mark.unit
 
@@ -27,7 +28,7 @@ def test_reset_threshold_divisor_config_and_forwarding(monkeypatch, tmp_path, ov
     monkeypatch.setattr(runner, 'load_dataset', lambda name: (np.array([[0, 2], [2, 0]]), None))
     runner.execute(experiment, output_dir=tmp_path)
     factory.assert_called_once()
-    assert factory.call_args.kwargs['resetThresholdDivisor'] == experiment.reset_threshold_divisor
+    assert factory.call_args.kwargs['config'].reset_threshold_divisor == experiment.reset_threshold_divisor
     factory.return_value.run.assert_called_once()
 
 
@@ -48,7 +49,7 @@ def test_primary_operator_share_config_and_forwarding(monkeypatch, tmp_path, ove
     monkeypatch.setattr(runner, 'load_dataset', lambda name: (np.array([[0, 2], [2, 0]]), None))
     runner.execute(experiment, output_dir=tmp_path)
     factory.assert_called_once()
-    assert factory.call_args.kwargs['primaryOperatorShare'] == experiment.primary_operator_share
+    assert factory.call_args.kwargs['config'].primary_operator_share == experiment.primary_operator_share
     factory.return_value.run.assert_called_once()
 
 
@@ -69,7 +70,7 @@ def test_progress_warmup_multiplier_config_and_forwarding(monkeypatch, tmp_path,
     monkeypatch.setattr(runner, 'load_dataset', lambda name: (np.array([[0, 2], [2, 0]]), None))
     runner.execute(experiment, output_dir=tmp_path)
     factory.assert_called_once()
-    assert factory.call_args.kwargs['progressWarmupMultiplier'] == experiment.progress_warmup_multiplier
+    assert factory.call_args.kwargs['config'].progress_warmup_multiplier == experiment.progress_warmup_multiplier
     factory.return_value.run.assert_called_once()
 
 
@@ -133,14 +134,16 @@ def test_solver_class_selection(monkeypatch, tmp_path, refuel):
     selected.assert_called_once()
     unused.assert_not_called()
     assert 'refuel_mode' not in selected.call_args.kwargs
-    assert selected.call_args.kwargs['distance_matrix'] is matrix
+    assert isinstance(selected.call_args.kwargs['config'], PSOConfig)
+    assert selected.call_args.kwargs['matrix'] is matrix
     if refuel:
+        assert isinstance(selected.call_args.kwargs['refuel'], RefuelConfig)
         assert selected.call_args.kwargs['prices'] is prices
-        assert selected.call_args.kwargs['maxCapacity'] == experiment.max_capacity
-        assert selected.call_args.kwargs['consumption'] == experiment.consumption
-        assert selected.call_args.kwargs['fullinit'] == experiment.full_tanks[0]
+        assert selected.call_args.kwargs['refuel'].max_capacity == experiment.max_capacity
+        assert selected.call_args.kwargs['refuel'].consumption == experiment.consumption
+        assert selected.call_args.kwargs['refuel'].full_init == experiment.full_tanks[0]
     else:
-        assert not {'prices', 'maxCapacity', 'consumption', 'fullinit'} & selected.call_args.kwargs.keys()
+        assert not {'prices', 'refuel', 'maxCapacity', 'consumption', 'fullinit'} & selected.call_args.kwargs.keys()
     selected.return_value.run.assert_called_once()
 
 
@@ -175,7 +178,9 @@ def test_execute_additional_registered_solver(monkeypatch, tmp_path):
 
     assert len(created) == 1
     assert type(created[0]) is AdditionalSolver
-    assert created[0].options['distance_matrix'] is matrix
+    assert created[0].options['matrix'] is matrix
+    assert isinstance(created[0].options['config'], PSOConfig)
+    assert 'refuel' not in created[0].options
     assert 'refuel_mode' not in created[0].options
     assert created[0].options['custom_option'] == 'registry'
     assert created[0].run_options['optType'] == experiment.opts[0]

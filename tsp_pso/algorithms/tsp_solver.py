@@ -1,13 +1,12 @@
 from .particle_swarm import ParticleSwarm
+from .solver_config import PSOConfig
 
 
 class TSPParticleSwarm(ParticleSwarm):
     _result_label = 'DISTANCE'
 
-    def __init__(self, N, c1, distance_matrix, ring_mode=False,
-                 resetThresholdDivisor=1000, primaryOperatorShare=0.2, progressWarmupMultiplier=5):
-        super().__init__(N, c1, distance_matrix, ring_mode,
-                         resetThresholdDivisor, primaryOperatorShare, progressWarmupMultiplier)
+    def __init__(self, matrix, config: PSOConfig):
+        super().__init__(matrix=matrix, config=config)
 
     def _objective(self, member):
         return self._objectiveTSP(member)

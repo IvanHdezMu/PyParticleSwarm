@@ -11,6 +11,7 @@ import numpy as np
 import pandas as pd
 from geopy import distance
 from ..algorithms.solver_registry import SOLVER_REGISTRY
+from ..algorithms.solver_config import PSOConfig
 from ..infrastructure.tsplib.euc2d import read_euc2d_matrix
 from ..infrastructure.tsplib.geo import read_geo_matrix
 
@@ -195,10 +196,12 @@ def execute(experiment, output_dir=None, *, problem_type=None):
         print(f'\nRun {index}/{experiment.count}: N={n}, c1={c1}, '
               f'Opt={opt}, circuit={ring}, full tank={full}')
         algorithm = solver_class(
-            N=n, c1=c1, distance_matrix=matrix, ring_mode=ring,
-            resetThresholdDivisor=experiment.reset_threshold_divisor,
-            primaryOperatorShare=experiment.primary_operator_share,
-            progressWarmupMultiplier=experiment.progress_warmup_multiplier,
+            matrix=matrix,
+            config=PSOConfig(
+                N=n, c1=c1, ring_mode=ring,
+                reset_threshold_divisor=experiment.reset_threshold_divisor,
+                primary_operator_share=experiment.primary_operator_share,
+                progress_warmup_multiplier=experiment.progress_warmup_multiplier),
             **problem_arguments(experiment, prices, full))
         algorithm.run(verbose=experiment.verbose,
                       optType=opt, excel=experiment.excel,

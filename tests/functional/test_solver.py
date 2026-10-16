@@ -6,6 +6,8 @@ from multiprocessing import Pool
 import numpy as np
 import pandas as pd
 import pytest
+
+from tsp_pso.algorithms.solver_config import PSOConfig, RefuelConfig
 from numpy.testing import assert_allclose, assert_array_equal
 
 import tsp_pso.algorithms.particle_swarm as particle_swarm_module
@@ -165,9 +167,9 @@ def test_run_progress_warmup_multiplier(make_solver, multiplier, expected_steps,
 @pytest.mark.parametrize('refuel', [False, True])
 def test_registered_solvers_run_both_modes(distance_matrix, refuel):
     solver_class, _ = SOLVER_REGISTRY['tspwr' if refuel else 'tsp']
-    fuel = dict(prices=np.array([4., 2., 3., 5.]), maxCapacity=20, consumption=2) if refuel else {}
+    fuel = dict(prices=np.array([4., 2., 3., 5.]), refuel=RefuelConfig(max_capacity=20, consumption=2)) if refuel else {}
     s = solver_class(
-        N=4, c1=2, distance_matrix=distance_matrix, **fuel,
+        matrix=distance_matrix, config=PSOConfig(N=4, c1=2), **fuel,
     )
     assert not hasattr(s, 'refuel_mode')
     assert s._objective(np.arange(4)) == (7 if refuel else -2)

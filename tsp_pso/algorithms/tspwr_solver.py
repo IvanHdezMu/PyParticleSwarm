@@ -1,20 +1,19 @@
 import numpy as np
 
 from .particle_swarm import ParticleSwarm
+from .solver_config import PSOConfig, RefuelConfig
 
 
 class TSPWRParticleSwarm(ParticleSwarm):
     _result_label = 'REFUEL COST'
 
-    def __init__(self, N, c1, distance_matrix, ring_mode=False,
-                 prices=None, maxCapacity=None, consumption=None, fullinit=False,
-                 resetThresholdDivisor=1000, primaryOperatorShare=0.2, progressWarmupMultiplier=5):
-        self.fullinit = fullinit
+    def __init__(self, matrix, config: PSOConfig, prices, refuel: RefuelConfig):
+        self.refuel = refuel
+        self.fullinit = refuel.full_init
         self.prices = prices
-        self.maxCapacity = maxCapacity
-        self.consumption = consumption
-        super().__init__(N, c1, distance_matrix, ring_mode,
-                         resetThresholdDivisor, primaryOperatorShare, progressWarmupMultiplier)
+        self.maxCapacity = refuel.max_capacity
+        self.consumption = refuel.consumption
+        super().__init__(matrix=matrix, config=config)
 
     def _initialize_problem(self):
         if len(self.prices) != self.distance_matrix.shape[0]:

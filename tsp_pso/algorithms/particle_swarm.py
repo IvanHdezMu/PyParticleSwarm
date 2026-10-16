@@ -12,6 +12,8 @@ from typing import Generator
 from multiprocessing import Pool
 import pandas as pd
 
+from .solver_config import PSOConfig
+
 class ParticleSwarm:
     """
     Particle swarm
@@ -38,34 +40,21 @@ class ParticleSwarm:
 
     cur_steps = None
     
-    def __init__(self, N, c1, distance_matrix, ring_mode=False,
-                 resetThresholdDivisor=1000, primaryOperatorShare=0.2, progressWarmupMultiplier=5):
-        """
-        Initialization function
-
-        Args:
-        N: Number of particles
-        C1: x Number of nodes = max steps
-        distance_matrix: distance between nodes
-        ring_mode: add distance from the last node to the first node
-        resetThresholdDivisor: divisor used to scale the reset threshold
-        primaryOperatorShare: primary operator share in modes 12, 15, and 21
-        progressWarmupMultiplier: route-length multiplier for the progress reporting threshold
-
-        Returns:
-        None
-        """
-        
+    def __init__(self, matrix, config: PSOConfig):
+        """Initialize shared state, preserving validation and conversion order."""
+        self.config = config
+        N, c1 = config.N, config.c1
+        distance_matrix = matrix
         if distance_matrix.shape[0] == distance_matrix.shape[1]:
             self.distance_matrix = distance_matrix
         else:
             raise ValueError('Distance matrix must be square')
         
-        self.ring_mode = ring_mode
+        self.ring_mode = config.ring_mode
 
-        self.resetThresholdDivisor = resetThresholdDivisor
-        self.primaryOperatorShare = primaryOperatorShare
-        self.progressWarmupMultiplier = progressWarmupMultiplier
+        self.resetThresholdDivisor = config.reset_threshold_divisor
+        self.primaryOperatorShare = config.primary_operator_share
+        self.progressWarmupMultiplier = config.progress_warmup_multiplier
         
         self._initialize_problem()
 

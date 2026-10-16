@@ -5,6 +5,8 @@ import pickle
 import numpy as np
 import pytest
 
+from tsp_pso.algorithms.solver_config import PSOConfig, RefuelConfig
+
 from tsp_pso.algorithms.particle_swarm import ParticleSwarm
 from tsp_pso.algorithms.tsp_solver import TSPParticleSwarm
 from tsp_pso.algorithms.tspwr_solver import TSPWRParticleSwarm
@@ -16,9 +18,10 @@ pytestmark = pytest.mark.unit
     (TSPParticleSwarm, False, -2), (TSPWRParticleSwarm, True, 7),
 ])
 def test_specialized_defaults(distance_matrix, solver_class, refuel, expected):
-    fuel = dict(prices=np.array([4., 2., 3., 5.]), maxCapacity=20, consumption=2) if refuel else {}
-    solver = solver_class(4, 2, distance_matrix, **fuel)
+    fuel = dict(prices=np.array([4., 2., 3., 5.]), refuel=RefuelConfig(max_capacity=20, consumption=2)) if refuel else {}
+    solver = solver_class(matrix=distance_matrix, config=PSOConfig(N=4, c1=2), **fuel)
     assert not hasattr(solver, 'refuel_mode')
+    assert isinstance(solver.config, PSOConfig)
     assert solver._objective(np.arange(4)) == expected
 
 
@@ -27,7 +30,7 @@ def test_specialized_defaults(distance_matrix, solver_class, refuel, expected):
 ])
 def test_specialized_constructor_rejects_obsolete_mode(distance_matrix, solver_class, refuel):
     with pytest.raises(TypeError, match='refuel_mode'):
-        solver_class(4, 2, distance_matrix, refuel_mode=refuel)
+        solver_class(matrix=distance_matrix, config=PSOConfig(N=4, c1=2), refuel_mode=refuel)
 
 
 @pytest.mark.parametrize('positional', [False, True])
@@ -35,12 +38,12 @@ def test_specialized_constructor_rejects_obsolete_mode(distance_matrix, solver_c
     (False, TSPParticleSwarm, -2), (True, TSPWRParticleSwarm, 7),
 ])
 def test_specialized_constructor_and_pickle(distance_matrix, positional, refuel, solver_class, expected):
-    options = dict(N=4, c1=2, distance_matrix=distance_matrix, ring_mode=False)
+    config = PSOConfig(N=4, c1=2, reset_threshold_divisor=500,
+                       primary_operator_share=0.4, progress_warmup_multiplier=3)
+    options = dict(matrix=distance_matrix, config=config)
     if refuel:
-        options.update(prices=np.array([4., 2., 3., 5.]), maxCapacity=20,
-                       consumption=2, fullinit=False)
-    options.update(resetThresholdDivisor=500, primaryOperatorShare=0.4,
-                   progressWarmupMultiplier=3)
+        options.update(prices=np.array([4., 2., 3., 5.]),
+                       refuel=RefuelConfig(max_capacity=20, consumption=2))
     if positional:
         solver = solver_class(*options.values())
     else:
@@ -48,6 +51,12 @@ def test_specialized_constructor_and_pickle(distance_matrix, positional, refuel,
     restored = pickle.loads(pickle.dumps(solver))
     for instance in (solver, restored):
         assert type(instance) is solver_class
+        assert instance.config == config
+        if refuel:
+            assert instance.refuel == options['refuel']
+            assert 'prices' not in vars(instance.refuel)
+        else:
+            assert not hasattr(instance, 'refuel')
         assert not hasattr(instance, 'refuel_mode')
         assert instance._objective(np.arange(4)) == expected
         assert instance.resetThresholdDivisor == 500
@@ -71,7 +80,7 @@ def test_base_supports_problem_independent_objective(distance_matrix):
         def _dataToSave(self):
             return [self.cur_steps, self._objective(self.global_best[0])]
 
-    solver = ConstantSwarm(4, 2, distance_matrix)
+    solver = ConstantSwarm(matrix=distance_matrix, config=PSOConfig(N=4, c1=2))
     solver._clear(False, 0.2, 0.8, 3)
     assert solver._dataToSave() == [1, 3]
     assert 'BEST CONSTANT: 3.000000' in str(solver)
@@ -80,10 +89,10 @@ def test_base_supports_problem_independent_objective(distance_matrix):
         assert not hasattr(solver, attribute)
 
 
-@pytest.mark.parametrize('parameter', ['prices', 'maxCapacity', 'consumption', 'fullinit'])
+@pytest.mark.parametrize('parameter', ['prices', 'refuel', 'maxCapacity', 'consumption', 'fullinit'])
 def test_tsp_rejects_fuel_arguments(distance_matrix, parameter):
     with pytest.raises(TypeError, match=parameter):
-        TSPParticleSwarm(4, 2, distance_matrix, **{parameter: None})
+        TSPParticleSwarm(matrix=distance_matrix, config=PSOConfig(N=4, c1=2), **{parameter: None})
 
 
 def test_refuel_state_is_ready_before_bounds(monkeypatch, distance_matrix):
@@ -95,6 +104,8 @@ def test_refuel_state_is_ready_before_bounds(monkeypatch, distance_matrix):
         assert solver.maxCapacity == 20
         assert solver.consumption == 2
         assert solver.fullinit is True
+        assert solver.refuel == RefuelConfig(max_capacity=20, consumption=2, full_init=True)
+        assert solver.config == PSOConfig(N=4, c1=2)
         assert solver.distance_matrix is distance_matrix
         assert not hasattr(solver, 'min_value')
         assert not hasattr(solver, 'max_value')
@@ -102,8 +113,9 @@ def test_refuel_state_is_ready_before_bounds(monkeypatch, distance_matrix):
         original(solver)
 
     monkeypatch.setattr(TSPWRParticleSwarm, '_initialize_problem', validate)
-    solver = TSPWRParticleSwarm(4, 2, distance_matrix,
-                              prices=np.array([4., 2., 3., 5.]),
-                              maxCapacity=20, consumption=2, fullinit=True)
+    solver = TSPWRParticleSwarm(
+        matrix=distance_matrix, config=PSOConfig(N=4, c1=2),
+        prices=np.array([4., 2., 3., 5.]),
+        refuel=RefuelConfig(max_capacity=20, consumption=2, full_init=True))
     assert calls == ['validation']
     assert (solver.min_value, solver.max_value) == (11, 85)
