@@ -1,5 +1,5 @@
-from .particle_swarm import ParticleSwarm
-from .solver_config import PSOConfig
+from ..core.particle_swarm import ParticleSwarm
+from ..core.pso_config import PSOConfig
 
 
 class TSPParticleSwarm(ParticleSwarm):

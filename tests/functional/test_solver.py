@@ -7,10 +7,11 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from tsp_pso.algorithms.solver_config import PSOConfig, RefuelConfig
+from tsp_pso.algorithms.core.pso_config import PSOConfig
+from tsp_pso.algorithms.tspwr.refuel_config import RefuelConfig
 from numpy.testing import assert_allclose, assert_array_equal
 
-import tsp_pso.algorithms.particle_swarm as particle_swarm_module
+import tsp_pso.algorithms.core.particle_swarm as particle_swarm_module
 from tsp_pso.algorithms.solver_registry import SOLVER_REGISTRY
 from conftest import assert_permutation
 

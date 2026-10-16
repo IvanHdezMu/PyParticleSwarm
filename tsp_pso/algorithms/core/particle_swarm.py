@@ -12,7 +12,7 @@ from typing import Generator
 from multiprocessing import Pool
 import pandas as pd
 
-from .solver_config import PSOConfig
+from .pso_config import PSOConfig
 
 class ParticleSwarm:
     """

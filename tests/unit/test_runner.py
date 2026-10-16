@@ -6,7 +6,8 @@ import numpy as np
 import pytest
 
 from tsp_pso.application import runner
-from tsp_pso.algorithms.solver_config import PSOConfig, RefuelConfig
+from tsp_pso.algorithms.core.pso_config import PSOConfig
+from tsp_pso.algorithms.tspwr.refuel_config import RefuelConfig
 
 pytestmark = pytest.mark.unit
 
@@ -149,8 +150,8 @@ def test_solver_class_selection(monkeypatch, tmp_path, refuel):
 
 def test_registry_contains_specialized_solvers():
     from tsp_pso.algorithms.solver_registry import SOLVER_REGISTRY
-    from tsp_pso.algorithms.tsp_solver import TSPParticleSwarm
-    from tsp_pso.algorithms.tspwr_solver import TSPWRParticleSwarm
+    from tsp_pso.algorithms.tsp.tsp_particle_swarm import TSPParticleSwarm
+    from tsp_pso.algorithms.tspwr.tspwr_particle_swarm import TSPWRParticleSwarm
 
     assert SOLVER_REGISTRY['tsp'][0] is TSPParticleSwarm
     assert SOLVER_REGISTRY['tspwr'][0] is TSPWRParticleSwarm

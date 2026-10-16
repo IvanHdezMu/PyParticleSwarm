@@ -5,11 +5,12 @@ import pickle
 import numpy as np
 import pytest
 
-from tsp_pso.algorithms.solver_config import PSOConfig, RefuelConfig
+from tsp_pso.algorithms.core.pso_config import PSOConfig
+from tsp_pso.algorithms.tspwr.refuel_config import RefuelConfig
 
-from tsp_pso.algorithms.particle_swarm import ParticleSwarm
-from tsp_pso.algorithms.tsp_solver import TSPParticleSwarm
-from tsp_pso.algorithms.tspwr_solver import TSPWRParticleSwarm
+from tsp_pso.algorithms.core.particle_swarm import ParticleSwarm
+from tsp_pso.algorithms.tsp.tsp_particle_swarm import TSPParticleSwarm
+from tsp_pso.algorithms.tspwr.tspwr_particle_swarm import TSPWRParticleSwarm
 
 pytestmark = pytest.mark.unit
 

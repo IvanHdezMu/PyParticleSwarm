@@ -1,8 +1,8 @@
 """Solver classes and their problem-specific constructor arguments."""
 
-from .solver_config import RefuelConfig
-from .tsp_solver import TSPParticleSwarm
-from .tspwr_solver import TSPWRParticleSwarm
+from .tspwr.refuel_config import RefuelConfig
+from .tsp.tsp_particle_swarm import TSPParticleSwarm
+from .tspwr.tspwr_particle_swarm import TSPWRParticleSwarm
 
 
 def tsp_arguments(experiment, prices, full):

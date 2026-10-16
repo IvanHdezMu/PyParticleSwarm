@@ -7,9 +7,9 @@ import numpy as np
 import pytest
 
 from tsp_pso.application import runner
-import tsp_pso.algorithms.particle_swarm as particle_swarm_module
-from tsp_pso.algorithms.tsp_solver import TSPParticleSwarm
-from tsp_pso.algorithms.tspwr_solver import TSPWRParticleSwarm
+import tsp_pso.algorithms.core.particle_swarm as particle_swarm_module
+from tsp_pso.algorithms.tsp.tsp_particle_swarm import TSPParticleSwarm
+from tsp_pso.algorithms.tspwr.tspwr_particle_swarm import TSPWRParticleSwarm
 
 from conftest import assert_permutation
 

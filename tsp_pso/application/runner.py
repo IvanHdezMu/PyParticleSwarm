@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 from geopy import distance
 from ..algorithms.solver_registry import SOLVER_REGISTRY
-from ..algorithms.solver_config import PSOConfig
+from ..algorithms.core.pso_config import PSOConfig
 from ..infrastructure.tsplib.euc2d import read_euc2d_matrix
 from ..infrastructure.tsplib.geo import read_geo_matrix
 

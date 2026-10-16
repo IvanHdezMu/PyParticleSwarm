@@ -1,7 +1,8 @@
 import numpy as np
 
-from .particle_swarm import ParticleSwarm
-from .solver_config import PSOConfig, RefuelConfig
+from ..core.particle_swarm import ParticleSwarm
+from ..core.pso_config import PSOConfig
+from .refuel_config import RefuelConfig
 
 
 class TSPWRParticleSwarm(ParticleSwarm):
