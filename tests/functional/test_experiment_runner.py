@@ -6,17 +6,17 @@ from pathlib import Path
 
 import pytest
 
-from tsp_pso import solver
-from tsp_pso.batch_executor import execute_batch
-from tsp_pso.batch_store import create_batch, batch_status, connect
-from tsp_pso.experiment_batch import DatasetDescriptor, compile_plan
-from tsp_pso.experiment_config import ExperimentConfiguration, RepetitionSpec
+from tsp_pso.infrastructure.executors import particle_executor as executor_module
+from tsp_pso.experiments.batch_executor import execute_batch
+from tsp_pso.experiments.batch_store import create_batch, batch_status, connect
+from tsp_pso.experiments.experiment_batch import DatasetDescriptor, compile_plan
+from tsp_pso.experiments.experiment_config import ExperimentConfiguration, RepetitionSpec
 
 pytestmark = pytest.mark.functional
 
 
 def test_offline_batch_writes_real_excel_and_manifest(tmp_path, monkeypatch):
-    monkeypatch.setattr(solver, 'Pool', partial(Pool, processes=1))
+    monkeypatch.setattr(executor_module, 'Pool', partial(Pool, processes=1))
     dataset = tmp_path / 'tiny.json'
     dataset.write_text(json.dumps({'nodes': [
         {'latitude':40+i*.01,'longitude':-3+i*.01,'price':1.5+i*.01} for i in range(4)]}))
@@ -42,7 +42,7 @@ def test_offline_batch_writes_real_excel_and_manifest(tmp_path, monkeypatch):
 @pytest.mark.skipif(__import__('os').name != 'posix', reason='POSIX process-group signal integration')
 def test_real_process_interrupt_preserves_finished_run(tmp_path):
     import time
-    from tsp_pso.experiment_process import BatchProcess
+    from tsp_pso.experiments.experiment_process import BatchProcess
     dataset=tmp_path/'tiny-process.json'
     dataset.write_text(json.dumps({'nodes':[
         {'latitude':40+i*.01,'longitude':-3+i*.01,'price':1.5} for i in range(4)]}))

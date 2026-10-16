@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from tsp_pso.experiment_config import (
+from tsp_pso.experiments.experiment_config import (
     ExperimentConfiguration, RepetitionSpec, SUPPORTED_OPERATORS,
     is_parameter_active,
 )

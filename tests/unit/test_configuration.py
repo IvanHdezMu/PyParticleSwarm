@@ -5,8 +5,8 @@ import json
 import numpy as np
 import pytest
 
-from tsp_pso import runner
-from tsp_pso.analysis import load_analysis_options
+from tsp_pso.application import runner
+from tsp_pso.analysis.analysis import load_analysis_options
 
 pytestmark = pytest.mark.unit
 

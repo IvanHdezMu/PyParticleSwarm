@@ -9,14 +9,26 @@ Algorithm based on Solid's ParticleSwarm (Python framework for gradient-free opt
 
 import numpy as np
 from typing import Generator
-from multiprocessing import Pool
-import pandas as pd
 
-class ParticleSwarm_VarOptMultiprocess:
+from .pso_config import PSOConfig
+from ...presentation.console_presenter import ConsolePresenter
+from ...infrastructure.writers.excel_result_writer import ExcelResultWriter
+from ...infrastructure.executors.particle_executor import ParticleExecutor
+
+class ParticleSwarm:
+    """Shared swarm search over permutations, minimizing scalar objectives.
+
+    Subclasses implement _objective(), _min_values(), _max_values() and
+    _dataToSave(), and provide a string _result_label for the displayed measure.
+    That measure may differ from the objective returned by run().
+
+    Before super().__init__(), subclasses must set any problem-specific state
+    needed by _initialize_problem() or the bound calculations. Construction
+    validates the problem and computes bounds; only _clear() creates the swarm.
     """
-    Particle swarm
-    """
-    
+
+    # Immutable sentinels preserve access during construction and before _clear().
+    # Constructors and _clear() assign the effective state on each instance.
     swarm_size = None
     member_size = None
 
@@ -34,64 +46,43 @@ class ParticleSwarm_VarOptMultiprocess:
     N = None
     c1 = None
     k = None
-    v = None
 
     cur_steps = None
-    
-    def __init__(self, N, c1, distance_matrix, ring_mode=False, refuel_mode=False,
-                 prices=None, maxCapacity=None, consumption=None, fullinit=False,
-                 resetThresholdDivisor=1000, primaryOperatorShare=0.2, progressWarmupMultiplier=5):
-        """
-        Initialization function
 
-        Args:
-        N: Number of particles
-        C1: x Number of nodes = max steps
-        distance_matrix: distance between nodes
-        ring_mode: add distance from the last node to the first node
-        refuel_mode: false->TSP mode active; true->TSPWR mode active
-        prices: array with refueling prices
-        maxCapacity: vehicle capacity in liters
-        consumption: consumption of the vehicle in Km per liter
-        fullinit: full tank at first
-        resetThresholdDivisor: divisor used to scale the reset threshold
-        primaryOperatorShare: primary operator share in modes 12, 15, and 21
-        progressWarmupMultiplier: route-length multiplier for the progress reporting threshold
+    # Optional writer supplied on the solver class (shared by its instances).
+    # It must expose write(history, file_path). Never store it on the instance:
+    # bound worker methods serialize the solver's instance state.
+    result_writer = None
 
-        Returns:
-        None
+    # Optional presenter supplied on the class, never in serialized instance state.
+    # Receives scalar values and preformatted route/result strings only.
+    console_presenter = None
+
+    # Zero-argument factory; the active executor stays local to run().
+    particle_executor_factory = None
+
+    def __init__(self, matrix, config: PSOConfig):
+        """Initialize shared state, preserving validation and conversion order.
+
+        matrix is retained by reference, not copied. The caller must keep its
+        contents unchanged for the lifetime of the solver, including through
+        other aliases, because objective bounds are calculated only once.
         """
-        
+        self.config = config
+        N, c1 = config.N, config.c1
+        distance_matrix = matrix
         if distance_matrix.shape[0] == distance_matrix.shape[1]:
             self.distance_matrix = distance_matrix
         else:
             raise ValueError('Distance matrix must be square')
         
-        self.ring_mode = ring_mode
+        self.ring_mode = config.ring_mode
 
-        self.fullinit = fullinit
-        self.resetThresholdDivisor = resetThresholdDivisor
-        self.primaryOperatorShare = primaryOperatorShare
-        self.progressWarmupMultiplier = progressWarmupMultiplier
+        self.resetThresholdDivisor = config.reset_threshold_divisor
+        self.primaryOperatorShare = config.primary_operator_share
+        self.progressWarmupMultiplier = config.progress_warmup_multiplier
         
-        self.refuel_mode = refuel_mode
-        if refuel_mode: 
-            
-            if len(prices) == distance_matrix.shape[0]:
-                self.prices = prices
-            
-                if isinstance(maxCapacity, (int, float)) and maxCapacity > 0:
-                    self.maxCapacity = maxCapacity
-                else:
-                    raise ValueError('Unacceptable value for maxCapacity')
-                    
-                if isinstance(consumption, (int, float)) and consumption > 0:
-                    self.consumption = consumption
-                else:
-                    raise ValueError('Unacceptable value for consumption')  
-            else:
-                raise ValueError('Prices must have as many values as there '
-                 'are nodes in distance_matrix')
+        self._initialize_problem()
 
         if isinstance(N, (int, float)):
             self.N = int(N)
@@ -115,25 +106,31 @@ class ParticleSwarm_VarOptMultiprocess:
         self.max_steps = self.c1 * self.member_size
                       
         
-    def __str__(self):
-        """
-        Special method to return a string representation of a class instance depending on whether it is TSP or TSPWR
+    def _get_console_presenter(self):
+        presenter = type(self).console_presenter
+        if presenter is None:
+            presenter = ConsolePresenter()
+        return presenter
 
-        Returns:
-        String representative of the best result achieved by the swarm
+    def __str__(self):
+        """Describe an unstarted solver without computing or creating its swarm."""
+        if self.global_best is None:
+            return f'{type(self).__name__}(not run)'
+        step, result = self._dataToSave()
+        return self._get_console_presenter().format_result(
+            step, self._result_label, result, str(self.global_best[0]))
+
+    def _initialize_problem(self):
+        """Validate or initialize problem-specific state; default is a no-op.
+
+        config, distance_matrix (checked square), ring_mode,
+        resetThresholdDivisor, primaryOperatorShare and progressWarmupMultiplier
+        are available. Subclass state must already be set before super().__init__.
+        N and c1 have not been converted or validated yet; sizes, bounds and
+        max_steps are not initialized. No swarm exists at this stage.
+        Return None; do not rely on later initialization stages.
         """
-        if not self.refuel_mode:
-            return ('PARTICLE SWARM: \n' +
-                    'CURRENT STEPS: %d \n' +
-                    'BEST DISTANCE: %f \n' +
-                    'BEST MEMBER: %s \n\n') % \
-                   (self.cur_steps, self._calculate_distance(self.global_best[0]), str(self.global_best[0]))
-        else:
-            return ('PARTICLE SWARM: \n' +
-                    'CURRENT STEPS: %d \n' +
-                    'BEST REFUEL COST: %f \n' +
-                    'BEST MEMBER: %s \n\n') % \
-                   (self.cur_steps, self._calculate_refuel(self.global_best[0]), str(self.global_best[0]))                   
+        pass
 
     def __repr__(self):
         """
@@ -187,107 +184,21 @@ class ParticleSwarm_VarOptMultiprocess:
             
      
     def _objective(self, member):
-        """
-        Returns objective function value for a member of swarm depending on whether it is TSP or TSPWR
+        """Return the scalar objective to minimize for a candidate permutation.
 
-        Args:
-        member: a member
-
-        Returns:
-        Objective function value of member
+        Called after construction, including from _clear() before best-result
+        state exists, and from workers. Use initialized problem data and bounds;
+        do not require an active swarm or mutate solver state during evaluation.
         """
-        if not self.refuel_mode:
-            return self._objectiveTSP(member)
-        else:
-            return self._objectiveTSPWR(member)
+        raise NotImplementedError
     
-    def _objectiveTSP(self, member):
-        """
-        Returns objective function for TSP
 
-        Args:
-        member: a member
-
-        Returns:
-        TSP objective function value of member
-        """
-        return self._calculate_distance(member) - self.min_value
     
-    def _calculate_distance(self, member):
-        """
-        Returns the total distance traveled taking into account if the ring mode is active
 
-        Args:
-        member: a member
-
-        Returns:
-        Total distance traveled
-        """
-
-        total_distance = self.distance_matrix[member[:-1], member[1:]].sum()
-
-        if self.ring_mode:
-            total_distance += self.distance_matrix[member[-1], member[0]]
-            
-        return total_distance
         
     
         
-    def _objectiveTSPWR(self, member):
-        """
-        Returns objective function for TSPWR
-
-        Args:
-        member: a member
-
-        Returns:
-        TSPWR objective function value of member
-        """
-        return abs(self.min_value-self._calculate_refuel(member)) 
     
-    def _calculate_refuel(self, member):
-        """
-        Returns the total cost of fuel taking into account whether the ring mode is active
-        and whether the tank was full at the start.
-
-        Args:
-        member: a member
-
-        Returns:
-        Total cost of fuel
-        """
-
-        if self.fullinit:
-            tank = self.maxCapacity
-        else:
-            tank = 0.0
-        cost = 0.0
-
-        if self.ring_mode:
-            member = np.append(member, member[0])
-
-        path_price = self._path_prices(member)
-
-        for i in range(len(member)-1): # In the last city it is never refuel
-            distance_km = self.distance_matrix[member[i], member[i+1]]
-            distance_liters = distance_km / self.consumption
-            
-            liters_aux = distance_liters
-            for j in range(i+1, len(member)-1):
-                if (path_price[j] < path_price[j+1]):
-                    liters_aux += self.distance_matrix[member[j], member[j+1]] / self.consumption
-                else:
-                    break
-            if liters_aux + tank > self.maxCapacity:
-                liters_aux = self.maxCapacity - tank
-
-            if (liters_aux > tank):
-                cost += (liters_aux - tank) * path_price[i]
-                tank += liters_aux - tank
-                
-            tank -= distance_liters
-           
-        return cost
 
     def _score(self, pos):
         """
@@ -330,10 +241,9 @@ class ParticleSwarm_VarOptMultiprocess:
 
                   
             
-    def _min_values(self):
+    def _min_distance(self):
         """
-        TSP: Minimum distance calculation
-        TSPWR: Minimum price calculation
+        Shared minimum-distance bound.
         """
         min_distance = 0
         for raw in self.distance_matrix:
@@ -341,65 +251,38 @@ class ParticleSwarm_VarOptMultiprocess:
             if non_zero_values:        
                 min_distance += min(non_zero_values)
                 
-        if not self.refuel_mode:
-            return min_distance
-        else:
-            sorted_prices = np.sort(self.prices)
-            return self._calculate_path_cost(min_distance, sorted_prices)
+        return min_distance
+
+    def _min_values(self):
+        """Return the problem's scalar lower reference used as min_value.
+
+        Called after _initialize_problem() and numeric parameter conversion.
+        Problem data and effective N/c1 are available, but min_value, max_value,
+        member_size, swarm_size, max_steps and the swarm are not initialized.
+        """
+        raise NotImplementedError
                
 
-    def _max_values(self):
+    def _max_distance(self):
         """
-        TSP: Maximum distance calculation
-        TSPWR: Maximum price calculation
+        Shared maximum-distance bound.
         """
         max_distance = 0
         for raw in self.distance_matrix:
             max_distance += max(raw)
             
-        if not self.refuel_mode:
-            return max_distance
-        else:
-            reverse_sorted_prices = np.sort(self.prices)[::-1]
-            return self._calculate_path_cost(max_distance,
-                                             reverse_sorted_prices)
+        return max_distance
 
-    def _calculate_path_cost(self, km, sorted_prices):
+    def _max_values(self):
+        """Return the scalar upper reference used to initialize best scores.
+
+        Has the same initialization preconditions as _min_values(), except that
+        min_value is now available. Sizes, max_steps and swarm state are not yet
+        initialized. Preserve the problem's existing objective/bound convention.
         """
-        Returns the cost of traveling a distance
+        raise NotImplementedError
 
-        Args:
-        km: kilometers traveled
-        sorted_prices: array of prices of the path
 
-        Return:
-        Cost of fuel for the kilometers traveled
-        """
-
-        liters = km / self.consumption
-        liters_aux = liters
-        cost = 0
-        for i in range(len(sorted_prices)):
-            if liters_aux > self.maxCapacity:
-                cost += self.maxCapacity * sorted_prices[i]
-                liters_aux -= self.maxCapacity
-            else:
-                cost += liters_aux * sorted_prices[i]
-                return cost
-        return np.inf
-
-    def _path_prices(self, path):
-        """
-        Returns the array of prices of the path
-
-        Args:
-        path: array of nodes
-
-        Returns:
-        Array of prices of the path
-        """
-
-        return self.prices[path]
 
     def run(self, verbose=True, optType=10, excel=False, file_path=None,
             permutReset=True, minPermut=0.2, maxPermut=0.8, k=10):
@@ -417,7 +300,9 @@ class ParticleSwarm_VarOptMultiprocess:
         k: k constant for k-Opt algorithms
 
         Returns:
-        The best member of swarm and its objective function value
+        A writable, independent copy of the best route and its objective value.
+        The returned route belongs to the caller: modifying it cannot change
+        the solver's state, and later runs cannot change that returned array.
         """
         if excel and file_path is None:
             raise ValueError('file_path is required when excel=True')
@@ -426,7 +311,10 @@ class ParticleSwarm_VarOptMultiprocess:
         output_list = []
         aux_n_steps = 1
         
-        with Pool() as p:
+        executor_factory = type(self).particle_executor_factory
+        if executor_factory is None:
+            executor_factory = ParticleExecutor
+        with executor_factory() as p:
             while self.cur_steps <= self.max_steps:
 
                 self.vel[:,0] = self.member_size * aux_n_steps
@@ -447,32 +335,32 @@ class ParticleSwarm_VarOptMultiprocess:
 
                 if self.cur_steps > self.member_size * self.progressWarmupMultiplier:
                     if verbose:
-                        print(self)
+                        self._get_console_presenter().present_result(str(self))
                     if excel:
                         output_list.append(self._dataToSave())
 
                 aux_n_steps += 1
 
         if excel:
-            columns = ['Step', 'Result']
-            df = pd.DataFrame(output_list, columns=columns)
-            df.to_excel(file_path, index=False)
+            writer = type(self).result_writer
+            if writer is None:
+                writer = ExcelResultWriter()
+            writer.write(output_list, file_path)
 
-        print("TERMINATING - REACHED MAXIMUM STEPS")
-        print(self)
-        return self.global_best[0], self._objective(self.global_best[0])
+        presenter = self._get_console_presenter()
+        presenter.present_completion()
+        presenter.present_result(str(self))
+        return self.global_best[0].copy(), self._objective(self.global_best[0])
 
     def _dataToSave(self):
-        """
-        Return a string representation of a class instance depending on whether it is TSP or TSPWR
+        """Return [step, measure] for history and presentation without mutation.
 
-        Returns:
-        String representative of the best result achieved by the swarm
+        Requires initialized cur_steps and global_best (normally from _clear()).
+        The scalar measure is described by the subclass's string _result_label
+        and need not equal the minimized objective. This hook also serves str()
+        and repr() after initialization, independently of Excel output.
         """
-        if not self.refuel_mode:
-            return [self.cur_steps, self._calculate_distance(self.global_best[0])]
-        else:
-            return [self.cur_steps, self._calculate_refuel(self.global_best[0])]
+        raise NotImplementedError
 
     def _Opt_Type(self, optType):
         """
@@ -532,8 +420,9 @@ class ParticleSwarm_VarOptMultiprocess:
         Args:
         args: current position, current velocity, current number of unimproved iterations and current best objective
 
-        Returs:
-        New position, new velocity, new number of unimproved iterations and new best objective
+        Returns:
+        (x, nIter, fx, vel): new position, number of unimproved iterations,
+        objective value and velocity. The input order is (x, vel, nIter, fx).
 
         """
         x, vel, nIter, fx = args
@@ -622,7 +511,7 @@ class ParticleSwarm_VarOptMultiprocess:
         return x, nIter, fx, vel
 
     
-    def _two_opt_FLip(self, x: np.ndarray) -> Generator[np.ndarray, np.ndarray, None]:
+    def _two_opt_FLip(self, x: np.ndarray) -> Generator[np.ndarray, None, None]:
         """
         2-opt Flip
         """
@@ -642,7 +531,7 @@ class ParticleSwarm_VarOptMultiprocess:
                 yield xn    
                          
    
-    def _two_opt(self, x: np.ndarray) -> Generator[np.ndarray, np.ndarray, None]:
+    def _two_opt(self, x: np.ndarray) -> Generator[np.ndarray, None, None]:
         """
         2-opt
         """
@@ -663,7 +552,7 @@ class ParticleSwarm_VarOptMultiprocess:
                 xn[j] = x[i]
                 yield xn                   
 
-    def _k_opt_Flip(self, x: np.ndarray, k: int) -> Generator[np.ndarray, np.ndarray, None]:
+    def _k_opt_Flip(self, x: np.ndarray, k: int) -> Generator[np.ndarray, None, None]:
         """
         k-opt FLip
         """
@@ -694,7 +583,7 @@ class ParticleSwarm_VarOptMultiprocess:
  
 
                         
-    def _two_and_a_half_opt(self, x: np.ndarray) -> Generator[np.ndarray, np.ndarray, None]:
+    def _two_and_a_half_opt(self, x: np.ndarray) -> Generator[np.ndarray, None, None]:
         """
         2,5-opt
         """
@@ -712,7 +601,7 @@ class ParticleSwarm_VarOptMultiprocess:
                 ))
                 yield xn
                 
-    def _k_opt_Random(self, x: np.ndarray, k: int) -> Generator[np.ndarray, np.ndarray, None]:
+    def _k_opt_Random(self, x: np.ndarray, k: int) -> Generator[np.ndarray, None, None]:
         """
         k-opt Random
         """

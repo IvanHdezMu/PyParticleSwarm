@@ -7,7 +7,7 @@ pytestmark = pytest.mark.unit
 
 
 def test_gui_free_values_presets_and_live_count():
-    from tsp_pso.experiment_gui import ExperimentRunnerApp
+    from tsp_pso.presentation.experiment_gui import ExperimentRunnerApp
     try:
         app = ExperimentRunnerApp()
     except tk.TclError as error:
@@ -58,7 +58,7 @@ def test_gui_free_values_presets_and_live_count():
 
 
 def test_simplified_controls_and_preset_edit_safety():
-    from tsp_pso.experiment_gui import ExperimentRunnerApp
+    from tsp_pso.presentation.experiment_gui import ExperimentRunnerApp
     try:
         app = ExperimentRunnerApp()
     except tk.TclError as error:

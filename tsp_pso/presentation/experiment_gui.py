@@ -9,11 +9,11 @@ from tkinter import filedialog, messagebox
 import customtkinter as ctk
 
 from tools.dataset_generators.gui import ThemedDropdown
-from .experiment_config import ExperimentConfiguration, RepetitionSpec, is_parameter_active
-from .experiment_batch import ROOT, load_catalog, load_presets
+from ..experiments.experiment_config import ExperimentConfiguration, RepetitionSpec, is_parameter_active
+from ..experiments.experiment_batch import ROOT, load_catalog, load_presets
 from .experiment_editor import NUMERIC_FIELDS, OPERATOR_LABELS, add_numeric, parse_numeric, remove_value, toggle_value, review
-from .batch_store import create_batch, batch_status, finish_batch
-from .experiment_process import BatchProcess
+from ..experiments.batch_store import create_batch, batch_status, finish_batch
+from ..experiments.experiment_process import BatchProcess
 
 
 FIELD_HELP = {

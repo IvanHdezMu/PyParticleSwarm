@@ -7,7 +7,7 @@ from pathlib import Path
 
 from .experiment_config import ExperimentConfiguration, RepetitionSpec, is_parameter_active
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 EXPANSION_VERSION = 1
 CONDITIONAL = (
     'k', 'primary_operator_share', 'minimum_reset_probability',

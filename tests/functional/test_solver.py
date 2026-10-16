@@ -6,9 +6,13 @@ from multiprocessing import Pool
 import numpy as np
 import pandas as pd
 import pytest
+
+from tsp_pso.algorithms.core.pso_config import PSOConfig
+from tsp_pso.algorithms.tspwr.refuel_config import RefuelConfig
 from numpy.testing import assert_allclose, assert_array_equal
 
-import tsp_pso.solver as solver_module
+import tsp_pso.infrastructure.executors.particle_executor as executor_module
+from tsp_pso.algorithms.solver_registry import SOLVER_REGISTRY
 from conftest import assert_permutation
 
 pytestmark = pytest.mark.functional
@@ -17,7 +21,7 @@ pytestmark = pytest.mark.functional
 @pytest.fixture(autouse=True)
 def seeded_real_pool(monkeypatch):
     # Real subprocess and serialization, also reproducible on spawn platforms.
-    monkeypatch.setattr(solver_module, 'Pool',
+    monkeypatch.setattr(executor_module, 'Pool',
                         partial(Pool, processes=1, initializer=np.random.seed, initargs=(7,)))
 
 
@@ -159,3 +163,57 @@ def test_run_progress_warmup_multiplier(make_solver, multiplier, expected_steps,
     assert frame['Step'].tolist() == expected_steps
     assert np.all(np.isfinite(frame['Result']))
     assert capsys.readouterr().out.count('PARTICLE SWARM:') == len(expected_steps) + 1
+
+
+@pytest.mark.parametrize('refuel', [False, True])
+def test_registered_solvers_run_both_modes(distance_matrix, refuel):
+    solver_class, _ = SOLVER_REGISTRY['tspwr' if refuel else 'tsp']
+    fuel = dict(prices=np.array([4., 2., 3., 5.]), refuel=RefuelConfig(max_capacity=20, consumption=2)) if refuel else {}
+    s = solver_class(
+        matrix=distance_matrix, config=PSOConfig(N=4, c1=2), **fuel,
+    )
+    assert not hasattr(s, 'refuel_mode')
+    assert s._objective(np.arange(4)) == (7 if refuel else -2)
+    assert_consistent_result(s, s.run(verbose=False, optType=3, permutReset=False, k=3))
+
+
+@pytest.mark.parametrize('refuel', [False, True])
+def test_returned_route_is_owned_by_caller(make_solver, refuel):
+    s = make_solver(refuel_mode=refuel)
+    matrix = s.distance_matrix
+    prices = s.prices if refuel else None
+    options = dict(verbose=False, optType=3, permutReset=False, k=2)
+    np.random.seed(7)
+    route, score = s.run(**options)
+    original_route = route.copy()
+    original_best = s.global_best.copy()
+    original_scores = s.f_global_best.copy()
+    original_text, original_repr = str(s), repr(s)
+    assert_consistent_result(s, (route, score))
+    assert route.flags.writeable
+    assert not np.shares_memory(route, s.global_best)
+
+    route[:] = -1
+    assert_array_equal(s.global_best, original_best)
+    assert_array_equal(s.f_global_best, original_scores)
+    assert score == s._objective(s.global_best[0])
+    assert str(s) == original_text
+    assert repr(s) == original_repr
+
+    np.random.seed(7)
+    second_route, second_score = s.run(**options)
+    assert_consistent_result(s, (second_route, second_score))
+    assert_array_equal(second_route, original_route)
+    assert second_score == score
+    assert_array_equal(route, np.full_like(route, -1))
+    assert second_route.flags.writeable
+    assert not np.shares_memory(second_route, s.global_best)
+    assert not np.shares_memory(route, second_route)
+    second_route[:] = -2
+    assert_array_equal(s.global_best, original_best)
+    assert_array_equal(s.f_global_best, original_scores)
+    assert str(s) == original_text
+    assert repr(s) == original_repr
+    assert s.distance_matrix is matrix
+    if refuel:
+        assert s.prices is prices

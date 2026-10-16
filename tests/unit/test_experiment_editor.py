@@ -1,8 +1,8 @@
 from dataclasses import replace
 import pytest
-from tsp_pso.experiment_config import ExperimentConfiguration
-from tsp_pso.experiment_editor import add_numeric, remove_value, toggle_value, review
-from tsp_pso.experiment_batch import load_catalog, load_presets
+from tsp_pso.experiments.experiment_config import ExperimentConfiguration
+from tsp_pso.presentation.experiment_editor import add_numeric, remove_value, toggle_value, review
+from tsp_pso.experiments.experiment_batch import load_catalog, load_presets
 
 pytestmark = pytest.mark.unit
 

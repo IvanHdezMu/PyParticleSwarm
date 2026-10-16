@@ -11,7 +11,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from tsp_pso import analysis, runner
+from tsp_pso.analysis import analysis
+from tsp_pso.application import runner
 
 pytestmark = pytest.mark.functional
 
@@ -34,7 +35,8 @@ def workbook_solver(monkeypatch):
                 kwargs['file_path'], index=False)
 
     monkeypatch.setattr(runner, 'load_dataset', lambda name: (np.array([[0, 2], [2, 0]]), None))
-    monkeypatch.setattr(runner, 'ParticleSwarm_VarOptMultiprocess', lambda **kwargs: SimpleNamespace(run=run))
+    monkeypatch.setitem(runner.SOLVER_REGISTRY, 'tsp', (lambda **kwargs: SimpleNamespace(run=run), runner.SOLVER_REGISTRY['tsp'][1]))
+    monkeypatch.setitem(runner.SOLVER_REGISTRY, 'tspwr', (lambda **kwargs: SimpleNamespace(run=run), runner.SOLVER_REGISTRY['tspwr'][1]))
     return calls
 
 

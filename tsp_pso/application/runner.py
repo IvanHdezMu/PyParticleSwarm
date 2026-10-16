@@ -10,11 +10,12 @@ import re
 import numpy as np
 import pandas as pd
 from geopy import distance
-from .solver import ParticleSwarm_VarOptMultiprocess
-from .tsplib.euc2d import read_euc2d_matrix
-from .tsplib.geo import read_geo_matrix
+from ..algorithms.solver_registry import SOLVER_REGISTRY
+from ..algorithms.core.pso_config import PSOConfig
+from ..infrastructure.tsplib.euc2d import read_euc2d_matrix
+from ..infrastructure.tsplib.geo import read_geo_matrix
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 
 
 def load_run_options(path=None):
@@ -179,7 +180,11 @@ def create_run_directory(experiment, output_dir=None):
     return destination
 
 
-def execute(experiment, output_dir=None):
+def execute(experiment, output_dir=None, *, problem_type=None):
+    """Run a registered problem, defaulting to the legacy refuel configuration."""
+    if problem_type is None:
+        problem_type = 'tspwr' if experiment.refuel else 'tsp'
+    solver_class, problem_arguments = SOLVER_REGISTRY[problem_type]
     matrix, prices = load_dataset(experiment.dataset)
     if experiment.excel:
         filenames = [result_filename(experiment, c) for c in experiment.configurations()]
@@ -190,13 +195,14 @@ def execute(experiment, output_dir=None):
         n, c1, opt, minimum, maximum, ring, full, _ = configuration
         print(f'\nRun {index}/{experiment.count}: N={n}, c1={c1}, '
               f'Opt={opt}, circuit={ring}, full tank={full}')
-        algorithm = ParticleSwarm_VarOptMultiprocess(
-            N=n, c1=c1, distance_matrix=matrix, ring_mode=ring,
-            refuel_mode=experiment.refuel, prices=prices,
-            maxCapacity=experiment.max_capacity, consumption=experiment.consumption, fullinit=full,
-            resetThresholdDivisor=experiment.reset_threshold_divisor,
-            primaryOperatorShare=experiment.primary_operator_share,
-            progressWarmupMultiplier=experiment.progress_warmup_multiplier)
+        algorithm = solver_class(
+            matrix=matrix,
+            config=PSOConfig(
+                N=n, c1=c1, ring_mode=ring,
+                reset_threshold_divisor=experiment.reset_threshold_divisor,
+                primary_operator_share=experiment.primary_operator_share,
+                progress_warmup_multiplier=experiment.progress_warmup_multiplier),
+            **problem_arguments(experiment, prices, full))
         algorithm.run(verbose=experiment.verbose,
                       optType=opt, excel=experiment.excel,
                       file_path=destination / result_filename(experiment, configuration),
@@ -247,7 +253,7 @@ def main():
             if experiment is not None:
                 execute(experiment)
         elif mode == 'analysis':
-            from .analysis import analyze, first_missing_result, load_analysis_options
+            from ..analysis.analysis import analyze, first_missing_result, load_analysis_options
             numbered = analysis_menu_options(load_analysis_options())
             counts = {(experiment.dataset, experiment.label): experiment.count
                       for experiment in EXPERIMENTS}
