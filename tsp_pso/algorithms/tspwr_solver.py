@@ -6,12 +6,9 @@ from .particle_swarm import ParticleSwarm
 class TSPWRParticleSwarm(ParticleSwarm):
     _result_label = 'REFUEL COST'
 
-    def __init__(self, N, c1, distance_matrix, ring_mode=False, refuel_mode=True,
+    def __init__(self, N, c1, distance_matrix, ring_mode=False,
                  prices=None, maxCapacity=None, consumption=None, fullinit=False,
                  resetThresholdDivisor=1000, primaryOperatorShare=0.2, progressWarmupMultiplier=5):
-        if bool(refuel_mode) is not True:
-            raise ValueError("TSPWRParticleSwarm requires refuel_mode=True")
-        self.refuel_mode = refuel_mode
         self.fullinit = fullinit
         self.prices = prices
         self.maxCapacity = maxCapacity

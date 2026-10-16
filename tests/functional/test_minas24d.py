@@ -50,7 +50,7 @@ def test_option_8_minas24d_finds_known_optimum(monkeypatch, tmp_path):
         created_solvers.append(solver)
         return solver
 
-    monkeypatch.setitem(runner.SOLVER_REGISTRY, 'tsp', capture_solver)
+    monkeypatch.setitem(runner.SOLVER_REGISTRY, 'tsp', (capture_solver, runner.SOLVER_REGISTRY['tsp'][1]))
     run_directory = runner.execute(experiment, output_dir=tmp_path)
 
     assert len(created_solvers) == 1
@@ -121,7 +121,7 @@ def test_minas24d_refuel_ring_finds_known_best_cost(monkeypatch, tmp_path):
         created_solvers.append(solver)
         return solver
 
-    monkeypatch.setitem(runner.SOLVER_REGISTRY, 'tspwr', capture_solver)
+    monkeypatch.setitem(runner.SOLVER_REGISTRY, 'tspwr', (capture_solver, runner.SOLVER_REGISTRY['tspwr'][1]))
     # execute() loads both coordinates and fuel prices from the repository workbook.
     run_directory = runner.execute(experiment, output_dir=tmp_path)
 
@@ -130,7 +130,6 @@ def test_minas24d_refuel_ring_finds_known_best_cost(monkeypatch, tmp_path):
     assert type(solver) is TSPWRParticleSwarm
     assert solver.distance_matrix.shape == (24, 24)
     assert solver.prices.shape == (24,)
-    assert solver.refuel_mode is True
     assert solver.ring_mode is True
     assert solver.fullinit is False
     assert solver.max_steps == 1200 * 24

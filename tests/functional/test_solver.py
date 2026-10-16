@@ -164,11 +164,11 @@ def test_run_progress_warmup_multiplier(make_solver, multiplier, expected_steps,
 
 @pytest.mark.parametrize('refuel', [False, True])
 def test_registered_solvers_run_both_modes(distance_matrix, refuel):
-    solver_class = SOLVER_REGISTRY['tspwr' if refuel else 'tsp']
+    solver_class, _ = SOLVER_REGISTRY['tspwr' if refuel else 'tsp']
+    fuel = dict(prices=np.array([4., 2., 3., 5.]), maxCapacity=20, consumption=2) if refuel else {}
     s = solver_class(
-        N=4, c1=2, distance_matrix=distance_matrix, refuel_mode=refuel,
-        prices=np.array([4., 2., 3., 5.]), maxCapacity=20, consumption=2,
+        N=4, c1=2, distance_matrix=distance_matrix, **fuel,
     )
-    assert s.refuel_mode is refuel
+    assert not hasattr(s, 'refuel_mode')
     assert s._objective(np.arange(4)) == (7 if refuel else -2)
     assert_consistent_result(s, s.run(verbose=False, optType=3, permutReset=False, k=3))

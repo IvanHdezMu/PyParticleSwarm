@@ -183,7 +183,7 @@ def execute(experiment, output_dir=None, *, problem_type=None):
     """Run a registered problem, defaulting to the legacy refuel configuration."""
     if problem_type is None:
         problem_type = 'tspwr' if experiment.refuel else 'tsp'
-    solver_class = SOLVER_REGISTRY[problem_type]
+    solver_class, problem_arguments = SOLVER_REGISTRY[problem_type]
     matrix, prices = load_dataset(experiment.dataset)
     if experiment.excel:
         filenames = [result_filename(experiment, c) for c in experiment.configurations()]
@@ -196,11 +196,10 @@ def execute(experiment, output_dir=None, *, problem_type=None):
               f'Opt={opt}, circuit={ring}, full tank={full}')
         algorithm = solver_class(
             N=n, c1=c1, distance_matrix=matrix, ring_mode=ring,
-            refuel_mode=experiment.refuel, prices=prices,
-            maxCapacity=experiment.max_capacity, consumption=experiment.consumption, fullinit=full,
             resetThresholdDivisor=experiment.reset_threshold_divisor,
             primaryOperatorShare=experiment.primary_operator_share,
-            progressWarmupMultiplier=experiment.progress_warmup_multiplier)
+            progressWarmupMultiplier=experiment.progress_warmup_multiplier,
+            **problem_arguments(experiment, prices, full))
         algorithm.run(verbose=experiment.verbose,
                       optType=opt, excel=experiment.excel,
                       file_path=destination / result_filename(experiment, configuration),

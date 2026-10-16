@@ -40,7 +40,7 @@ def test_miteco_json_runs_in_refuel_mode(monkeypatch, tmp_path):
         created_solvers.append(solver)
         return solver
 
-    monkeypatch.setitem(runner.SOLVER_REGISTRY, 'tspwr', capture_solver)
+    monkeypatch.setitem(runner.SOLVER_REGISTRY, 'tspwr', (capture_solver, runner.SOLVER_REGISTRY['tspwr'][1]))
     experiment = runner.Experiment(
         dataset='MITECO_Madrid20', label='JSON refuel compatibility',
         particles=(4,), steps=(2,), opts=(3,), rings=(True,), full_tanks=(False,),
@@ -52,7 +52,6 @@ def test_miteco_json_runs_in_refuel_mode(monkeypatch, tmp_path):
     assert len(created_solvers) == 1
     solver = created_solvers[0]
     assert type(solver) is TSPWRParticleSwarm
-    assert solver.refuel_mode is True
     assert solver.ring_mode is True
     assert solver.fullinit is False
     np.testing.assert_array_equal(solver.distance_matrix, matrix)

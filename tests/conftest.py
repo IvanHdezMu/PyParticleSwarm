@@ -24,14 +24,14 @@ def distance_matrix():
 
 @pytest.fixture
 def make_solver(distance_matrix):
-    def make(**kwargs):
+    def make(*, refuel_mode=False, **kwargs):
         options = dict(N=4, c1=2, distance_matrix=distance_matrix.copy())
         options.update(kwargs)
-        if options.get("refuel_mode"):
+        if refuel_mode:
             options.setdefault("prices", np.array([4., 2., 3., 5.]))
             options.setdefault("maxCapacity", 20)
             options.setdefault("consumption", 2)
-        solver_class = TSPWRParticleSwarm if options.get("refuel_mode") else TSPParticleSwarm
+        solver_class = TSPWRParticleSwarm if refuel_mode else TSPParticleSwarm
         return solver_class(**options)
     return make
 

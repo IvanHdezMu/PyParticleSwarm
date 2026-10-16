@@ -16,17 +16,17 @@ pytestmark = pytest.mark.unit
     (TSPParticleSwarm, False, -2), (TSPWRParticleSwarm, True, 7),
 ])
 def test_specialized_defaults(distance_matrix, solver_class, refuel, expected):
-    solver = solver_class(4, 2, distance_matrix, prices=np.array([4., 2., 3., 5.]),
-                          maxCapacity=20, consumption=2)
-    assert solver.refuel_mode is refuel
+    fuel = dict(prices=np.array([4., 2., 3., 5.]), maxCapacity=20, consumption=2) if refuel else {}
+    solver = solver_class(4, 2, distance_matrix, **fuel)
+    assert not hasattr(solver, 'refuel_mode')
     assert solver._objective(np.arange(4)) == expected
 
 
 @pytest.mark.parametrize('solver_class, refuel', [
     (TSPParticleSwarm, True), (TSPWRParticleSwarm, False),
 ])
-def test_specialized_constructor_rejects_conflicting_mode(distance_matrix, solver_class, refuel):
-    with pytest.raises(ValueError, match='requires refuel_mode='):
+def test_specialized_constructor_rejects_obsolete_mode(distance_matrix, solver_class, refuel):
+    with pytest.raises(TypeError, match='refuel_mode'):
         solver_class(4, 2, distance_matrix, refuel_mode=refuel)
 
 
@@ -35,10 +35,11 @@ def test_specialized_constructor_rejects_conflicting_mode(distance_matrix, solve
     (False, TSPParticleSwarm, -2), (True, TSPWRParticleSwarm, 7),
 ])
 def test_specialized_constructor_and_pickle(distance_matrix, positional, refuel, solver_class, expected):
-    options = dict(N=4, c1=2, distance_matrix=distance_matrix, ring_mode=False,
-                   refuel_mode=refuel, prices=np.array([4., 2., 3., 5.]),
-                   maxCapacity=20, consumption=2, fullinit=False,
-                   resetThresholdDivisor=500, primaryOperatorShare=0.4,
+    options = dict(N=4, c1=2, distance_matrix=distance_matrix, ring_mode=False)
+    if refuel:
+        options.update(prices=np.array([4., 2., 3., 5.]), maxCapacity=20,
+                       consumption=2, fullinit=False)
+    options.update(resetThresholdDivisor=500, primaryOperatorShare=0.4,
                    progressWarmupMultiplier=3)
     if positional:
         solver = solver_class(*options.values())
@@ -47,7 +48,7 @@ def test_specialized_constructor_and_pickle(distance_matrix, positional, refuel,
     restored = pickle.loads(pickle.dumps(solver))
     for instance in (solver, restored):
         assert type(instance) is solver_class
-        assert instance.refuel_mode is refuel
+        assert not hasattr(instance, 'refuel_mode')
         assert instance._objective(np.arange(4)) == expected
         assert instance.resetThresholdDivisor == 500
         assert instance.primaryOperatorShare == 0.4
@@ -77,3 +78,32 @@ def test_base_supports_problem_independent_objective(distance_matrix):
     np.testing.assert_array_equal(solver.fx, [3] * 4)
     for attribute in ('refuel_mode', 'prices', 'maxCapacity', 'consumption', 'fullinit'):
         assert not hasattr(solver, attribute)
+
+
+@pytest.mark.parametrize('parameter', ['prices', 'maxCapacity', 'consumption', 'fullinit'])
+def test_tsp_rejects_fuel_arguments(distance_matrix, parameter):
+    with pytest.raises(TypeError, match=parameter):
+        TSPParticleSwarm(4, 2, distance_matrix, **{parameter: None})
+
+
+def test_refuel_state_is_ready_before_bounds(monkeypatch, distance_matrix):
+    original = TSPWRParticleSwarm._initialize_problem
+    calls = []
+
+    def validate(solver):
+        assert solver.prices.tolist() == [4., 2., 3., 5.]
+        assert solver.maxCapacity == 20
+        assert solver.consumption == 2
+        assert solver.fullinit is True
+        assert solver.distance_matrix is distance_matrix
+        assert not hasattr(solver, 'min_value')
+        assert not hasattr(solver, 'max_value')
+        calls.append('validation')
+        original(solver)
+
+    monkeypatch.setattr(TSPWRParticleSwarm, '_initialize_problem', validate)
+    solver = TSPWRParticleSwarm(4, 2, distance_matrix,
+                              prices=np.array([4., 2., 3., 5.]),
+                              maxCapacity=20, consumption=2, fullinit=True)
+    assert calls == ['validation']
+    assert (solver.min_value, solver.max_value) == (11, 85)

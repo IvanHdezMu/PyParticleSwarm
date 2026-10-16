@@ -11,7 +11,9 @@ def test_init(solver, distance_matrix):
     assert_array_equal(solver.distance_matrix, distance_matrix)
     assert (solver.N, solver.swarm_size, solver.member_size, solver.c1) == (4, 4, 4, 2)
     assert (solver.max_steps, solver.min_value, solver.max_value) == (8, 11, 34)
-    assert (solver.ring_mode, solver.refuel_mode, solver.fullinit) == (False, False, False)
+    assert solver.ring_mode is False
+    for name in ('prices', 'maxCapacity', 'consumption', 'fullinit', 'refuel_mode'):
+        assert not hasattr(solver, name)
     for name in ('pos', 'best', 'global_best', 'fx', 'f_best', 'f_global_best',
                  'vel', 'nIter', 'cur_steps', 'k'):
         assert getattr(solver, name) is None
@@ -20,7 +22,7 @@ def test_init(solver, distance_matrix):
 def test_init_refuel(make_solver, distance_matrix):
     prices = np.array([4., 2., 3., 5.])
     s = make_solver(refuel_mode=True, ring_mode=True, fullinit=True, prices=prices)
-    assert (s.ring_mode, s.refuel_mode, s.fullinit) == (True, True, True)
+    assert (s.ring_mode, s.fullinit) == (True, True)
     assert (s.maxCapacity, s.consumption, s.min_value, s.max_value) == (20, 2, 11, 85)
     assert_array_equal(prices, [4, 2, 3, 5])
     assert_array_equal(s.distance_matrix, distance_matrix)
