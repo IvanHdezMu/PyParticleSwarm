@@ -10,7 +10,6 @@ Algorithm based on Solid's ParticleSwarm (Python framework for gradient-free opt
 import numpy as np
 from typing import Generator
 from multiprocessing import Pool
-import pandas as pd
 
 from .pso_config import PSOConfig
 
@@ -39,6 +38,11 @@ class ParticleSwarm:
     v = None
 
     cur_steps = None
+
+    # Optional writer supplied on the solver class (shared by its instances).
+    # It must expose write(history, file_path). Never store it on the instance:
+    # bound worker methods serialize the solver's instance state.
+    result_writer = None
     
     def __init__(self, matrix, config: PSOConfig):
         """Initialize shared state, preserving validation and conversion order."""
@@ -279,9 +283,11 @@ class ParticleSwarm:
                 aux_n_steps += 1
 
         if excel:
-            columns = ['Step', 'Result']
-            df = pd.DataFrame(output_list, columns=columns)
-            df.to_excel(file_path, index=False)
+            writer = type(self).result_writer
+            if writer is None:
+                from ...infrastructure.writers.excel_result_writer import ExcelResultWriter
+                writer = ExcelResultWriter()
+            writer.write(output_list, file_path)
 
         print("TERMINATING - REACHED MAXIMUM STEPS")
         print(self)
