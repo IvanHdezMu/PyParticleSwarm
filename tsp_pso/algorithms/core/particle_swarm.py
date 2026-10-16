@@ -62,7 +62,12 @@ class ParticleSwarm:
     particle_executor_factory = None
     
     def __init__(self, matrix, config: PSOConfig):
-        """Initialize shared state, preserving validation and conversion order."""
+        """Initialize shared state, preserving validation and conversion order.
+
+        matrix is retained by reference, not copied. The caller must keep its
+        contents unchanged for the lifetime of the solver, including through
+        other aliases, because objective bounds are calculated only once.
+        """
         self.config = config
         N, c1 = config.N, config.c1
         distance_matrix = matrix
@@ -295,7 +300,9 @@ class ParticleSwarm:
         k: k constant for k-Opt algorithms
 
         Returns:
-        The best member of swarm and its objective function value
+        A writable, independent copy of the best route and its objective value.
+        The returned route belongs to the caller: modifying it cannot change
+        the solver's state, and later runs cannot change that returned array.
         """
         if excel and file_path is None:
             raise ValueError('file_path is required when excel=True')
@@ -343,7 +350,7 @@ class ParticleSwarm:
         presenter = self._get_console_presenter()
         presenter.present_completion()
         presenter.present_result(str(self))
-        return self.global_best[0], self._objective(self.global_best[0])
+        return self.global_best[0].copy(), self._objective(self.global_best[0])
 
     def _dataToSave(self):
         """Return [step, measure] for history and presentation without mutation.

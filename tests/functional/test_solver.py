@@ -175,3 +175,45 @@ def test_registered_solvers_run_both_modes(distance_matrix, refuel):
     assert not hasattr(s, 'refuel_mode')
     assert s._objective(np.arange(4)) == (7 if refuel else -2)
     assert_consistent_result(s, s.run(verbose=False, optType=3, permutReset=False, k=3))
+
+
+@pytest.mark.parametrize('refuel', [False, True])
+def test_returned_route_is_owned_by_caller(make_solver, refuel):
+    s = make_solver(refuel_mode=refuel)
+    matrix = s.distance_matrix
+    prices = s.prices if refuel else None
+    options = dict(verbose=False, optType=3, permutReset=False, k=2)
+    np.random.seed(7)
+    route, score = s.run(**options)
+    original_route = route.copy()
+    original_best = s.global_best.copy()
+    original_scores = s.f_global_best.copy()
+    original_text, original_repr = str(s), repr(s)
+    assert_consistent_result(s, (route, score))
+    assert route.flags.writeable
+    assert not np.shares_memory(route, s.global_best)
+
+    route[:] = -1
+    assert_array_equal(s.global_best, original_best)
+    assert_array_equal(s.f_global_best, original_scores)
+    assert score == s._objective(s.global_best[0])
+    assert str(s) == original_text
+    assert repr(s) == original_repr
+
+    np.random.seed(7)
+    second_route, second_score = s.run(**options)
+    assert_consistent_result(s, (second_route, second_score))
+    assert_array_equal(second_route, original_route)
+    assert second_score == score
+    assert_array_equal(route, np.full_like(route, -1))
+    assert second_route.flags.writeable
+    assert not np.shares_memory(second_route, s.global_best)
+    assert not np.shares_memory(route, second_route)
+    second_route[:] = -2
+    assert_array_equal(s.global_best, original_best)
+    assert_array_equal(s.f_global_best, original_scores)
+    assert str(s) == original_text
+    assert repr(s) == original_repr
+    assert s.distance_matrix is matrix
+    if refuel:
+        assert s.prices is prices

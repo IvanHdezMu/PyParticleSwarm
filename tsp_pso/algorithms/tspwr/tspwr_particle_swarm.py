@@ -10,7 +10,12 @@ class TSPWRParticleSwarm(ParticleSwarm):
     _result_label = 'REFUEL COST'
 
     def __init__(self, matrix, config: PSOConfig, prices, refuel: RefuelConfig):
-        """Set fuel state before the base invokes validation and bound hooks."""
+        """Set fuel state before the base invokes validation and bound hooks.
+
+        matrix and prices are retained by reference, not copied. The caller
+        must keep both unchanged for the lifetime of the solver, including
+        through other aliases; the calculated bounds are not refreshed.
+        """
         self.refuel = refuel
         self.fullinit = refuel.full_init
         self.prices = prices
