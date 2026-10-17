@@ -5,6 +5,7 @@ import json
 import numpy as np
 import pytest
 
+from tsp_pso.infrastructure.experiment_options import load_run_options
 from tsp_pso.experiments.experiment import build_experiments
 from tsp_pso.application import runner
 from tsp_pso.analysis.analysis import load_analysis_options
@@ -35,7 +36,7 @@ def test_configured_dataset_loads(name, size, has_prices):
 
 def test_experiment_count_and_order():
     assert len(runner.DATASETS) == 10
-    experiments = build_experiments(runner.load_run_options())
+    experiments = build_experiments(load_run_options())
     assert len(experiments) == 22
     assert experiments == runner.EXPERIMENTS
     assert [(e.dataset, e.label) for e in experiments] == [
@@ -57,7 +58,7 @@ def test_experiment_count_and_order():
 
 
 def test_experiment_overrides_replace_defaults_shallowly():
-    options = runner.load_run_options()
+    options = load_run_options()
     options['defaults']['particles'] = [2, 4]
     options['defaults']['repetitions'] = {'start': 5, 'stop': 9}
     options['experiments'] = [{
@@ -80,7 +81,7 @@ def test_experiment_overrides_replace_defaults_shallowly():
 def test_historical_analyses_preserved():
     analyses = load_analysis_options()
     historical = analyses[:2]
-    assert historical == runner.load_run_options()['historical_analyses']
+    assert historical == load_run_options()['historical_analyses']
     assert historical == [
         {
             'id': identifier, 'label': f'berlin52: {identifier} (historical)',
@@ -99,7 +100,7 @@ def test_historical_analyses_preserved():
 
 
 def test_split_config_uses_sibling_files(tmp_path):
-    expected = runner.load_run_options()
+    expected = load_run_options()
     expected['output_dir'] = 'alternate-results'
     expected['defaults']['verbose'] = False
     expected['historical_analyses'] = []
@@ -109,12 +110,12 @@ def test_split_config_uses_sibling_files(tmp_path):
         ('historical_analyses.json', ['historical_analyses']),
     ]:
         (tmp_path / filename).write_text(json.dumps({key: expected[key] for key in keys}))
-    assert runner.load_run_options(tmp_path / 'experiments.json') == expected
+    assert load_run_options(tmp_path / 'experiments.json') == expected
     assert len(load_analysis_options(tmp_path / 'experiments.json')) == 22
 
 
 def test_explicit_combined_config_remains_supported(tmp_path):
-    expected = runner.load_run_options()
+    expected = load_run_options()
     path = tmp_path / 'combined.json'
     path.write_text(json.dumps(expected))
-    assert runner.load_run_options(path) == expected
+    assert load_run_options(path) == expected

@@ -11,6 +11,7 @@ import pandas as pd
 
 from ..experiments.experiment import Experiment, build_experiments
 from ..experiments.result_naming import extra_filename_fields, result_filename
+from ..infrastructure.experiment_options import load_run_options
 
 ROOT = Path(__file__).resolve().parents[2]
 METRICS = ['mean_minimum_result', 'mean_step_of_minimum', 'best_result']
@@ -48,8 +49,6 @@ def analysis_for_experiment(analysis, options):
 
 
 def load_analysis_options(run_options_path=None):
-    from ..application.runner import load_run_options
-
     options = load_run_options(run_options_path)
     analyses = list(options.get('historical_analyses', []))
     for experiment in build_experiments(options):

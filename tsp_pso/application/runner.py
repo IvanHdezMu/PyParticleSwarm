@@ -13,23 +13,12 @@ from ..algorithms.core.pso_config import PSOConfig
 from ..experiments.experiment import Experiment, build_experiments as _build_experiments
 # Re-export these helpers for callers using the existing runner API.
 from ..experiments.result_naming import extra_filename_fields, result_filename
+# Re-export the configuration reader for existing callers.
+from ..infrastructure.experiment_options import load_run_options
 from ..infrastructure.tsplib.euc2d import read_euc2d_matrix
 from ..infrastructure.tsplib.geo import read_geo_matrix
 
 ROOT = Path(__file__).resolve().parents[2]
-
-
-def load_run_options(path=None):
-    path = Path(path or ROOT / 'config' / 'experiments.json')
-    with path.open(encoding='utf-8') as stream:
-        options = json.load(stream)
-    # Preserve support for explicitly supplied combined configuration files.
-    if 'datasets' in options:
-        return options
-    for section in ('datasets', 'historical_analyses'):
-        with path.with_name(f'{section}.json').open(encoding='utf-8') as stream:
-            options[section] = json.load(stream)[section]
-    return options
 
 
 RUN_OPTIONS = load_run_options()

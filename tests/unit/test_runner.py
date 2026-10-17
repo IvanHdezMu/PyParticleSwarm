@@ -5,6 +5,7 @@ from unittest.mock import Mock
 import numpy as np
 import pytest
 
+from tsp_pso.infrastructure.experiment_options import load_run_options
 from tsp_pso.experiments.experiment import Experiment, build_experiments
 from tsp_pso.application import runner
 from tsp_pso.algorithms.core.pso_config import PSOConfig
@@ -15,7 +16,7 @@ pytestmark = pytest.mark.unit
 
 @pytest.mark.parametrize('override', [None, 1])
 def test_reset_threshold_divisor_config_and_forwarding(monkeypatch, tmp_path, override):
-    options = runner.load_run_options()
+    options = load_run_options()
     assert options['defaults']['reset_threshold_divisor'] == 1000
     options['experiments'] = [options['experiments'][0]]
     options['experiments'][0]['excel'] = False
@@ -36,7 +37,7 @@ def test_reset_threshold_divisor_config_and_forwarding(monkeypatch, tmp_path, ov
 
 @pytest.mark.parametrize('override', [None, 0.5])
 def test_primary_operator_share_config_and_forwarding(monkeypatch, tmp_path, override):
-    options = runner.load_run_options()
+    options = load_run_options()
     assert options['defaults']['primary_operator_share'] == 0.2
     options['experiments'] = [options['experiments'][0]]
     options['experiments'][0]['excel'] = False
@@ -57,7 +58,7 @@ def test_primary_operator_share_config_and_forwarding(monkeypatch, tmp_path, ove
 
 @pytest.mark.parametrize('override', [None, 1])
 def test_progress_warmup_multiplier_config_and_forwarding(monkeypatch, tmp_path, override):
-    options = runner.load_run_options()
+    options = load_run_options()
     assert options['defaults']['progress_warmup_multiplier'] == 5
     options['experiments'] = [options['experiments'][0]]
     options['experiments'][0]['excel'] = False
@@ -99,7 +100,7 @@ def test_existing_experiment_verbose_behavior(monkeypatch, tmp_path):
 @pytest.mark.parametrize('label', ['individual', 'renamed experiment'])
 @pytest.mark.parametrize('excel', [False, True])
 def test_experiment_verbose_override(monkeypatch, tmp_path, verbose, label, excel):
-    options = runner.load_run_options()
+    options = load_run_options()
     options['defaults']['verbose'] = not verbose
     options['experiments'] = [{
         'dataset': 'berlin52', 'label': label, 'steps': [2],

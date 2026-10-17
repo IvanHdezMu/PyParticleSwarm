@@ -11,6 +11,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from tsp_pso.infrastructure.experiment_options import load_run_options
 from tsp_pso.experiments.experiment import Experiment, build_experiments
 from tsp_pso.analysis import analysis
 from tsp_pso.application import runner
@@ -69,7 +70,7 @@ def test_repeated_execution_in_same_second_never_overwrites(experiment, workbook
 
 
 def test_snapshot_contains_complete_effective_configuration(workbook_solver, frozen_clock, tmp_path):
-    options = runner.load_run_options()
+    options = load_run_options()
     options['experiments'] = [{
         'dataset': 'Minas24D', 'label': 'snapshot', 'steps': [1000, 1200, 1400],
         'particles': [2, 4], 'rings': [True], 'full_tanks': [False],
