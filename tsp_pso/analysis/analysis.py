@@ -3,9 +3,9 @@ from dataclasses import fields, replace
 from datetime import datetime
 from itertools import product
 import json
+from pathlib import Path
 import re
 from zipfile import BadZipFile
-from pathlib import Path
 
 import pandas as pd
 
@@ -49,6 +49,12 @@ def analysis_for_experiment(analysis, options):
 
 
 def load_analysis_options(run_options_path=None):
+    """Return historical analyses followed by analyses of configured experiments.
+
+    Path resolution follows load_run_options(). Validate identifiers, parameter
+    lists, columns and repetitions, raising ValueError for invalid definitions;
+    configuration reading errors propagate unchanged.
+    """
     options = load_run_options(run_options_path)
     analyses = list(options.get('historical_analyses', []))
     for experiment in build_experiments(options):
@@ -134,11 +140,18 @@ def analyze_runs(dataset_root):
 
 
 def repetition_numbers(analysis):
+    """Return the saved start/stop range, honoring step when present (default 1)."""
     repetitions = analysis['repetitions']
     return range(repetitions['start'], repetitions['stop'], repetitions.get('step', 1))
 
 
 def first_missing_result(analysis, root=None):
+    """Return the first missing input Path, or None when the selection is available.
+
+    Catalog selections require a discoverable run snapshot, not a complete set
+    of workbooks. Historical and individual-run selections check each expected
+    file. Relative paths use root, or the project root when it is omitted.
+    """
     base = Path(root) if root is not None else ROOT
     if 'experiment' in analysis and 'run_directory' not in analysis:
         dataset_root = base / analysis['run_root']
@@ -158,7 +171,9 @@ def analyze(analysis, root=None):
 
     Experiment selections scan dataset run directories. Historical and individual
     run analyses reject incomplete inputs; the directory scanner skips failed runs.
-    Relative paths are resolved from the project directory.
+    Relative paths use root, or the project directory when omitted. Return a
+    DataFrame for a single analysis, or a mapping of run paths to DataFrames for
+    a catalog selection. Single analyses propagate read/validation/write errors.
     """
     base = Path(root) if root is not None else ROOT
     if 'experiment' in analysis and 'run_directory' not in analysis:

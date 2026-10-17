@@ -1,20 +1,26 @@
 """Sequential CPU adapter and process entry point; no solver semantics live here."""
 import json
-import re
 from pathlib import Path
+import re
 import sys
 
+from ..application import runner
+from .batch_store import (
+    finish_batch, finish_run, mark_interrupted, start_batch, start_run,
+)
+from .experiment import Experiment
 from .experiment_batch import (
     DatasetDescriptor, EXPANSION_VERSION, compile_plan, count_runs, iterate_runs,
 )
-from .experiment import Experiment
 from .experiment_config import ExperimentConfiguration
-from .batch_store import (
-    start_batch, start_run, finish_run, finish_batch, mark_interrupted,
-)
 
 
 def to_legacy_experiment(run):
+    """Convert an expanded run to a single-configuration traditional Experiment.
+
+    Preserve the repetition ID and saved inactive fields; sanitize only the label
+    used for storage. Required legacy values must be present or KeyError propagates.
+    """
     e = dict(run.legacy_values)
     return Experiment(
         dataset=run.dataset, label=re.sub(r'[<>:"/\\|?*\x00-\x1f]', '-', run.legacy_label or run.name), particles=(run.particles,), steps=(run.c1,),
@@ -32,14 +38,24 @@ def to_legacy_experiment(run):
 
 
 def execute_one(run, output_dir, descriptor):
-    from ..application import runner
+    """Execute a run with its snapshot's dataset descriptor and return its directory.
+
+    Forward output_dir without rebasing it and propagate execution errors. No
+    live catalog is read or temporarily modified by this adapter.
+    """
     dataset = dict(filename=descriptor.filename, format=descriptor.format,
                    source=descriptor.source, problem_types=descriptor.problem_types)
     return runner.execute(to_legacy_experiment(run), output_dir=output_dir, dataset=dataset)
 
 
 def execute_batch(directory, run_function=None):
-    """Stop on first failure. Re-entrant/resume execution is intentionally rejected."""
+    """Execute a saved batch sequentially and return its directory as a Path.
+
+    Validate the snapshot version and expanded count before starting. An optional
+    run_function(run, output_dir, descriptor) must return the execution directory.
+    Record the first execution failure or interruption and stop; setup errors
+    propagate. Re-entrant/resume execution is intentionally rejected.
+    """
     directory = Path(directory)
     with (directory / 'batch.json').open(encoding='utf-8') as stream:
         snapshot = json.load(stream)
@@ -76,6 +92,7 @@ def execute_batch(directory, run_function=None):
 
 
 def main():
+    """Execute the batch directory supplied as the sole command-line argument."""
     if len(sys.argv) != 2:
         raise SystemExit('Usage: python -m tsp_pso.experiments.batch_executor BATCH_DIRECTORY')
     execute_batch(sys.argv[1])

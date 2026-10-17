@@ -37,7 +37,11 @@ class Experiment:
     verbose: bool = True
 
     def configurations(self):
-        """Yield configurations in the established parameter and repetition order."""
+        """Return the Cartesian-product iterator in filename/solver parameter order.
+
+        Tuples contain particles, steps, operator, minimum, maximum, ring mode,
+        initial-tank mode and repetition ID; repetition varies fastest.
+        """
         return product(self.particles, self.steps, self.opts, self.minimums,
                        self.maximums, self.rings, self.full_tanks, self.repetitions)
 
@@ -53,6 +57,8 @@ def build_experiments(options):
 
     Entry values replace defaults shallowly. Preserve list validation, conversion
     to tuples and the original start/stop repetition ranges without loading files.
+    Return a list in input order without mutating options. Unknown datasets, empty
+    axes and empty repetition ranges raise ValueError; missing keys raise KeyError.
     """
     experiments = []
     for entry in options['experiments']:

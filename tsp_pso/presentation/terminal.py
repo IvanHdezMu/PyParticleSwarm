@@ -1,12 +1,17 @@
 """Interactive terminal menus for running experiments and analyzing results."""
+from ..analysis.analysis import analyze, first_missing_result, load_analysis_options
 from ..application import runner
 from ..experiments.experiment import build_experiments
 from ..infrastructure.experiment_options import load_run_options
-from ..analysis.analysis import analyze, first_missing_result, load_analysis_options
 
 
 def choose_option(title, options, describe, numbers=None):
-    """Prompt until a displayed number is selected; zero cancels the selection."""
+    """Return a selected option, or None for zero, retrying invalid input.
+
+    describe formats each option. numbers supplies display keys when provided;
+    otherwise use one-based positions. EOFError and KeyboardInterrupt propagate
+    to the terminal entry point.
+    """
     numbered_options = dict(zip(numbers if numbers is not None else range(1, len(options) + 1),
                                 options))
     print(f'\n{title}')
@@ -27,7 +32,10 @@ def choose_option(title, options, describe, numbers=None):
 
 
 def choose_experiment(experiments=None):
-    """Select from the supplied experiments, or load the traditional presets."""
+    """Return an experiment in configured order, or None when selection is cancelled.
+
+    With experiments=None, load and build the traditional presets on demand.
+    """
     if experiments is None:
         experiments = build_experiments(load_run_options())
     return choose_option('What do you want to run?', experiments,
@@ -36,7 +44,12 @@ def choose_experiment(experiments=None):
 
 
 def analysis_menu_options(analyses, experiments=None):
-    """Show the supplied experiments in execution order, defaulting to presets."""
+    """Map one-based execution-menu positions to their corresponding analyses.
+
+    Omitted experiments use the traditional presets. Historical analyses without
+    an experiment reference are excluded; a missing matching analysis raises
+    KeyError. Matching uses the dataset and label pair.
+    """
     if experiments is None:
         experiments = build_experiments(load_run_options())
     by_experiment = {(a['experiment']['dataset'], a['experiment']['label']): a
@@ -46,7 +59,12 @@ def analysis_menu_options(analyses, experiments=None):
 
 
 def main(experiments=None):
-    """Run the interactive execution/analysis menu, reporting errors and cancellation."""
+    """Run one menu selection using supplied experiments or the traditional presets.
+
+    Load default options once for execution; analysis uses its own configuration
+    reader. Report cancellation and OSError, ValueError or KeyError, then return
+    None. Missing analysis inputs may trigger execution after confirmation.
+    """
     try:
         options = load_run_options()
         if experiments is None:

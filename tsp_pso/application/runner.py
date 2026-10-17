@@ -1,14 +1,14 @@
-"""Configure, run, and select TSP particle swarm experiments."""
+"""Coordinate experiment execution with explicit inputs and on-demand defaults."""
 from pathlib import Path
 
-from ..algorithms.solver_registry import SOLVER_REGISTRY
 from ..algorithms.core.pso_config import PSOConfig
+from ..algorithms.solver_registry import SOLVER_REGISTRY
+# Experiment also preserves unpickling of instances saved under the runner module.
 from ..experiments.experiment import Experiment, build_experiments as _build_experiments
-# Re-export these helpers for callers using the existing runner API.
+# Keep the public filename helpers and configuration reader available to old callers.
 from ..experiments.result_naming import extra_filename_fields, result_filename
-# Re-export the configuration reader for existing callers.
-from ..infrastructure.experiment_options import load_run_options
 from ..infrastructure.dataset_reader import load_dataset as _load_dataset
+from ..infrastructure.experiment_options import load_run_options
 from ..infrastructure.run_storage import create_run_directory as _create_run_directory
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -20,14 +20,25 @@ def build_experiments(options=None):
 
 
 def load_dataset(name, *, datasets=None, datasets_root=None):
-    """Read from an explicit catalog, or load the default catalog on demand."""
+    """Return (distance matrix, prices) for a named catalog entry.
+
+    Omitted datasets are loaded from the default configuration. Relative dataset
+    filenames use datasets_root, or the project's datasets directory by default;
+    absolute filenames are preserved. Unknown names raise KeyError and reader
+    errors propagate unchanged.
+    """
     if datasets is None:
         datasets = load_run_options()['datasets']
     return _load_dataset(datasets[name], ROOT / 'datasets' if datasets_root is None else datasets_root)
 
 
 def create_run_directory(experiment, output_dir=None, *, run_options=None):
-    """Use an explicit output path or the configured project-relative default."""
+    """Return the reserved run directory after saving its configuration snapshot.
+
+    An explicit output_dir is used as supplied, relative to the working directory
+    when applicable. Otherwise resolve run_options['output_dir'] from ROOT,
+    loading default options only when needed. Storage errors propagate unchanged.
+    """
     if output_dir is None:
         options = load_run_options() if run_options is None else run_options
         output_dir = ROOT / options['output_dir']
@@ -40,7 +51,14 @@ def execute(experiment, output_dir=None, *, problem_type=None, dataset=None,
 
     Explicit dataset/output paths avoid loading default configuration. Missing
     values use options loaded on demand, preserving project-relative defaults
-    and working-directory-relative explicit output paths.
+    and working-directory-relative explicit output paths. dataset is a mapping
+    with filename and format; it takes precedence over run_options['datasets'].
+    datasets_root defaults to ROOT/datasets. problem_type overrides the selection
+    based on experiment.refuel.
+
+    Return the reserved run directory. Duplicate Excel filenames raise ValueError
+    before storage is created; reader, storage and solver errors propagate. Once
+    created, snapshots and partial results remain available after a solver error.
     """
     if problem_type is None:
         problem_type = 'tspwr' if experiment.refuel else 'tsp'
@@ -76,6 +94,6 @@ def execute(experiment, output_dir=None, *, problem_type=None, dataset=None,
 
 def main():
     """Compatibility entry point for the terminal interface."""
-    # Keep presentation out of application imports until the compatibility entry is called.
+    # terminal imports runner; defer this reverse dependency until invocation.
     from ..presentation.terminal import main as terminal_main
     return terminal_main()

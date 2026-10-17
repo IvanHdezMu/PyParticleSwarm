@@ -18,7 +18,6 @@ def load_run_options(path=None):
     path = Path(path or ROOT / 'config' / 'experiments.json')
     with path.open(encoding='utf-8') as stream:
         options = json.load(stream)
-    # Preserve support for explicitly supplied combined configuration files.
     if 'datasets' in options:
         return options
     for section in ('datasets', 'historical_analyses'):

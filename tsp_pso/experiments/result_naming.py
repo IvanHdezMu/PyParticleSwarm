@@ -2,7 +2,11 @@
 
 
 def extra_filename_fields(experiment):
-    """Include only varying axes omitted by a legacy filename style."""
+    """Return (configuration index, suffix label, axis values) for omitted sweeps.
+
+    Only axes with multiple values are included, in their established suffix
+    order, so legacy names stay unchanged for experiments without those sweeps.
+    """
     fields = []
     if experiment.style in ('fuel', 'bays'):
         fields.extend(((3, 'minR', experiment.minimums), (4, 'maxR', experiment.maximums)))
@@ -12,6 +16,12 @@ def extra_filename_fields(experiment):
 
 
 def result_filename(experiment, configuration):
+    """Return the Excel basename for one eight-value experiment configuration.
+
+    configuration follows Experiment.configurations() order and may contain
+    placeholders used by analysis. Extra suffixes distinguish varying axes that
+    the selected legacy style omits; duplicate configurations remain duplicates.
+    """
     n, c1, opt, minimum, maximum, ring, full, number = configuration
     prefix = f'{experiment.dataset}_True_{n}_{c1}_{opt}'
     if experiment.style == 'fuel':

@@ -16,11 +16,12 @@ def load_dataset(dataset, datasets_root):
 
     The descriptor must provide filename and format. Supported formats are euc
     (rounded TSPLIB Euclidean distances), matrix (TSPLIB edge weights), json
-    (nodes with latitude, longitude and price), and excel (coordinates in columns
+    (nodes with latitude, longitude and price), and excel (coordinates in zero-based columns
     1:3 and prices in column 3). Geographic distances are in kilometres.
     Return (distance matrix, prices), with prices=None for TSPLIB. Node order
     and numeric conversions follow the existing readers; metadata is not returned.
-    File, descriptor and parsing errors propagate without translation.
+    Unsupported formats raise ValueError. File, descriptor and parsing errors
+    propagate without translation; descriptor metadata is not modified.
     """
     fmt = dataset['format']
     path = Path(datasets_root) / dataset['filename']

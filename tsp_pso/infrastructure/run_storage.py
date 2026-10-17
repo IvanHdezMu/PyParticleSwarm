@@ -19,6 +19,7 @@ def create_run_directory(experiment, output_dir):
     created_at = datetime.now(timezone.utc).replace(microsecond=0)
 
     def compact(values):
+        """Summarize an axis in at most 24 filename-safe characters, preserving order."""
         values = tuple(values)
         text = '-'.join(map(str, values)) if len(values) <= 2 else f'{values[0]}-{values[-1]}x{len(values)}'
         return re.sub(r'[^A-Za-z0-9.-]', '-', text)[:24]
