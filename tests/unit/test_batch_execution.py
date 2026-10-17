@@ -8,6 +8,8 @@ from tsp_pso.experiments.experiment_batch import compile_plan, iterate_runs, loa
 from tsp_pso.experiments.batch_store import create_batch, batch_status, connect, mark_interrupted
 from tsp_pso.experiments.batch_executor import execute_batch, to_legacy_experiment
 
+from tsp_pso.experiments.result_naming import result_filename
+
 pytestmark = pytest.mark.unit
 
 
@@ -69,4 +71,4 @@ def test_adapter_preserves_legacy_names_and_arguments():
             assert converted.style == old.style
             assert converted.full_tanks == (dict(run.legacy_values)['full_initial_tank'],)
             configuration = next(converted.configurations())
-            assert runner.result_filename(converted, configuration) == runner.result_filename(old, configuration)
+            assert result_filename(converted, configuration) == result_filename(old, configuration)

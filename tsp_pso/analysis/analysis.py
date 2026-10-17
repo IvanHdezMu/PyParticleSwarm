@@ -9,13 +9,15 @@ from pathlib import Path
 
 import pandas as pd
 
+from ..experiments.result_naming import extra_filename_fields, result_filename
+
 ROOT = Path(__file__).resolve().parents[2]
 METRICS = ['mean_minimum_result', 'mean_step_of_minimum', 'best_result']
 
 
 def analysis_for_experiment(analysis, options):
     """Resolve a run reference using the same configurations and names as execute."""
-    from ..application.runner import build_experiments, extra_filename_fields, result_filename
+    from ..application.runner import build_experiments
 
     reference = analysis['experiment']
     matches = [experiment for experiment in build_experiments(options)
@@ -76,7 +78,7 @@ def load_analysis_options(run_options_path=None):
 
 def discover_run_analyses(dataset_root):
     """Read self-contained run snapshots, ignoring unrelated or malformed directories."""
-    from ..application.runner import Experiment, build_experiments, result_filename
+    from ..application.runner import Experiment, build_experiments
 
     dataset_root = Path(dataset_root)
     if not dataset_root.is_dir():

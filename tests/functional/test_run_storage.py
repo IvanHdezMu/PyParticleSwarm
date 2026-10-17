@@ -14,6 +14,8 @@ import pytest
 from tsp_pso.analysis import analysis
 from tsp_pso.application import runner
 
+from tsp_pso.experiments.result_naming import extra_filename_fields, result_filename
+
 pytestmark = pytest.mark.functional
 
 
@@ -153,8 +155,8 @@ def test_all_catalog_paths_are_unique_and_names_preserved(frozen_clock, tmp_path
     paths = []
     for experiment in runner.EXPERIMENTS:
         directory = runner.create_run_directory(experiment, output_dir=tmp_path)
-        assert runner.extra_filename_fields(experiment) == []
-        paths.extend(directory / runner.result_filename(experiment, c)
+        assert extra_filename_fields(experiment) == []
+        paths.extend(directory / result_filename(experiment, c)
                      for c in experiment.configurations())
     assert len(paths) == 1209
     assert len(set(paths)) == len(paths)

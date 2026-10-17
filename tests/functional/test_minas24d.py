@@ -13,6 +13,8 @@ from tsp_pso.algorithms.tspwr.tspwr_particle_swarm import TSPWRParticleSwarm
 
 from conftest import assert_permutation
 
+from tsp_pso.experiments.result_naming import result_filename
+
 pytestmark = pytest.mark.functional
 
 
@@ -73,7 +75,7 @@ def test_option_8_minas24d_finds_known_optimum(monkeypatch, tmp_path):
 
     # Keep the original Excel behavior while avoiding writes to repository results.
     configuration, = experiment.configurations()
-    workbook = run_directory / runner.result_filename(experiment, configuration)
+    workbook = run_directory / result_filename(experiment, configuration)
     assert workbook.is_file()
 
 
@@ -144,5 +146,5 @@ def test_minas24d_refuel_ring_finds_known_best_cost(monkeypatch, tmp_path):
     assert solver.f_global_best[0] == pytest.approx(solver._objective(route))
 
     configuration, = experiment.configurations()
-    workbook = run_directory / runner.result_filename(experiment, configuration)
+    workbook = run_directory / result_filename(experiment, configuration)
     assert workbook.is_file()
