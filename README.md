@@ -79,7 +79,28 @@ In the terminal interface, select **run** and then a configured experiment, or
 **analysis** to inspect saved results as described below. Experiment definitions
 and defaults are in [`config/experiments.json`](config/experiments.json); dataset
 paths, formats, and supported problems are in
-[`config/datasets.json`](config/datasets.json).
+[`config/datasets.json`](config/datasets.json). The desktop entry point uses
+`presentation/experiment_gui.py`; terminal menus live in
+[`presentation/terminal.py`](tsp_pso/presentation/terminal.py).
+
+The traditional terminal experiments use the full Cartesian product from
+[`Experiment`](tsp_pso/experiments/experiment.py), including inactive sweep values.
+The current configuration contains 22 experiments and 1,209 configurations; the
+GUI/batch expansion applies the conditional rules described below instead.
+
+[`load_run_options()`](tsp_pso/infrastructure/experiment_options.py) reads the
+project's `config/experiments.json` by default, combining it with sibling
+`datasets.json` and `historical_analyses.json`. Its Python API also accepts combined
+JSON configuration files. An explicitly supplied relative configuration path is
+relative to the working directory; complementary files are read from its directory.
+
+[`dataset_reader.py`](tsp_pso/infrastructure/dataset_reader.py) supports `euc`
+(rounded TSPLIB Euclidean distances), `matrix` (TSPLIB edge weights), `excel`
+(Ottoni-style coordinate/price columns), and `json` (geographic nodes and prices,
+including MITECO output). Geographic distances are in kilometers. Dataset paths
+normally resolve under the project's `datasets/` directory; absolute paths remain
+absolute. The reader returns a distance matrix and prices, or `None` for prices
+in TSPLIB datasets.
 
 For development tests:
 
@@ -156,7 +177,9 @@ python3 -m tsp_pso.experiments.batch_executor PATH_TO_BATCH
 
 This is not a resume command. The batch coordinator adapts each concrete run to
 the existing `Experiment`/`execute()` application API, which selects the current
-specialized solver through the registry. See the
+specialized solver through the registry. The dataset descriptor saved in the
+batch snapshot is passed explicitly to `execute()`; no shared dataset catalog is
+modified. See the
 [Experiment Runner architecture](docs/experiment-runner-design.md) for expansion,
 persistence, and interruption details; its legacy-adapter terminology refers to
 this experiment API boundary.
@@ -170,6 +193,12 @@ second precision and a compact parameter summary; collisions receive `__2`,
 reused. All combinations and repetitions in that execution share the directory,
 and `execute()` returns its path. Batch runs use the nested layout shown above,
 with one concrete configuration and repetition per application-level execution.
+
+[`run_storage.py`](tsp_pso/infrastructure/run_storage.py) owns directory reservation
+and snapshot writing. The application default output path is resolved from the
+project root and experiment options. In direct Python calls to `execute()`, an
+explicit relative `output_dir` is relative to the working directory; absolute
+paths are preserved. This differs from the project-relative batch output setting.
 
 `run_config.json` records the effective experiment configuration, sweep lists,
 repetition bounds/step, and `created_at`, even with Excel disabled. Existing raw
@@ -250,16 +279,34 @@ resolved from the project root.
 | [`tsp_pso/algorithms/tsp/`](tsp_pso/algorithms/tsp/) | TSP specialization. |
 | [`tsp_pso/algorithms/tspwr/`](tsp_pso/algorithms/tspwr/) | TSPWR specialization and `RefuelConfig`. |
 | [`tsp_pso/algorithms/solver_registry.py`](tsp_pso/algorithms/solver_registry.py) | Solver classes and argument builders. |
-| [`tsp_pso/application/runner.py`](tsp_pso/application/runner.py) | Dataset loading, experiment setup and execution, terminal menus. |
-| [`tsp_pso/experiments/`](tsp_pso/experiments/) | Configuration, presets, lazy expansion, batch persistence and process coordination. |
-| [`tsp_pso/presentation/`](tsp_pso/presentation/) | Experiment GUI/editor and console presenter. |
-| [`tsp_pso/infrastructure/`](tsp_pso/infrastructure/) | TSPLIB readers, process executor and Excel writer. |
+| [`tsp_pso/application/runner.py`](tsp_pso/application/runner.py) | Coordinates solver selection, dataset reading, run storage and configuration execution. |
+| [`tsp_pso/experiments/experiment.py`](tsp_pso/experiments/experiment.py) | Traditional `Experiment` model and `build_experiments(options)`. |
+| [`tsp_pso/experiments/result_naming.py`](tsp_pso/experiments/result_naming.py) | Shared filename conventions for execution and analysis. |
+| [`tsp_pso/experiments/`](tsp_pso/experiments/) | `experiment_config.py`, `experiment_batch.py`, `batch_store.py`, `batch_executor.py` and `experiment_process.py`: validated configuration, presets, lazy expansion, persistence and batch coordination. |
+| [`tsp_pso/presentation/terminal.py`](tsp_pso/presentation/terminal.py) | Interactive execution/analysis menus, confirmations and cancellation handling. |
+| [`tsp_pso/presentation/`](tsp_pso/presentation/) | Desktop Experiment GUI/editor and solver console presenter. |
+| [`tsp_pso/infrastructure/experiment_options.py`](tsp_pso/infrastructure/experiment_options.py) | JSON option loading and complementary configuration files. |
+| [`tsp_pso/infrastructure/dataset_reader.py`](tsp_pso/infrastructure/dataset_reader.py) | Dataset reading from an explicit descriptor and dataset root, reusing `tsplib/`. |
+| [`tsp_pso/infrastructure/run_storage.py`](tsp_pso/infrastructure/run_storage.py) | Atomic run-directory reservation and `run_config.json` snapshots. |
+| [`tsp_pso/infrastructure/`](tsp_pso/infrastructure/) | Also contains `tsplib/`, `executors/particle_executor.py` and `writers/excel_result_writer.py`. |
 | [`tsp_pso/analysis/`](tsp_pso/analysis/) | Result discovery, validation and summaries. |
 | [`config/`](config/) | Dataset catalog, experiment defaults/presets and historical analyses. |
 | [`datasets/TSPLIB/`](datasets/TSPLIB/) and [`datasets/Ottoni/`](datasets/Ottoni/) | Input datasets with their original filenames. |
 | [`tools/dataset_generators/`](tools/dataset_generators/) | MITECO JSON dataset generation and its separate GUI. |
 | [`tests/`](tests/) | Unit and functional tests, including real multiprocessing. |
 | [`.devcontainer/requirements.txt`](.devcontainer/requirements.txt) | Application dependencies installed by the devcontainer. |
+
+`application/runner.py` coordinates operations; experiment definitions and naming
+belong to `experiments/`, file access belongs to `infrastructure/`, and interactive
+menus belong to `presentation/terminal.py`. Analysis uses the extracted experiment,
+naming and configuration modules directly.
+
+Importing runner does not read configuration JSON or build experiments. Its
+`execute()` function accepts optional `dataset`, `run_options` and `datasets_root`
+arguments, loading defaults on demand when needed. There are no `RUN_OPTIONS`,
+`DATASETS` or `EXPERIMENTS` globals in runner. Compatibility helpers, including
+`runner.main()`, remain available; the normal terminal entry point is
+`presentation.terminal.main()`.
 
 ## Limitations
 
