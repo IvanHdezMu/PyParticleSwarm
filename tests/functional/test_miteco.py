@@ -7,6 +7,7 @@ import numpy as np
 import pytest
 
 from conftest import assert_permutation
+from tsp_pso.experiments.experiment import Experiment
 from tsp_pso.application import runner
 import tsp_pso.infrastructure.executors.particle_executor as executor_module
 from tsp_pso.algorithms.tspwr.tspwr_particle_swarm import TSPWRParticleSwarm
@@ -41,7 +42,7 @@ def test_miteco_json_runs_in_refuel_mode(monkeypatch, tmp_path):
         return solver
 
     monkeypatch.setitem(runner.SOLVER_REGISTRY, 'tspwr', (capture_solver, runner.SOLVER_REGISTRY['tspwr'][1]))
-    experiment = runner.Experiment(
+    experiment = Experiment(
         dataset='MITECO_Madrid20', label='JSON refuel compatibility',
         particles=(4,), steps=(2,), opts=(3,), rings=(True,), full_tanks=(False,),
         repetitions=range(1, 2), refuel=True, max_capacity=150.0, consumption=7.0,

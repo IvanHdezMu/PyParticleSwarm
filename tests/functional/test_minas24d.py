@@ -6,6 +6,7 @@ from multiprocessing import get_context
 import numpy as np
 import pytest
 
+from tsp_pso.experiments.experiment import Experiment
 from tsp_pso.application import runner
 import tsp_pso.infrastructure.executors.particle_executor as executor_module
 from tsp_pso.algorithms.tsp.tsp_particle_swarm import TSPParticleSwarm
@@ -21,7 +22,7 @@ pytestmark = pytest.mark.functional
 def test_option_8_minas24d_finds_known_optimum(monkeypatch, tmp_path):
     experiment = runner.EXPERIMENTS[7]
     # Pin the menu configuration so future edits cannot silently change this case.
-    assert experiment == runner.Experiment(
+    assert experiment == Experiment(
         dataset='Minas24D', label='individual', steps=(1200,), particles=(8,),
         opts=(10,), minimums=(0.2,), maximums=(0.8,), rings=(False,),
         full_tanks=(True,), repetitions=range(1, 2), excel=True, refuel=False,
@@ -92,7 +93,7 @@ def test_minas24d_refuel_ring_finds_known_best_cost(monkeypatch, tmp_path):
         fuel_experiment, rings=(True,), full_tanks=(False,),
         repetitions=range(1, 2),
     )
-    assert experiment == runner.Experiment(
+    assert experiment == Experiment(
         dataset='Minas24D', label='circuit and initial tank', steps=(1200,),
         particles=(8,), opts=(10,), minimums=(0.2,), maximums=(0.8,),
         rings=(True,), full_tanks=(False,), repetitions=range(1, 2),

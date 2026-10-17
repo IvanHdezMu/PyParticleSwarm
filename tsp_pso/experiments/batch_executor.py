@@ -7,6 +7,7 @@ import sys
 from .experiment_batch import (
     DatasetDescriptor, EXPANSION_VERSION, compile_plan, count_runs, iterate_runs,
 )
+from .experiment import Experiment
 from .experiment_config import ExperimentConfiguration
 from .batch_store import (
     start_batch, start_run, finish_run, finish_batch, mark_interrupted,
@@ -14,7 +15,6 @@ from .batch_store import (
 
 
 def to_legacy_experiment(run):
-    from ..application.runner import Experiment
     e = dict(run.legacy_values)
     return Experiment(
         dataset=run.dataset, label=re.sub(r'[<>:"/\\|?*\x00-\x1f]', '-', run.legacy_label or run.name), particles=(run.particles,), steps=(run.c1,),

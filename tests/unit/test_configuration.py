@@ -5,6 +5,7 @@ import json
 import numpy as np
 import pytest
 
+from tsp_pso.experiments.experiment import build_experiments
 from tsp_pso.application import runner
 from tsp_pso.analysis.analysis import load_analysis_options
 
@@ -34,7 +35,7 @@ def test_configured_dataset_loads(name, size, has_prices):
 
 def test_experiment_count_and_order():
     assert len(runner.DATASETS) == 10
-    experiments = runner.build_experiments(runner.load_run_options())
+    experiments = build_experiments(runner.load_run_options())
     assert len(experiments) == 22
     assert experiments == runner.EXPERIMENTS
     assert [(e.dataset, e.label) for e in experiments] == [
@@ -63,7 +64,7 @@ def test_experiment_overrides_replace_defaults_shallowly():
         'dataset': 'Minas24D', 'label': 'override check', 'steps': [1200],
         'particles': [8], 'repetitions': {'start': 1, 'stop': 2},
     }]
-    experiment, = runner.build_experiments(options)
+    experiment, = build_experiments(options)
     assert experiment.particles == (8,)
     assert experiment.repetitions == range(1, 2)
     assert experiment.opts == (10,)
@@ -73,7 +74,7 @@ def test_experiment_overrides_replace_defaults_shallowly():
     # A partial nested override must not inherit the missing key from defaults.
     options['experiments'][0]['repetitions'] = {'stop': 2}
     with pytest.raises(KeyError, match='start'):
-        runner.build_experiments(options)
+        build_experiments(options)
 
 
 def test_historical_analyses_preserved():

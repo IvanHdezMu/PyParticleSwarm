@@ -11,6 +11,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from tsp_pso.experiments.experiment import Experiment, build_experiments
 from tsp_pso.analysis import analysis
 from tsp_pso.application import runner
 
@@ -44,7 +45,7 @@ def workbook_solver(monkeypatch):
 
 @pytest.fixture
 def experiment():
-    return runner.Experiment(dataset='Minas24D', label='storage test', steps=(2,),
+    return Experiment(dataset='Minas24D', label='storage test', steps=(2,),
                              particles=(2,), opts=(3,), repetitions=range(1, 3),
                              excel=True, analysis_output='Analysis_Minas24D.xlsx')
 
@@ -75,7 +76,7 @@ def test_snapshot_contains_complete_effective_configuration(workbook_solver, fro
         'repetitions': {'start': 3, 'stop': 5}, 'reset_threshold_divisor': 2000,
         'primary_operator_share': 0.4, 'progress_warmup_multiplier': 2,
     }]
-    experiment, = runner.build_experiments(options)
+    experiment, = build_experiments(options)
     directory = runner.execute(experiment, output_dir=tmp_path)
     saved = json.loads((directory / 'run_config.json').read_text())
     expected = asdict(experiment)
