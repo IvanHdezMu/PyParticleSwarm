@@ -7,9 +7,9 @@ pytestmark = pytest.mark.unit
 
 
 def test_terminal_remains_accessible(monkeypatch):
-    from tsp_pso.application import runner
+    from tsp_pso.presentation import terminal
     start=Mock()
-    monkeypatch.setattr(runner,'main',start)
+    monkeypatch.setattr(terminal,'main',start)
     monkeypatch.setattr(sys,'argv',['main.py','--terminal'])
     main.main()
     start.assert_called_once_with()

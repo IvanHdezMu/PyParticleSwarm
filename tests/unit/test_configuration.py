@@ -8,6 +8,7 @@ import pytest
 from tsp_pso.infrastructure.experiment_options import load_run_options
 from tsp_pso.experiments.experiment import build_experiments
 from tsp_pso.application import runner
+from tsp_pso.presentation import terminal
 from tsp_pso.analysis.analysis import load_analysis_options
 
 pytestmark = pytest.mark.unit
@@ -93,7 +94,7 @@ def test_historical_analyses_preserved():
         for identifier in ('00', '02_08')
     ]
     assert len(analyses) == 24
-    numbered = runner.analysis_menu_options(analyses)
+    numbered = terminal.analysis_menu_options(analyses)
     assert list(numbered) == list(range(1, 23))
     assert [(a['experiment']['dataset'], a['experiment']['label'])
             for a in numbered.values()] == [(e.dataset, e.label) for e in runner.EXPERIMENTS]
