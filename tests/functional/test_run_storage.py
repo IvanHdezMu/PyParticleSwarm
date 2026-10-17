@@ -39,7 +39,7 @@ def workbook_solver(monkeypatch):
             pd.DataFrame({'Step': [5, 13], 'Result': [100 + len(calls), 10 + len(calls)]}).to_excel(
                 kwargs['file_path'], index=False)
 
-    monkeypatch.setattr(runner, 'load_dataset', lambda name: (np.array([[0, 2], [2, 0]]), None))
+    monkeypatch.setattr(runner, '_load_dataset', lambda descriptor, root: (np.array([[0, 2], [2, 0]]), None))
     monkeypatch.setitem(runner.SOLVER_REGISTRY, 'tsp', (lambda **kwargs: SimpleNamespace(run=run), runner.SOLVER_REGISTRY['tsp'][1]))
     monkeypatch.setitem(runner.SOLVER_REGISTRY, 'tspwr', (lambda **kwargs: SimpleNamespace(run=run), runner.SOLVER_REGISTRY['tspwr'][1]))
     return calls
@@ -112,9 +112,7 @@ def test_analysis_discovers_all_runs_and_keeps_results_separate(experiment, work
     assert {a['run_directory'] for a in analysis.discover_run_analyses(root)} == {str(first), str(second)}
 
     # The saved configuration must suffice even if today's catalog changes.
-    monkeypatch.setattr(runner, 'EXPERIMENTS', [])
-    monkeypatch.setattr(runner, 'RUN_OPTIONS', {})
-    monkeypatch.setattr(runner, 'DATASETS', {})
+    monkeypatch.setattr(analysis, 'load_run_options', lambda: {})
     results = analysis.analyze_runs(root)
     assert set(results) == {str(first), str(second)}
     assert results[str(first)]['mean_minimum_result'].tolist() == [11.5]
@@ -156,7 +154,7 @@ def test_incomplete_run_does_not_block_valid_run(experiment, workbook_solver, tm
 
 def test_all_catalog_paths_are_unique_and_names_preserved(frozen_clock, tmp_path):
     paths = []
-    for experiment in runner.EXPERIMENTS:
+    for experiment in build_experiments(load_run_options()):
         directory = runner.create_run_directory(experiment, output_dir=tmp_path)
         assert extra_filename_fields(experiment) == []
         paths.extend(directory / result_filename(experiment, c)

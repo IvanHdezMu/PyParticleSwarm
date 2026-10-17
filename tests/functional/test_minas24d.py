@@ -1,4 +1,6 @@
 """Regression for menu option 8 using its real configuration and workbook."""
+from tsp_pso.infrastructure.experiment_options import load_run_options
+from tsp_pso.experiments.experiment import build_experiments
 
 from functools import partial
 from multiprocessing import get_context
@@ -20,7 +22,7 @@ pytestmark = pytest.mark.functional
 
 
 def test_option_8_minas24d_finds_known_optimum(monkeypatch, tmp_path):
-    experiment = runner.EXPERIMENTS[7]
+    experiment = build_experiments(load_run_options())[7]
     # Pin the menu configuration so future edits cannot silently change this case.
     assert experiment == Experiment(
         dataset='Minas24D', label='individual', steps=(1200,), particles=(8,),
@@ -29,7 +31,7 @@ def test_option_8_minas24d_finds_known_optimum(monkeypatch, tmp_path):
         style='standard', max_capacity=150.0, consumption=7.0,
         permut_reset=True, k=10,
     )
-    assert runner.DATASETS['Minas24D'] == {
+    assert load_run_options()['datasets']['Minas24D'] == {
         'filename': 'Ottoni/Minas24D.xlsx', 'format': 'excel',
         'source': 'Ottoni et al. (2022)', 'problem_types': ['tsp', 'tspwr'],
     }
@@ -84,7 +86,7 @@ def test_minas24d_refuel_ring_finds_known_best_cost(monkeypatch, tmp_path):
     from dataclasses import replace
 
     fuel_experiment = next(
-        experiment for experiment in runner.EXPERIMENTS
+        experiment for experiment in build_experiments(load_run_options())
         if experiment.dataset == 'Minas24D'
         and experiment.label == 'circuit and initial tank'
     )
@@ -101,7 +103,7 @@ def test_minas24d_refuel_ring_finds_known_best_cost(monkeypatch, tmp_path):
         consumption=7.0, permut_reset=True, k=10,
         analysis_output='Analysis_Minas24D.xlsx', verbose=False,
     )
-    assert runner.DATASETS['Minas24D'] == {
+    assert load_run_options()['datasets']['Minas24D'] == {
         'filename': 'Ottoni/Minas24D.xlsx', 'format': 'excel',
         'source': 'Ottoni et al. (2022)', 'problem_types': ['tsp', 'tspwr'],
     }

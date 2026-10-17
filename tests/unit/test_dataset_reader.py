@@ -81,20 +81,21 @@ def test_runner_wrapper_and_batch_catalog(tmp_path, monkeypatch):
         {'latitude': 0, 'longitude': 0, 'price': 1.5}]}))
     original = {'filename': 'missing', 'format': 'json'}
     monkeypatch.setattr(runner, 'ROOT', tmp_path)
-    monkeypatch.setattr(runner, 'DATASETS', {'sample': original})
+    catalog = {'sample': original}
     with pytest.raises(KeyError, match='absent'):
-        runner.load_dataset('absent')
+        runner.load_dataset('absent', datasets=catalog)
     descriptor = SimpleNamespace(id='sample', filename='sample.json', format='json',
                                  source='test', problem_types=('tspwr',))
     monkeypatch.setattr(batch_executor, 'to_legacy_experiment', lambda run: run)
-    def execute(run, output_dir):
-        matrix, prices = runner.load_dataset('sample')
+    def execute(run, output_dir, *, dataset):
+        matrix, prices = load_dataset(dataset, root)
         np.testing.assert_array_equal(matrix, [[0.]])
         np.testing.assert_array_equal(prices, [1.5])
         return output_dir
     monkeypatch.setattr(runner, 'execute', execute)
     assert batch_executor.execute_one(object(), tmp_path, descriptor) == tmp_path
-    assert runner.DATASETS['sample'] is original
+    assert catalog == {'sample': original}
+    assert not hasattr(runner, 'DATASETS')
 
 
 def test_import_does_not_load_runner():

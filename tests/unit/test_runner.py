@@ -28,7 +28,7 @@ def test_reset_threshold_divisor_config_and_forwarding(monkeypatch, tmp_path, ov
     factory = Mock()
     monkeypatch.setitem(runner.SOLVER_REGISTRY, 'tsp', (factory, runner.SOLVER_REGISTRY['tsp'][1]))
     monkeypatch.setitem(runner.SOLVER_REGISTRY, 'tspwr', (factory, runner.SOLVER_REGISTRY['tspwr'][1]))
-    monkeypatch.setattr(runner, 'load_dataset', lambda name: (np.array([[0, 2], [2, 0]]), None))
+    monkeypatch.setattr(runner, '_load_dataset', lambda descriptor, root: (np.array([[0, 2], [2, 0]]), None))
     runner.execute(experiment, output_dir=tmp_path)
     factory.assert_called_once()
     assert factory.call_args.kwargs['config'].reset_threshold_divisor == experiment.reset_threshold_divisor
@@ -49,7 +49,7 @@ def test_primary_operator_share_config_and_forwarding(monkeypatch, tmp_path, ove
     factory = Mock()
     monkeypatch.setitem(runner.SOLVER_REGISTRY, 'tsp', (factory, runner.SOLVER_REGISTRY['tsp'][1]))
     monkeypatch.setitem(runner.SOLVER_REGISTRY, 'tspwr', (factory, runner.SOLVER_REGISTRY['tspwr'][1]))
-    monkeypatch.setattr(runner, 'load_dataset', lambda name: (np.array([[0, 2], [2, 0]]), None))
+    monkeypatch.setattr(runner, '_load_dataset', lambda descriptor, root: (np.array([[0, 2], [2, 0]]), None))
     runner.execute(experiment, output_dir=tmp_path)
     factory.assert_called_once()
     assert factory.call_args.kwargs['config'].primary_operator_share == experiment.primary_operator_share
@@ -70,7 +70,7 @@ def test_progress_warmup_multiplier_config_and_forwarding(monkeypatch, tmp_path,
     factory = Mock()
     monkeypatch.setitem(runner.SOLVER_REGISTRY, 'tsp', (factory, runner.SOLVER_REGISTRY['tsp'][1]))
     monkeypatch.setitem(runner.SOLVER_REGISTRY, 'tspwr', (factory, runner.SOLVER_REGISTRY['tspwr'][1]))
-    monkeypatch.setattr(runner, 'load_dataset', lambda name: (np.array([[0, 2], [2, 0]]), None))
+    monkeypatch.setattr(runner, '_load_dataset', lambda descriptor, root: (np.array([[0, 2], [2, 0]]), None))
     runner.execute(experiment, output_dir=tmp_path)
     factory.assert_called_once()
     assert factory.call_args.kwargs['config'].progress_warmup_multiplier == experiment.progress_warmup_multiplier
@@ -78,15 +78,15 @@ def test_progress_warmup_multiplier_config_and_forwarding(monkeypatch, tmp_path,
 
 
 def test_existing_experiment_verbose_behavior(monkeypatch, tmp_path):
-    assert runner.RUN_OPTIONS['defaults']['verbose'] is True
+    assert load_run_options()['defaults']['verbose'] is True
     assert Experiment(dataset='Minas24D', label='individual', steps=(1200,)).verbose is True
-    assert all('verbose' not in dataset for dataset in runner.DATASETS.values())
+    assert all('verbose' not in dataset for dataset in load_run_options()['datasets'].values())
     factory = Mock()
     monkeypatch.setitem(runner.SOLVER_REGISTRY, 'tsp', (factory, runner.SOLVER_REGISTRY['tsp'][1]))
     monkeypatch.setitem(runner.SOLVER_REGISTRY, 'tspwr', (factory, runner.SOLVER_REGISTRY['tspwr'][1]))
-    monkeypatch.setattr(runner, 'load_dataset', lambda name: (np.array([[0, 2], [2, 0]]), None))
-    assert len(runner.EXPERIMENTS) == 22
-    for number, experiment in enumerate(runner.EXPERIMENTS, 1):
+    monkeypatch.setattr(runner, '_load_dataset', lambda descriptor, root: (np.array([[0, 2], [2, 0]]), None))
+    assert len(build_experiments(load_run_options())) == 22
+    for number, experiment in enumerate(build_experiments(load_run_options()), 1):
         # Berlin52 and Bays29 were quiet; the other individual runs were verbose.
         assert experiment.verbose is (3 <= number <= 10)
         factory.reset_mock()
@@ -111,7 +111,7 @@ def test_experiment_verbose_override(monkeypatch, tmp_path, verbose, label, exce
     factory = Mock()
     monkeypatch.setitem(runner.SOLVER_REGISTRY, 'tsp', (factory, runner.SOLVER_REGISTRY['tsp'][1]))
     monkeypatch.setitem(runner.SOLVER_REGISTRY, 'tspwr', (factory, runner.SOLVER_REGISTRY['tspwr'][1]))
-    monkeypatch.setattr(runner, 'load_dataset', lambda name: (np.array([[0, 2], [2, 0]]), None))
+    monkeypatch.setattr(runner, '_load_dataset', lambda descriptor, root: (np.array([[0, 2], [2, 0]]), None))
     runner.execute(experiment, output_dir=tmp_path)
     factory.return_value.run.assert_called_once()
     assert factory.return_value.run.call_args.kwargs['verbose'] is verbose
@@ -126,7 +126,7 @@ def test_solver_class_selection(monkeypatch, tmp_path, refuel):
     monkeypatch.setitem(runner.SOLVER_REGISTRY, 'tspwr', (tspwr_factory, runner.SOLVER_REGISTRY['tspwr'][1]))
     matrix = np.array([[0, 2], [2, 0]])
     prices = np.array([1.5, 1.7])
-    monkeypatch.setattr(runner, 'load_dataset', lambda name: (matrix, prices))
+    monkeypatch.setattr(runner, '_load_dataset', lambda descriptor, root: (matrix, prices))
     experiment = Experiment(
         dataset='Minas24D', label='class selection', steps=(2,), refuel=refuel,
     )
@@ -174,7 +174,7 @@ def test_execute_additional_registered_solver(monkeypatch, tmp_path):
 
     monkeypatch.setitem(runner.SOLVER_REGISTRY, 'additional', (AdditionalSolver, additional_arguments))
     matrix = np.array([[0, 2], [2, 0]])
-    monkeypatch.setattr(runner, 'load_dataset', lambda name: (matrix, None))
+    monkeypatch.setattr(runner, '_load_dataset', lambda descriptor, root: (matrix, None))
     experiment = Experiment(dataset='Minas24D', label='registry', steps=(2,))
 
     runner.execute(experiment, output_dir=tmp_path, problem_type='additional')

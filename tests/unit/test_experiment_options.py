@@ -42,8 +42,7 @@ def test_default_path_and_runner_reexport(tmp_path, monkeypatch):
     assert runner.load_run_options is load_run_options
     assert load_run_options() == load_run_options(None) == load_run_options('') == expected
     assert runner.load_run_options() == expected
-    assert runner.RUN_OPTIONS == expected
-    assert runner.DATASETS is runner.RUN_OPTIONS['datasets']
+    assert not {'RUN_OPTIONS', 'DATASETS', 'EXPERIMENTS'} & vars(runner).keys()
 
 
 def test_analysis_loading_does_not_import_runner():

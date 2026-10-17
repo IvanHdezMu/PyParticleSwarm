@@ -1,4 +1,6 @@
 """Pure expansion and preset compatibility; no dataset payloads are read."""
+from tsp_pso.infrastructure.experiment_options import load_run_options
+from tsp_pso.experiments.experiment import build_experiments
 from collections import Counter
 from dataclasses import replace
 from itertools import islice
@@ -73,7 +75,7 @@ def test_all_legacy_presets_preserve_every_argument():
     counts = [count_runs(compile_plan(p)) for p in presets]
     assert counts == [1]*10 + [270,180,80,120,50,4,5,120,120,120,120,10]
     assert sum(counts) == 1209
-    for old, new in zip(runner.EXPERIMENTS, presets):
+    for old, new in zip(build_experiments(load_run_options()), presets):
         expected, actual = Counter(), Counter()
         for n,c1,opt,minimum,maximum,ring,full,number in old.configurations():
             expected[(old.dataset,old.refuel,n,c1,opt,minimum,maximum,ring,full,number,

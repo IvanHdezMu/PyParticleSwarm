@@ -1,4 +1,6 @@
 """Manifest persistence and adapter tests without expensive solver executions."""
+from tsp_pso.infrastructure.experiment_options import load_run_options
+from tsp_pso.experiments.experiment import build_experiments
 from dataclasses import replace
 import json
 import pytest
@@ -62,7 +64,7 @@ def test_failure_and_interrupt_preserve_completed_and_pending(tmp_path, error, s
 
 def test_adapter_preserves_legacy_names_and_arguments():
     from tsp_pso.application import runner
-    for preset, old in zip(load_presets(), runner.EXPERIMENTS):
+    for preset, old in zip(load_presets(), build_experiments(load_run_options())):
         for run in iterate_runs(compile_plan(preset)):
             converted = to_legacy_experiment(run)
             assert converted.label == old.label

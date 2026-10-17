@@ -7,14 +7,15 @@ import pickle
 import pytest
 
 from tsp_pso.application import runner
+from tsp_pso.infrastructure.experiment_options import load_run_options
 from tsp_pso.experiments.experiment import Experiment, build_experiments
 
 
 @pytest.mark.unit
 def test_runner_wrapper_uses_current_options(monkeypatch):
-    options = deepcopy(runner.RUN_OPTIONS)
+    options = load_run_options()
     options['experiments'] = [dict(options['experiments'][0], label='wrapper test')]
-    monkeypatch.setattr(runner, 'RUN_OPTIONS', options)
+    monkeypatch.setattr(runner, 'load_run_options', lambda: options)
     expected = build_experiments(options)
     assert runner.Experiment is Experiment
     assert runner.build_experiments() == expected

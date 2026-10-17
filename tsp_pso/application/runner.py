@@ -14,39 +14,47 @@ from ..infrastructure.run_storage import create_run_directory as _create_run_dir
 ROOT = Path(__file__).resolve().parents[2]
 
 
-RUN_OPTIONS = load_run_options()
-DATASETS = RUN_OPTIONS['datasets']
-
 def build_experiments(options=None):
-    """Compatibility wrapper using RUN_OPTIONS when options are omitted or None."""
-    return _build_experiments(RUN_OPTIONS if options is None else options)
+    """Compatibility entry point; load default options only when called without them."""
+    return _build_experiments(load_run_options() if options is None else options)
 
 
-EXPERIMENTS = build_experiments()
+def load_dataset(name, *, datasets=None, datasets_root=None):
+    """Read from an explicit catalog, or load the default catalog on demand."""
+    if datasets is None:
+        datasets = load_run_options()['datasets']
+    return _load_dataset(datasets[name], ROOT / 'datasets' if datasets_root is None else datasets_root)
 
 
-def load_dataset(name):
-    """Read a named dataset from the current catalog using the project dataset root."""
-    return _load_dataset(DATASETS[name], ROOT / 'datasets')
-
-
-def create_run_directory(experiment, output_dir=None):
-    """Reserve storage using the configured project root unless a path is supplied."""
-    output_dir = Path(output_dir) if output_dir is not None else ROOT / RUN_OPTIONS['output_dir']
+def create_run_directory(experiment, output_dir=None, *, run_options=None):
+    """Use an explicit output path or the configured project-relative default."""
+    if output_dir is None:
+        options = load_run_options() if run_options is None else run_options
+        output_dir = ROOT / options['output_dir']
     return _create_run_directory(experiment, output_dir)
 
 
-def execute(experiment, output_dir=None, *, problem_type=None):
-    """Run a registered problem, defaulting to the legacy refuel configuration."""
+def execute(experiment, output_dir=None, *, problem_type=None, dataset=None,
+            run_options=None, datasets_root=None):
+    """Coordinate a run with an optional dataset descriptor and experiment options.
+
+    Explicit dataset/output paths avoid loading default configuration. Missing
+    values use options loaded on demand, preserving project-relative defaults
+    and working-directory-relative explicit output paths.
+    """
     if problem_type is None:
         problem_type = 'tspwr' if experiment.refuel else 'tsp'
     solver_class, problem_arguments = SOLVER_REGISTRY[problem_type]
-    matrix, prices = load_dataset(experiment.dataset)
+    if run_options is None and (dataset is None or output_dir is None):
+        run_options = load_run_options()
+    if dataset is None:
+        dataset = run_options['datasets'][experiment.dataset]
+    matrix, prices = _load_dataset(dataset, ROOT / 'datasets' if datasets_root is None else datasets_root)
     if experiment.excel:
         filenames = [result_filename(experiment, c) for c in experiment.configurations()]
         if len(filenames) != len(set(filenames)):
             raise ValueError('Experiment contains duplicate result filenames')
-    destination = create_run_directory(experiment, output_dir)
+    destination = create_run_directory(experiment, output_dir, run_options=run_options)
     for index, configuration in enumerate(experiment.configurations(), 1):
         n, c1, opt, minimum, maximum, ring, full, _ = configuration
         print(f'\nRun {index}/{experiment.count}: N={n}, c1={c1}, '
@@ -68,6 +76,6 @@ def execute(experiment, output_dir=None, *, problem_type=None):
 
 def main():
     """Compatibility entry point for the terminal interface."""
-    # Import on invocation: terminal uses this module's current experiment catalog.
+    # Keep presentation out of application imports until the compatibility entry is called.
     from ..presentation.terminal import main as terminal_main
     return terminal_main()

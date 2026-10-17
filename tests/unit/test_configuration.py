@@ -21,7 +21,7 @@ pytestmark = pytest.mark.unit
     ('Minas30D', 30, True), ('Minas57D', 57, True),
 ])
 def test_configured_dataset_loads(name, size, has_prices):
-    dataset = runner.DATASETS[name]
+    dataset = load_run_options()['datasets'][name]
     assert dataset['source'] == ('Ottoni et al. (2022)' if has_prices else 'TSPLIB')
     assert dataset['problem_types'] == (['tsp', 'tspwr'] if has_prices else ['tsp'])
     assert dataset['filename'].startswith('Ottoni/' if has_prices else 'TSPLIB/')
@@ -36,10 +36,10 @@ def test_configured_dataset_loads(name, size, has_prices):
 
 
 def test_experiment_count_and_order():
-    assert len(runner.DATASETS) == 10
+    assert len(load_run_options()['datasets']) == 10
     experiments = build_experiments(load_run_options())
     assert len(experiments) == 22
-    assert experiments == runner.EXPERIMENTS
+    assert experiments == build_experiments(load_run_options())
     assert [(e.dataset, e.label) for e in experiments] == [
         ('berlin52', 'individual'), ('bays29', 'individual'),
         ('st70', 'individual'), ('ch150', 'individual'),
@@ -97,7 +97,7 @@ def test_historical_analyses_preserved():
     numbered = terminal.analysis_menu_options(analyses)
     assert list(numbered) == list(range(1, 23))
     assert [(a['experiment']['dataset'], a['experiment']['label'])
-            for a in numbered.values()] == [(e.dataset, e.label) for e in runner.EXPERIMENTS]
+            for a in numbered.values()] == [(e.dataset, e.label) for e in build_experiments(load_run_options())]
 
 
 def test_split_config_uses_sibling_files(tmp_path):

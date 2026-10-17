@@ -55,11 +55,10 @@ def test_runner_path_contract(tmp_path, monkeypatch, experiment, mode):
     monkeypatch.chdir(working)
     monkeypatch.setattr(runner, 'ROOT', project)
     configured = tmp_path / 'configured' if mode == 'default_absolute' else 'Results'
-    monkeypatch.setattr(runner, 'RUN_OPTIONS', {'output_dir': configured})
     output = {'default': None, 'default_absolute': None, 'relative': 'relative',
               'absolute': tmp_path / 'absolute', 'empty': ''}[mode]
     expected = project / configured if output is None else Path(output)
-    directory = runner.create_run_directory(experiment, output)
+    directory = runner.create_run_directory(experiment, output, run_options={'output_dir': configured})
     assert directory.parent == expected / experiment.dataset
     assert (directory / 'run_config.json').is_file()
 

@@ -33,17 +33,9 @@ def to_legacy_experiment(run):
 
 def execute_one(run, output_dir, descriptor):
     from ..application import runner
-    # This adapter runs in the dedicated coordinator process, never a GUI thread.
-    original = runner.DATASETS.get(descriptor.id)
-    runner.DATASETS[descriptor.id] = dict(filename=descriptor.filename, format=descriptor.format,
-                                         source=descriptor.source, problem_types=descriptor.problem_types)
-    try:
-        return runner.execute(to_legacy_experiment(run), output_dir=output_dir)
-    finally:
-        if original is None:
-            runner.DATASETS.pop(descriptor.id, None)
-        else:
-            runner.DATASETS[descriptor.id] = original
+    dataset = dict(filename=descriptor.filename, format=descriptor.format,
+                   source=descriptor.source, problem_types=descriptor.problem_types)
+    return runner.execute(to_legacy_experiment(run), output_dir=output_dir, dataset=dataset)
 
 
 def execute_batch(directory, run_function=None):

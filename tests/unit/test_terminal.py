@@ -1,4 +1,6 @@
 """Interactive terminal contracts without launching solvers or a GUI."""
+from tsp_pso.infrastructure.experiment_options import load_run_options
+from tsp_pso.experiments.experiment import build_experiments
 from pathlib import Path
 import subprocess
 import sys
@@ -34,33 +36,31 @@ def test_option_validation_and_custom_numbers(monkeypatch, capsys):
 
 @pytest.mark.parametrize('selection', ['0', '1', '2'])
 def test_run_menu_order_and_selection(monkeypatch, capsys, selection):
-    experiments = runner.EXPERIMENTS[:2]
-    monkeypatch.setattr(runner, 'EXPERIMENTS', experiments)
+    experiments = build_experiments(load_run_options())[:2]
     execute = Mock()
     monkeypatch.setattr(runner, 'execute', execute)
     answers(monkeypatch, ['1', selection])
-    terminal.main()
+    terminal.main(experiments=experiments)
     output = capsys.readouterr().out
     labels = [f'{i:2}. {e.dataset}: {e.label} ({e.count} runs)' for i, e in enumerate(experiments, 1)]
     assert output.index(labels[0]) < output.index(labels[1])
     if selection == '0':
         execute.assert_not_called()
     else:
-        execute.assert_called_once_with(experiments[int(selection) - 1])
+        execute.assert_called_once_with(experiments[int(selection) - 1], run_options=load_run_options())
 
 
 @pytest.mark.parametrize('reply', ['y', ' YES ', 'n', '', '0'])
 def test_missing_results_confirmation_and_order(monkeypatch, capsys, reply):
-    experiment = runner.EXPERIMENTS[0]
-    monkeypatch.setattr(runner, 'EXPERIMENTS', [experiment])
+    experiment = build_experiments(load_run_options())[0]
     analysis = {'label': 'analysis', 'experiment': {'dataset': experiment.dataset, 'label': experiment.label}}
     monkeypatch.setattr(terminal, 'load_analysis_options', lambda: [{'id': 'historical'}, analysis])
     monkeypatch.setattr(terminal, 'first_missing_result', lambda item: Path('missing.xlsx'))
     events = []
-    monkeypatch.setattr(runner, 'execute', lambda item: events.append(('execute', item)))
+    monkeypatch.setattr(runner, 'execute', lambda item, **kwargs: events.append(('execute', item)))
     monkeypatch.setattr(terminal, 'analyze', lambda item: events.append(('analyze', item)))
     answers(monkeypatch, ['2', '1', reply])
-    terminal.main()
+    terminal.main(experiments=[experiment])
     assert events == ([('execute', experiment), ('analyze', analysis)] if reply.strip().lower() in ('y', 'yes') else [])
     assert 'Missing results for option 1: missing.xlsx\nRun option 1 now? [y/N]: ' in capsys.readouterr().out
 
