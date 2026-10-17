@@ -12,6 +12,7 @@ import pandas as pd
 import pytest
 
 from tsp_pso.infrastructure.experiment_options import load_run_options
+from tsp_pso.infrastructure import run_storage
 from tsp_pso.experiments.experiment import Experiment, build_experiments
 from tsp_pso.analysis import analysis
 from tsp_pso.application import runner
@@ -25,7 +26,7 @@ pytestmark = pytest.mark.functional
 def frozen_clock(monkeypatch):
     clock = Mock()
     clock.now.return_value = datetime(2026, 10, 3, 21, 45, 32, tzinfo=timezone.utc)
-    monkeypatch.setattr(runner, 'datetime', clock)
+    monkeypatch.setattr(run_storage, 'datetime', clock)
 
 
 @pytest.fixture
