@@ -2,12 +2,16 @@
 
 import hashlib
 import json
+from pathlib import Path
 
 import numpy as np
 import pytest
 
 from tools.dataset_generators import generate_miteco as generator
-from tsp_pso.application import runner
+from tsp_pso.infrastructure.dataset_reader import load_dataset
+from tsp_pso.infrastructure.experiment_options import load_run_options
+
+DATASETS_ROOT = Path(__file__).resolve().parents[2] / 'datasets'
 
 pytestmark = pytest.mark.unit
 
@@ -76,7 +80,7 @@ def test_insufficient_stations_and_unknown_fuel_fail(snapshot):
         generator.select_stations(snapshot, 'Madrid', 'Gasóleo A', 0, 42)
 
 
-def test_output_loads_with_existing_loader(snapshot, tmp_path, monkeypatch):
+def test_output_loads_with_existing_loader(snapshot, tmp_path):
     raw = json.dumps(snapshot).encode()
     output, metadata = generator.generate(raw, 'Madrid', 'Gasóleo A', 3, 42, tmp_path / 'sample.json')
     dataset = json.loads(output.read_text())
@@ -87,8 +91,7 @@ def test_output_loads_with_existing_loader(snapshot, tmp_path, monkeypatch):
     second, _ = generator.generate(raw, 'Madrid', 'Gasóleo A', 3, 42, tmp_path / 'second.json')
     assert json.loads(second.read_text())['nodes'] == dataset['nodes']
     assert not list(tmp_path.glob('*.xlsx'))
-    monkeypatch.setattr(runner, 'DATASETS', {'sample': {'filename': str(output), 'format': 'json'}})
-    matrix, prices = runner.load_dataset('sample')
+    matrix, prices = load_dataset({'filename': str(output), 'format': 'json'}, DATASETS_ROOT)
     assert matrix.shape == (3, 3)
     assert np.all(np.isfinite(matrix))
     np.testing.assert_allclose(matrix, matrix.T)
@@ -120,15 +123,14 @@ def test_offline_cli_and_default_filename(snapshot, tmp_path, monkeypatch, capsy
     assert 'Inspected 8 source rows; 8 valid; selected 3 stations.' in capsys.readouterr().out
 
 
-def test_json_loader_preserves_order_and_geographic_distances(tmp_path, monkeypatch):
+def test_json_loader_preserves_order_and_geographic_distances(tmp_path):
     path = tmp_path / 'coordinates.json'
     path.write_text(json.dumps({'metadata': {}, 'nodes': [
         {'id': 'b', 'latitude': 0, 'longitude': 1, 'price': 1.8},
         {'id': 'a', 'latitude': 0, 'longitude': 0, 'price': 1.2},
         {'id': 'c', 'latitude': 1, 'longitude': 0, 'price': 1.5},
     ]}))
-    monkeypatch.setattr(runner, 'DATASETS', {'sample': {'filename': str(path), 'format': 'json'}})
-    matrix, prices = runner.load_dataset('sample')
+    matrix, prices = load_dataset({'filename': str(path), 'format': 'json'}, DATASETS_ROOT)
     # WGS84 geodesic distances in km, matching the existing Excel semantics.
     np.testing.assert_allclose(matrix, [
         [0, 111.319490793, 156.899568291],
@@ -138,18 +140,18 @@ def test_json_loader_preserves_order_and_geographic_distances(tmp_path, monkeypa
     np.testing.assert_array_equal(prices, [1.8, 1.2, 1.5])
 
 
-def test_json_and_existing_ottoni_excel_have_identical_values(tmp_path, monkeypatch):
+def test_json_and_existing_ottoni_excel_have_identical_values(tmp_path):
     import pandas as pd
 
-    expected_matrix, expected_prices = runner.load_dataset('Minas24D')
-    frame = pd.read_excel(runner.ROOT / 'datasets' / runner.DATASETS['Minas24D']['filename'])
+    descriptor = load_run_options()['datasets']['Minas24D']
+    expected_matrix, expected_prices = load_dataset(descriptor, DATASETS_ROOT)
+    frame = pd.read_excel(DATASETS_ROOT / descriptor['filename'])
     path = tmp_path / 'ottoni.json'
     path.write_text(json.dumps({'metadata': {}, 'nodes': [
         {'id': str(row[0]), 'latitude': row[1], 'longitude': row[2], 'price': row[3]}
         for row in frame.itertuples(index=False, name=None)
     ]}))
-    monkeypatch.setattr(runner, 'DATASETS', {'sample': {'filename': str(path), 'format': 'json'}})
-    matrix, prices = runner.load_dataset('sample')
+    matrix, prices = load_dataset({'filename': str(path), 'format': 'json'}, DATASETS_ROOT)
     np.testing.assert_array_equal(matrix, expected_matrix)
     np.testing.assert_array_equal(prices, expected_prices)
 
