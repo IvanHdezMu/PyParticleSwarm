@@ -45,4 +45,3 @@ def load_dataset(dataset, datasets_root):
         for j in range(i + 1, len(coordinates)):
             matrix[i, j] = matrix[j, i] = distance.distance(start, coordinates[j]).km
     return matrix, prices
-

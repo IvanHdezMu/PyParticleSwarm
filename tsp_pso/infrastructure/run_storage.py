@@ -49,4 +49,3 @@ def create_run_directory(experiment, output_dir):
         json.dump(configuration, stream, indent=2, ensure_ascii=False)
         stream.write('\n')
     return destination
-
