@@ -1,4 +1,6 @@
 """Numerical and file contracts for result analysis."""
+from zipfile import BadZipFile
+
 import pandas as pd
 import pytest
 
@@ -96,3 +98,65 @@ def test_public_analysis_reference_requires_exactly_one_match(matches):
                  'output': None}
     with pytest.raises(ValueError, match='must match exactly one run'):
         analysis.analysis_for_experiment(reference, options)
+
+
+def test_disabled_excel_presets_do_not_block_catalog_or_history(monkeypatch):
+    from tsp_pso.experiments.experiment import build_experiments
+    from tsp_pso.presentation.terminal import analysis_menu_options
+
+    expected = analysis.load_analysis_options()
+    options = analysis.load_run_options()
+    options['experiments'][0]['excel'] = False
+    monkeypatch.setattr(analysis, 'load_run_options', lambda path=None: options)
+    actual = analysis.load_analysis_options()
+    assert actual == expected
+    menu = analysis_menu_options(actual, build_experiments(options))
+    assert list(menu) == list(range(1, 23))
+    assert list(menu.values()) == actual[2:]
+    with pytest.raises(ValueError, match='excel=false'):
+        analysis.analysis_for_experiment(actual[2], options)
+
+
+@pytest.mark.parametrize('error_type', [OSError, ValueError, KeyError, TypeError, BadZipFile])
+def test_read_errors_identify_input_and_preserve_cause(tmp_path, monkeypatch, error_type):
+    failure = error_type('unreadable')
+    def fail(path):
+        raise failure
+    monkeypatch.setattr(pd, 'read_excel', fail)
+    selected = {'parameters': {'p': [1]}, 'columns': ['p'],
+                'repetitions': {'start': 1, 'stop': 2},
+                'input_template': 'broken.xlsx', 'output': None}
+    with pytest.raises(ValueError) as caught:
+        analysis.analyze(selected, root=tmp_path)
+    assert str(tmp_path / 'broken.xlsx') in str(caught.value)
+    assert caught.value.__cause__ is failure
+
+
+@pytest.mark.parametrize('history', [
+    {'Step': [1, 2], 'Result': [10, 'bad']},
+    {'Step': [1, 'bad'], 'Result': [20, 10]},
+])
+def test_calculation_errors_identify_workbook(tmp_path, history):
+    source = tmp_path / 'bad-history.xlsx'
+    pd.DataFrame(history).to_excel(source, index=False)
+    selected = {'parameters': {'p': [1]}, 'columns': ['p'],
+                'repetitions': {'start': 1, 'stop': 2},
+                'input_template': str(source), 'output': None}
+    with pytest.raises(ValueError) as caught:
+        analysis.analyze(selected)
+    assert str(source) in str(caught.value)
+    assert isinstance(caught.value.__cause__, TypeError)
+
+
+@pytest.mark.parametrize('result', [float('inf'), True, '12'])
+def test_existing_excel_value_inference_is_preserved(tmp_path, result):
+    source = tmp_path / 'history.xlsx'
+    pd.DataFrame({'Step': [3], 'Result': [result]}).to_excel(source, index=False)
+    selected = {'parameters': {'p': [1]}, 'columns': ['p'],
+                'repetitions': {'start': 1, 'stop': 2},
+                'input_template': str(source), 'output': None}
+    table = analysis.analyze(selected)
+    expected = float(result)
+    assert table['mean_minimum_result'].tolist() == [expected]
+    assert table['best_result'].tolist() == [expected]
+    assert table['mean_step_of_minimum'].tolist() == [3.]

@@ -87,6 +87,10 @@ def main(experiments=None):
                 number = next(number for number, item in numbered.items() if item is analysis)
                 missing = first_missing_result(analysis)
                 if missing is not None:
+                    if not experiments[number - 1].excel:
+                        print(f'No saved Excel runs are available for option {number}; '
+                              'the selected preset has excel=false and would not save results.')
+                        return
                     print(f'Missing results for option {number}: {missing}')
                     if input(f'Run option {number} now? [y/N]: ').strip().lower() not in ('y', 'yes'):
                         return

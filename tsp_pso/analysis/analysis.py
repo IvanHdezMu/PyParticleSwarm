@@ -1,4 +1,4 @@
-"""Analyze results using experiments defined in config/experiments.json."""
+"""Analyze catalog selections, saved run snapshots and historical Excel results."""
 from dataclasses import fields
 from datetime import datetime
 from itertools import product
@@ -29,13 +29,13 @@ def analysis_for_experiment(analysis, options):
                and experiment.label == reference['label']]
     if len(matches) != 1:
         raise ValueError(f"{analysis['id']}: the analysis must match exactly one run.")
+    if not matches[0].excel:
+        raise ValueError(f"{analysis['id']}: the run does not save results (excel=false).")
     return _analysis_from_experiment(analysis, matches[0], options['output_dir'])
 
 
 def _analysis_from_experiment(analysis, experiment, output_dir):
-    """Build paths and columns from an already resolved experiment."""
-    if not experiment.excel:
-        raise ValueError(f"{analysis['id']}: the run does not save results (excel=false).")
+    """Build a selection independently of whether its current preset saves Excel."""
     parameters = {'random': [True], 'N': list(experiment.particles),
                   'c1': list(experiment.steps), 'optType': list(experiment.opts)}
     if experiment.style == 'fuel':
@@ -59,8 +59,10 @@ def load_analysis_options(run_options_path=None):
     """Return historical analyses followed by analyses of configured experiments.
 
     Path resolution follows load_run_options(). Validate identifiers, parameter
-    lists, columns and repetitions, raising ValueError for invalid definitions;
-    configuration reading errors propagate unchanged.
+    lists, columns and repetitions, raising ValueError for invalid definitions.
+    Catalog selections remain available when their current preset disables Excel;
+    saved snapshots determine availability. Configuration reading errors propagate
+    unchanged.
     """
     options = load_run_options(run_options_path)
     analyses = list(options.get('historical_analyses', []))
@@ -209,22 +211,30 @@ def analyze(analysis, root=None):
         raise ValueError('The repetition range cannot be empty.')
     for values in product(*parameters.values()):
         configuration = dict(zip(parameters, values))
-        minimums, steps = [], []
+        minimums, steps, paths = [], [], []
         for number in numbers:
             path = base / analysis['input_template'].format(**configuration, number=number)
             try:
                 frame = pd.read_excel(path)
             except FileNotFoundError as error:
                 raise FileNotFoundError(f'Missing results file: {path}') from error
+            except (OSError, ValueError, KeyError, TypeError, BadZipFile) as error:
+                raise ValueError(f'{path}: {error}') from error
             try:
                 minimum, step = _history_minimum(frame)
-            except ValueError as error:
+            except (ValueError, KeyError, TypeError) as error:
                 raise ValueError(f'{path}: {error}') from error
             minimums.append(minimum)
             steps.append(step)
+            paths.append(path)
         row = {column: configuration[column] for column in analysis['columns']}
-        row.update(zip(METRICS, (sum(minimums) / len(minimums),
-                                sum(steps) / len(steps), min(minimums))))
+        try:
+            row.update(zip(METRICS, (sum(minimums) / len(minimums),
+                                    sum(steps) / len(steps), min(minimums))))
+        except (ValueError, TypeError) as error:
+            inputs = '; '.join(f'{path} (minimum={minimum!r}, Step={step!r})'
+                               for path, minimum, step in zip(paths, minimums, steps))
+            raise ValueError(f'Cannot aggregate histories: {inputs}: {error}') from error
         rows.append(row)
     table = pd.DataFrame(rows, columns=analysis['columns'] + METRICS)
     if analysis['output'] is not None:

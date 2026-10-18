@@ -287,3 +287,48 @@ def test_snapshot_axes_remain_validated(experiment, tmp_path, axis, value):
     saved[axis] = value
     snapshot.write_text(json.dumps(saved))
     assert analysis.discover_run_analyses(directory.parent) == []
+
+
+def test_saved_excel_runs_remain_available_with_disabled_current_preset(
+        experiment, workbook_solver, tmp_path, monkeypatch):
+    from tsp_pso.presentation import terminal
+
+    directory = runner.execute(experiment, output_dir=tmp_path)
+    options = load_run_options()
+    options['output_dir'] = str(tmp_path)
+    for entry in options['experiments']:
+        entry['excel'] = False
+    monkeypatch.setattr(analysis, 'load_run_options', lambda path=None: options)
+    monkeypatch.setattr(terminal, 'load_run_options', lambda: options)
+    selected = next(item for item in analysis.load_analysis_options()
+                    if item.get('experiment') == {'dataset': 'Minas24D', 'label': 'individual'})
+    assert analysis.first_missing_result(selected) is None
+    assert set(analysis.analyze(selected)) == {str(directory)}
+    (directory / 'Analysis_Minas24D.xlsx').unlink()
+    responses = iter(['2', '8'])
+    monkeypatch.setattr('builtins.input', lambda prompt: next(responses))
+    execute = Mock()
+    monkeypatch.setattr(runner, 'execute', execute)
+    terminal.main()
+    execute.assert_not_called()
+    assert pd.read_excel(directory / 'Analysis_Minas24D.xlsx')['mean_minimum_result'].tolist() == [11.5]
+
+
+def test_bad_history_diagnostic_does_not_block_other_runs(
+        experiment, workbook_solver, tmp_path, capsys):
+    broken = runner.execute(experiment, output_dir=tmp_path)
+    good = runner.execute(experiment, output_dir=tmp_path)
+    raw = next(broken.glob('*.xlsx'))
+    pd.DataFrame({'Step': ['invalid'], 'Result': [1]}).to_excel(raw, index=False)
+    selected = next(item for item in analysis.discover_run_analyses(broken.parent)
+                    if item['run_directory'] == str(broken))
+    with pytest.raises(ValueError) as caught:
+        analysis.analyze(selected)
+    assert str(raw) in str(caught.value)
+    assert isinstance(caught.value.__cause__, TypeError)
+    assert 'invalid' in str(caught.value)
+    assert set(analysis.analyze_runs(tmp_path / 'Minas24D')) == {str(good)}
+    output = capsys.readouterr().out
+    assert f'Skipping run {broken}' in output
+    assert str(raw) in output
+    assert 'invalid' in output

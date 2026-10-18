@@ -105,3 +105,22 @@ def test_actual_terminal_entry_point(input_text):
     assert result.stdout.startswith('\nWhat do you want to do?\n 1. run — Execute\n 2. analysis — Analyze results\n 0. Exit\n\nNumber: ')
     if input_text == '':
         assert result.stdout.endswith('\nOperation cancelled.\n')
+
+
+def test_disabled_excel_without_snapshots_does_not_offer_execution(monkeypatch, tmp_path, capsys):
+    from tsp_pso.analysis import analysis
+
+    options = load_run_options()
+    options['experiments'][0]['excel'] = False
+    options['output_dir'] = str(tmp_path)
+    monkeypatch.setattr(terminal, 'load_run_options', lambda: options)
+    monkeypatch.setattr(analysis, 'load_run_options', lambda path=None: options)
+    execute = Mock()
+    monkeypatch.setattr(runner, 'execute', execute)
+    answers(monkeypatch, ['2', '1'])
+    terminal.main()
+    output = capsys.readouterr().out
+    assert 'excel=false' in output
+    assert 'No saved Excel runs are available' in output
+    assert 'Run option 1 now?' not in output
+    execute.assert_not_called()
