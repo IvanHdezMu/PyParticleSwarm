@@ -87,7 +87,7 @@ def load_analysis_options(run_options_path=None):
 def discover_run_analyses(dataset_root):
     """Read self-contained run snapshots, ignoring unrelated or malformed directories."""
 
-    dataset_root = Path(dataset_root)
+    dataset_root = Path(dataset_root).resolve()
     if not dataset_root.is_dir():
         return []
     analyses = []

@@ -209,3 +209,35 @@ def test_saved_repetition_step_is_preserved(experiment, workbook_solver, tmp_pat
     assert len(list(directory.glob('*.xlsx'))) == 3
     result = analysis.analyze_runs(directory.parent)[str(directory)]
     assert result['mean_minimum_result'].tolist() == [12]
+
+
+def test_discovered_relative_paths_survive_working_directory_change(
+        experiment, workbook_solver, tmp_path, monkeypatch):
+    directory = runner.execute(experiment, output_dir=tmp_path / 'working' / 'Results')
+    monkeypatch.chdir(tmp_path / 'working')
+    selected, = analysis.discover_run_analyses(Path('Results/Minas24D'))
+    assert Path(selected['run_directory']) == directory
+    assert Path(selected['input_template']).is_absolute()
+    assert Path(selected['output']) == directory / 'Analysis_Minas24D.xlsx'
+    monkeypatch.chdir(tmp_path)
+    result = analysis.analyze(selected)
+    assert result['mean_minimum_result'].tolist() == [11.5]
+    pd.testing.assert_frame_equal(pd.read_excel(directory / 'Analysis_Minas24D.xlsx'),
+                                  result, check_dtype=False)
+    assert not (tmp_path / 'Results').exists()
+    assert set(analysis.analyze_runs(Path('working/Results/Minas24D'))) == {str(directory)}
+
+
+def test_historical_explicit_absolute_paths_ignore_working_directory(tmp_path, monkeypatch):
+    source = tmp_path / 'history.xlsx'
+    destination = tmp_path / 'historical-summary.xlsx'
+    pd.DataFrame({'Step': [7], 'Result': [12]}).to_excel(source, index=False)
+    selected = {'parameters': {'optType': [1]}, 'columns': ['optType'],
+                'repetitions': {'start': 1, 'stop': 2},
+                'input_template': str(source), 'output': str(destination)}
+    elsewhere = tmp_path / 'elsewhere'
+    elsewhere.mkdir()
+    monkeypatch.chdir(elsewhere)
+    result = analysis.analyze(selected, root=elsewhere)
+    pd.testing.assert_frame_equal(pd.read_excel(destination), result, check_dtype=False)
+    assert list(elsewhere.iterdir()) == []
