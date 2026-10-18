@@ -241,3 +241,49 @@ def test_historical_explicit_absolute_paths_ignore_working_directory(tmp_path, m
     result = analysis.analyze(selected, root=elsewhere)
     pd.testing.assert_frame_equal(pd.read_excel(destination), result, check_dtype=False)
     assert list(elsewhere.iterdir()) == []
+
+
+@pytest.mark.parametrize('repetitions, omit_step', [
+    (range(1, 6, 2), False), (range(5, 0, -2), False), (range(2, 5), True),
+])
+def test_snapshot_repetition_ranges(experiment, workbook_solver, tmp_path, repetitions, omit_step):
+    directory = runner.execute(replace(experiment, repetitions=repetitions), output_dir=tmp_path)
+    snapshot = directory / 'run_config.json'
+    if omit_step:
+        saved = json.loads(snapshot.read_text())
+        del saved['repetitions']['step']
+        snapshot.write_text(json.dumps(saved))
+    selected, = analysis.discover_run_analyses(directory.parent)
+    assert list(analysis.repetition_numbers(selected)) == list(repetitions)
+    result = analysis.analyze(selected)
+    assert result['mean_minimum_result'].tolist() == [12.]
+    assert result['mean_step_of_minimum'].tolist() == [13.]
+    assert result['best_result'].tolist() == [11]
+
+
+@pytest.mark.parametrize('repetitions', [
+    {'start': 1, 'stop': 3, 'step': 0},
+    {'start': 3, 'stop': 3},
+    {'start': 3, 'stop': 1, 'step': 1},
+    {'start': 1, 'stop': 3, 'step': -1},
+])
+def test_invalid_snapshot_repetitions_are_skipped(experiment, tmp_path, repetitions, capsys):
+    directory = runner.create_run_directory(experiment, output_dir=tmp_path)
+    snapshot = directory / 'run_config.json'
+    saved = json.loads(snapshot.read_text())
+    saved['repetitions'] = repetitions
+    snapshot.write_text(json.dumps(saved))
+    assert analysis.discover_run_analyses(directory.parent) == []
+    assert capsys.readouterr().out == ''
+
+
+@pytest.mark.parametrize('axis', ['steps', 'particles', 'opts', 'minimums', 'maximums',
+                                  'rings', 'full_tanks'])
+@pytest.mark.parametrize('value', [[], None, 'invalid'])
+def test_snapshot_axes_remain_validated(experiment, tmp_path, axis, value):
+    directory = runner.create_run_directory(experiment, output_dir=tmp_path)
+    snapshot = directory / 'run_config.json'
+    saved = json.loads(snapshot.read_text())
+    saved[axis] = value
+    snapshot.write_text(json.dumps(saved))
+    assert analysis.discover_run_analyses(directory.parent) == []

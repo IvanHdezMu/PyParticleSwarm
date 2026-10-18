@@ -1,5 +1,5 @@
 """Analyze results using experiments defined in config/experiments.json."""
-from dataclasses import fields, replace
+from dataclasses import fields
 from datetime import datetime
 from itertools import product
 import json
@@ -29,7 +29,11 @@ def analysis_for_experiment(analysis, options):
                and experiment.label == reference['label']]
     if len(matches) != 1:
         raise ValueError(f"{analysis['id']}: the analysis must match exactly one run.")
-    experiment = matches[0]
+    return _analysis_from_experiment(analysis, matches[0], options['output_dir'])
+
+
+def _analysis_from_experiment(analysis, experiment, output_dir):
+    """Build paths and columns from an already resolved experiment."""
     if not experiment.excel:
         raise ValueError(f"{analysis['id']}: the run does not save results (excel=false).")
     parameters = {'random': [True], 'N': list(experiment.particles),
@@ -43,7 +47,7 @@ def analysis_for_experiment(analysis, options):
         parameters[name] = list(values)
     filename = result_filename(experiment, ('{N}', '{c1}', '{optType}',
                               '{minR}', '{maxR}', '{ring}', '{full}', '{number}'))
-    destination = Path(options['output_dir']) / experiment.dataset
+    destination = Path(output_dir) / experiment.dataset
     return {**analysis, 'run_root': str(destination), 'parameters': parameters, 'columns': list(parameters),
             'repetitions': {'start': experiment.repetitions.start,
                             'stop': experiment.repetitions.stop},
@@ -68,7 +72,7 @@ def load_analysis_options(run_options_path=None):
             'output': experiment.analysis_output or
                       f'Analysis_{experiment.dataset}_{experiment.label}.xlsx',
         }
-        analyses.append(analysis_for_experiment(analysis, options))
+        analyses.append(_analysis_from_experiment(analysis, experiment, options['output_dir']))
     identifiers = set()
     for analysis in analyses:
         if analysis['id'] in identifiers:
@@ -103,12 +107,15 @@ def discover_run_analyses(dataset_root):
                 raise ValueError('Run dataset does not match its directory')
             if type(configuration['excel']) is not bool or not configuration['excel']:
                 continue
-            options = {'defaults': {}, 'experiments': [configuration],
-                       'datasets': {configuration['dataset']: {}}, 'output_dir': str(dataset_root.parent)}
-            experiment, = build_experiments(options)
+            for name in ('steps', 'particles', 'opts', 'minimums', 'maximums',
+                         'rings', 'full_tanks'):
+                if not isinstance(configuration[name], list) or not configuration[name]:
+                    raise ValueError(f'{name} must be a non-empty list.')
+                configuration[name] = tuple(configuration[name])
             repetitions = configuration['repetitions']
-            experiment = replace(experiment, repetitions=range(
-                repetitions['start'], repetitions['stop'], repetitions.get('step', 1)))
+            configuration['repetitions'] = range(
+                repetitions['start'], repetitions['stop'], repetitions.get('step', 1))
+            experiment = Experiment(**configuration)
             if not experiment.repetitions:
                 raise ValueError('Empty repetitions')
             output = experiment.analysis_output or f'Analysis_{experiment.dataset}_{experiment.label}.xlsx'
@@ -116,11 +123,11 @@ def discover_run_analyses(dataset_root):
                 raise ValueError('Analysis output must be an Excel filename inside the run directory')
             if output in {result_filename(experiment, c) for c in experiment.configurations()}:
                 raise ValueError('Analysis output collides with a raw result')
-            analysis = analysis_for_experiment({
+            analysis = _analysis_from_experiment({
                 'id': directory.name, 'label': experiment.label,
                 'experiment': {'dataset': experiment.dataset, 'label': experiment.label},
                 'output': output,
-            }, options)
+            }, experiment, dataset_root.parent)
             analysis['input_template'] = str(directory / Path(analysis['input_template']).name)
             analysis['output'] = str(directory / output)
             analysis['repetitions'] = repetitions

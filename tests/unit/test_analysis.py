@@ -50,3 +50,49 @@ def test_all_metrics_and_summary_excel_contract(tmp_path):
     pd.testing.assert_frame_equal(actual, expected)
     pd.testing.assert_frame_equal(pd.read_excel(tmp_path / 'summary/Analysis.xlsx'),
                                   expected, check_dtype=False)
+
+
+def test_catalog_definitions_preserve_names_columns_and_order(monkeypatch):
+    from pathlib import Path
+    from tsp_pso.experiments.experiment import build_experiments
+    from tsp_pso.experiments.result_naming import result_filename
+
+    options = analysis.load_run_options()
+    experiments = build_experiments(options)
+    calls = []
+
+    def build_once(options):
+        calls.append(options)
+        return experiments
+
+    monkeypatch.setattr(analysis, 'build_experiments', build_once)
+    definitions = analysis.load_analysis_options()
+    assert len(calls) == 1
+    assert definitions[:2] == options['historical_analyses']
+    assert len(definitions[2:]) == len(experiments) == 22
+    for definition, experiment in zip(definitions[2:], experiments):
+        assert definition['experiment'] == {'dataset': experiment.dataset, 'label': experiment.label}
+        columns = ['random', 'N', 'c1', 'optType']
+        if experiment.style == 'fuel':
+            columns += ['ring', 'full']
+        elif experiment.style != 'bays':
+            columns += ['kv', 'minR', 'maxR']
+        assert definition['columns'] == columns
+        assert definition['output'] == str(Path(options['output_dir']) / experiment.dataset /
+            (experiment.analysis_output or f'Analysis_{experiment.dataset}_{experiment.label}.xlsx'))
+        for configuration in experiment.configurations():
+            n, c1, opt, minimum, maximum, ring, full, number = configuration
+            actual = Path(definition['input_template'].format(
+                N=n, c1=c1, optType=opt, minR=minimum, maxR=maximum,
+                ring=ring, full=full, number=number))
+            assert actual.name == result_filename(experiment, configuration)
+
+
+@pytest.mark.parametrize('matches', [0, 2])
+def test_public_analysis_reference_requires_exactly_one_match(matches):
+    options = analysis.load_run_options()
+    options['experiments'] = options['experiments'][:1] * matches
+    reference = {'id': 'selection', 'experiment': {'dataset': 'berlin52', 'label': 'individual'},
+                 'output': None}
+    with pytest.raises(ValueError, match='must match exactly one run'):
+        analysis.analysis_for_experiment(reference, options)
