@@ -139,6 +139,15 @@ def load_presets():
     # Read JSON, not runner globals: importing presets never loads a matrix/solver.
     with (ROOT / 'config/experiments.json').open(encoding='utf-8') as stream:
         options = json.load(stream)
+    return build_presets(options)
+
+
+def build_presets(options):
+    """Convert explicit options to ordered presets without I/O or input mutation.
+
+    Overrides replace defaults shallowly; existing model validation and missing
+    option errors propagate unchanged.
+    """
     presets = []
     for entry in options['experiments']:
         e = {**options['defaults'], **entry}
