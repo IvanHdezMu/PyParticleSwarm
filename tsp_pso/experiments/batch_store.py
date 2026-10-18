@@ -87,6 +87,9 @@ def mark_interrupted(directory, reason='Execution interrupted before completion 
 
 def batch_status(directory):
     with connect(directory) as db:
+        # sqlite3 does not implicitly begin a transaction for SELECT statements.
+        # Keep all three queries on one snapshot; connect commits or rolls back.
+        db.execute('BEGIN')
         batch = dict(db.execute('SELECT * FROM batch').fetchone())
         counts = {row['status']: row['n'] for row in db.execute('SELECT status,COUNT(*) AS n FROM runs GROUP BY status')}
         active = db.execute("SELECT ordinal,configuration FROM runs WHERE status='running' LIMIT 1").fetchone()
