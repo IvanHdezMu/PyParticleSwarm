@@ -7,7 +7,8 @@ import sqlite3
 from uuid import uuid4
 from dataclasses import asdict
 
-from .experiment_batch import EXPANSION_VERSION, ROOT, count_runs
+from ..infrastructure.experiment_options import ROOT
+from .experiment_batch import EXPANSION_VERSION, count_runs
 
 
 def now():

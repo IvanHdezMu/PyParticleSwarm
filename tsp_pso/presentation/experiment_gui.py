@@ -10,7 +10,8 @@ import customtkinter as ctk
 
 from tools.dataset_generators.gui import ThemedDropdown
 from ..experiments.experiment_config import ExperimentConfiguration, RepetitionSpec, is_parameter_active
-from ..experiments.experiment_batch import ROOT, load_catalog, load_presets
+from ..infrastructure.experiment_options import ROOT
+from ..experiments.experiment_batch import load_catalog, load_presets
 from .experiment_editor import NUMERIC_FIELDS, OPERATOR_LABELS, add_numeric, parse_numeric, remove_value, toggle_value, review
 from ..experiments.batch_store import create_batch, batch_status, finish_batch
 from ..experiments.experiment_process import BatchProcess

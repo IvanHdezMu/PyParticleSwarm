@@ -1,13 +1,13 @@
 """Metadata validation, conditional lazy expansion and editable legacy presets."""
 from dataclasses import asdict, dataclass
 from itertools import product, islice
-import json
 from math import prod
 from pathlib import Path
 
+# Retain ROOT as a compatibility alias for callers of the public loaders.
+from ..infrastructure.experiment_options import ROOT, load_catalog_options, load_preset_options
 from .experiment_config import ExperimentConfiguration, RepetitionSpec, is_parameter_active
 
-ROOT = Path(__file__).resolve().parents[2]
 EXPANSION_VERSION = 1
 CONDITIONAL = (
     'k', 'primary_operator_share', 'minimum_reset_probability',
@@ -30,9 +30,10 @@ class DatasetDescriptor:
 
 
 def load_catalog():
-    with (ROOT / 'config/datasets.json').open(encoding='utf-8') as stream:
-        return tuple(DatasetDescriptor(id=name, **{**data, 'problem_types': tuple(data['problem_types'])})
-                     for name, data in json.load(stream)['datasets'].items())
+    """Build catalog descriptors from the original project-relative JSON path."""
+    options = load_catalog_options(ROOT / 'config/datasets.json')
+    return tuple(DatasetDescriptor(id=name, **{**data, 'problem_types': tuple(data['problem_types'])})
+                 for name, data in options['datasets'].items())
 
 
 @dataclass(frozen=True)
@@ -136,9 +137,8 @@ def preview_runs(plan, limit=5):
 
 
 def load_presets():
-    # Read JSON, not runner globals: importing presets never loads a matrix/solver.
-    with (ROOT / 'config/experiments.json').open(encoding='utf-8') as stream:
-        options = json.load(stream)
+    """Build presets from the original project-relative JSON path."""
+    options = load_preset_options(ROOT / 'config/experiments.json')
     return build_presets(options)
 
 

@@ -6,7 +6,7 @@ import subprocess
 import sys
 import time
 
-from .experiment_batch import ROOT
+from ..infrastructure.experiment_options import ROOT
 from .batch_store import batch_status, mark_interrupted
 
 
