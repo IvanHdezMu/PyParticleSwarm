@@ -222,15 +222,26 @@ repetition and the corresponding `Step`, then reports:
 | `best_result` | Best minimum across the repetitions. |
 
 These are summaries of recorded samples, not necessarily the final solver state.
-Tables are printed to the console and written to Excel when an output is defined.
+Each repetition contributes one minimum with equal weight. Ties select the first
+minimum in workbook row order, not the smallest `Step`. Missing `Result` values
+are ignored when other results are available; an empty history, all-missing
+results, or a missing `Step` at the selected minimum rejects that history.
+Tables contain the configured parameter columns followed by the three metrics
+in the order above. They are printed to the console and written to Excel without
+a row index when an output is defined.
 
 **Terminal analysis.** Run `python3 main.py --terminal` and choose **analysis**.
 The menu mirrors the current experiment ordering. Selecting an experiment scans
 the timestamped run directories for its dataset, including other labels and
 configurations. Each run is reconstructed from its saved configuration and
-analyzed independently; its summary is saved in the same run directory. If no
-analyzable run snapshot is found, the menu offers to execute the selected
-experiment before analyzing.
+analyzed independently; its summary is saved in the same run directory. All 22
+configured presets retain their menu positions even when a preset has
+`excel=false`: previously saved Excel runs for that dataset remain available,
+as do historical definitions through the Python API. If no eligible run snapshot
+is found, the menu offers to execute the selected experiment only when that
+preset saves Excel. Otherwise it explains that execution would not save results
+and returns without offering to run it. Snapshot discovery does not check that
+all workbooks are complete; those checks happen during analysis.
 
 **Direct directory analysis.** For example, from the repository root:
 
@@ -243,10 +254,29 @@ timestamped child directories, not an entire recursive batch tree. For a batch,
 pass `Results/batches/<batch-id>/runs/<ordinal>/<dataset>` instead. There is no
 automatic cross-run-directory or cross-repetition batch aggregation.
 
-Malformed snapshots and Excel-disabled runs are skipped. Missing, empty, corrupt,
-or invalid workbooks cause the affected run to be skipped with a diagnostic;
+Discovery reads each candidate directory's `run_config.json`, requiring the saved
+experiment fields, a parseable `created_at`, and a dataset matching the parent
+directory. It uses the saved configuration independently of today's presets.
+Saved repetition ranges use `start`, exclusive `stop`, and `step` (default 1 when
+omitted), including valid negative steps. Empty ranges and a zero step are invalid.
+Both `discover_run_analyses()` and `analyze_runs()` resolve a relative dataset
+directory from the current working directory; discovered input and output paths
+are absolute, so they remain valid when passed to `analyze()` from elsewhere.
+
+Each run's summary uses its saved `analysis_output` filename, or
+`Analysis_<dataset>_<label>.xlsx` when none is set, inside that run's directory.
+Reanalysis replaces that summary; it does not combine runs or read existing
+summaries as raw input. `analyze_runs()` returns a mapping from absolute run
+directory strings to the successfully generated DataFrames.
+
+Malformed snapshots and Excel-disabled runs are silently skipped. Missing, empty,
+corrupt, or invalid workbooks cause the affected run to be skipped with a diagnostic;
 other runs can still be analyzed. Individual/historical analysis requires all
 configured inputs and rejects missing files, missing columns, or unusable data.
+Read and calculation errors include the input path; aggregation errors list the
+participating paths and their selected minimum/step values. Contextual errors
+retain the original exception as their cause. An input failure produces no new
+summary for that run, but does not remove a summary from an earlier analysis.
 
 **Historical results.**
 [`config/historical_analyses.json`](config/historical_analyses.json) defines the
@@ -254,7 +284,8 @@ older Berlin52 layouts (`00` and `02_08`), their repetition ranges and filename
 templates. They retain their existing paths; flat-layout results are not
 migrated automatically. These definitions are loaded by `load_analysis_options()`
 but are **not listed in the current experiment-only terminal menu**. To analyze
-an existing historical dataset from the terminal, select its definition explicitly:
+an existing historical dataset from a shell, select its definition explicitly
+through the Python API:
 
 ```bash
 python3 - <<'PY'
@@ -268,7 +299,10 @@ PY
 This requires the workbooks specified by that definition to exist. Both current
 historical definitions have `output: null`, so they print the table without
 writing a summary file. Relative input/output paths in analysis definitions are
-resolved from the project root.
+resolved from the project root, or from an explicit `root` passed to `analyze()`;
+absolute paths are preserved. Individual and historical analyses return a
+DataFrame, while a catalog selection passed to `analyze()` returns the same
+per-run mapping as `analyze_runs()`.
 
 ## Project Structure
 
