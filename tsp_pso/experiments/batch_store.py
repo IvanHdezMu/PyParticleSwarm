@@ -15,8 +15,15 @@ def now():
 
 
 @contextmanager
-def connect(directory):
-    db = sqlite3.connect(Path(directory) / 'manifest.sqlite3', timeout=10)
+def connect(directory, *, create=False):
+    """Open an existing manifest; only initial batch creation opts into creation.
+
+    SQLite raises OperationalError if the manifest cannot be opened. URI mode
+    rw prevents accidental creation without a separate filesystem check.
+    """
+    uri = (Path(directory) / 'manifest.sqlite3').absolute().as_uri()
+    mode = 'rwc' if create else 'rw'
+    db = sqlite3.connect(f'{uri}?mode={mode}', uri=True, timeout=10)
     db.row_factory = sqlite3.Row
     try:
         with db:
@@ -38,7 +45,7 @@ def create_batch(plan):
                     total_runs=str(count_runs(plan)))
     with (directory / 'batch.json').open('x', encoding='utf-8') as stream:
         json.dump(snapshot, stream, indent=2)
-    with connect(directory) as db:
+    with connect(directory, create=True) as db:
         db.executescript('''
             CREATE TABLE batch (id TEXT PRIMARY KEY, total TEXT NOT NULL,
                 status TEXT NOT NULL, created_at TEXT NOT NULL, started_at TEXT,

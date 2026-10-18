@@ -137,3 +137,60 @@ def test_status_closes_transaction_and_connection(batch, monkeypatch, failure):
         writer.commit()
     finally:
         writer.close()
+
+
+@pytest.mark.parametrize('operation,args', [
+    ('connect', ()),
+    ('batch_status', ()),
+    ('start_batch', ()),
+    ('start_run', (1, None)),
+    ('finish_run', (1, 'succeeded')),
+    ('finish_batch', ('failed',)),
+    ('mark_interrupted', ()),
+])
+def test_existing_batch_operations_never_create_missing_manifest(tmp_path, operation, args):
+    with pytest.raises(sqlite3.OperationalError, match='unable to open database file'):
+        if operation == 'connect':
+            with batch_store.connect(tmp_path):
+                pytest.fail('Missing manifest was opened')
+        else:
+            getattr(batch_store, operation)(tmp_path, *args)
+    assert list(tmp_path.iterdir()) == []
+
+
+@pytest.mark.parametrize('relative', [False, True])
+def test_create_and_reopen_manifest_preserves_data_and_paths(tmp_path, monkeypatch, relative):
+    # URI metacharacters must be encoded rather than interpreted as URI options.
+    root = tmp_path / 'results # % café'
+    plan = compile_plan(ExperimentConfiguration(datasets=('berlin52',), output_dir=root))
+    directory = batch_store.create_batch(plan)
+    manifest = directory / 'manifest.sqlite3'
+    snapshot = directory / 'batch.json'
+    original = manifest.read_bytes(), snapshot.read_bytes()
+    monkeypatch.chdir(tmp_path)
+    path = directory.relative_to(tmp_path) if relative else directory
+    with batch_store.connect(path) as db:
+        row = dict(db.execute('SELECT * FROM batch').fetchone())
+        assert row['status'] == 'pending' and row['total'] == '1'
+        assert db.execute('SELECT COUNT(*) FROM runs').fetchone()[0] == 0
+    state = batch_store.batch_status(path)
+    assert state['id'] == row['id']
+    assert state['counts']['pending'] == state['total'] == 1
+    assert (manifest.read_bytes(), snapshot.read_bytes()) == original
+    batch_store.start_batch(path)
+    assert batch_store.batch_status(path)['status'] == 'running'
+
+
+def test_existing_manifest_rolls_back_and_closes_on_error(batch):
+    directory, _ = batch
+    error = RuntimeError('operation failed')
+    with pytest.raises(RuntimeError) as raised:
+        with batch_store.connect(directory) as db:
+            db.execute("UPDATE batch SET error='uncommitted'")
+            raise error
+    assert raised.value is error
+    with pytest.raises(sqlite3.ProgrammingError, match='closed'):
+        db.execute('SELECT 1')
+    with batch_store.connect(directory) as reopened:
+        reopened.execute('BEGIN EXCLUSIVE')
+        assert reopened.execute('SELECT error FROM batch').fetchone()[0] is None
