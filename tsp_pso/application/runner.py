@@ -11,6 +11,7 @@ from ..infrastructure.dataset_reader import load_dataset as _load_dataset
 from ..infrastructure.experiment_options import load_run_options
 from ..infrastructure.run_storage import create_run_directory as _create_run_directory
 
+# ROOT: Project root directory used to resolve default dataset and output paths.
 ROOT = Path(__file__).resolve().parents[2]
 
 

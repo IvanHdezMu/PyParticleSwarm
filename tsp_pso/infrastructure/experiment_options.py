@@ -3,6 +3,7 @@
 import json
 from pathlib import Path
 
+# ROOT: Project root directory used to resolve configuration file paths.
 ROOT = Path(__file__).resolve().parents[2]
 
 

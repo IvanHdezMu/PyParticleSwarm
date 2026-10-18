@@ -8,12 +8,18 @@ from pathlib import Path
 from ..infrastructure.experiment_options import ROOT, load_catalog_options, load_preset_options
 from .experiment_config import ExperimentConfiguration, RepetitionSpec, is_parameter_active
 
+# EXPANSION_VERSION: Identifies the expansion rules used to create saved batches.
+# Review this version whenever the expansion behavior changes.
 EXPANSION_VERSION = 1
+# CONDITIONAL: Parameters that generate additional runs only when applicable.
+# Their order determines the order of the generated runs.
 CONDITIONAL = (
     'k', 'primary_operator_share', 'minimum_reset_probability',
     'maximum_reset_probability', 'reset_threshold_divisor', 'fuel_capacity',
     'consumption', 'full_initial_tank', 'progress_warmup_multiplier',
 )
+# DEFAULTS: Replacement values used when a parameter does not apply
+# but multiple values were configured for it.
 DEFAULTS = dict(k=10, primary_operator_share=0.2, minimum_reset_probability=0.2,
                 maximum_reset_probability=0.8, reset_threshold_divisor=1000,
                 fuel_capacity=150.0, consumption=7.0, full_initial_tank=False,

@@ -13,7 +13,10 @@ from ..experiments.experiment import Experiment, build_experiments
 from ..experiments.result_naming import extra_filename_fields, result_filename
 from ..infrastructure.experiment_options import load_run_options
 
+# ROOT: Project root directory used as the default base path
+# when locating and analyzing experiment results.
 ROOT = Path(__file__).resolve().parents[2]
+# METRICS: Names of the analysis metrics, in the same order as their calculated values.
 METRICS = ['mean_minimum_result', 'mean_step_of_minimum', 'best_result']
 
 

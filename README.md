@@ -272,6 +272,9 @@ resolved from the project root.
 
 ## Project Structure
 
+See the [constants and shared metadata reference](docs/constants.md) for defaults,
+validation rules, expansion order and imported aliases.
+
 | Path | Purpose |
 | --- | --- |
 | [`main.py`](main.py) | Desktop entry point and terminal mode. |
