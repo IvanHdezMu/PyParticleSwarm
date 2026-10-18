@@ -169,6 +169,20 @@ def first_missing_result(analysis, root=None):
     return None
 
 
+def _history_minimum(frame):
+    """Return the first sampled minimum and its Step without changing the frame."""
+    if not {'Result', 'Step'}.issubset(frame.columns):
+        raise ValueError('missing Result or Step columns.')
+    if frame.empty or frame['Result'].isna().all():
+        raise ValueError('does not contain valid results.')
+    index = frame['Result'].idxmin()
+    minimum = frame.loc[index, 'Result']
+    step = frame.loc[index, 'Step']
+    if pd.isna(step):
+        raise ValueError('the minimum result has no Step.')
+    return minimum, step
+
+
 def analyze(analysis, root=None):
     """Group minimum results and steps by configuration and save the completed table.
 
@@ -195,15 +209,10 @@ def analyze(analysis, root=None):
                 frame = pd.read_excel(path)
             except FileNotFoundError as error:
                 raise FileNotFoundError(f'Missing results file: {path}') from error
-            if not {'Result', 'Step'}.issubset(frame.columns):
-                raise ValueError(f'{path}: missing Result or Step columns.')
-            if frame.empty or frame['Result'].isna().all():
-                raise ValueError(f'{path}: does not contain valid results.')
-            index = frame['Result'].idxmin()
-            minimum = frame.loc[index, 'Result']
-            step = frame.loc[index, 'Step']
-            if pd.isna(step):
-                raise ValueError(f'{path}: the minimum result has no Step.')
+            try:
+                minimum, step = _history_minimum(frame)
+            except ValueError as error:
+                raise ValueError(f'{path}: {error}') from error
             minimums.append(minimum)
             steps.append(step)
         row = {column: configuration[column] for column in analysis['columns']}
