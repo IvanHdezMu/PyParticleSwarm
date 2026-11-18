@@ -373,12 +373,17 @@ class ExperimentRunnerApp(ctk.CTk):
             self.batch_directory = create_batch(plan)
             try:
                 self.process = BatchProcess(self.batch_directory)
-            except Exception as error:
-                finish_batch(self.batch_directory,'failed',str(error))
+            except (OSError, sqlite3.Error) as error:
+                try:
+                    finish_batch(self.batch_directory,'failed',str(error))
+                except (OSError, sqlite3.Error) as recording_error:
+                    self.status.configure(text=f'Could not launch: {error}\n'
+                                          f'Could not record batch failure: {recording_error}')
+                    return
                 raise
             self.run_button.configure(state='disabled')
             self.status.configure(text=f'Batch starting…\n{self.batch_directory}')
-        except (ValueError,OSError) as error:
+        except (ValueError, OSError, sqlite3.Error) as error:
             self.status.configure(text=f'Could not launch: {error}')
 
     def poll_execution(self):
