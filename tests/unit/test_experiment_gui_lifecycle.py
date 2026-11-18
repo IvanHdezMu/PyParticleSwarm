@@ -34,6 +34,8 @@ def status(monkeypatch):
 
 def test_normal_poll(app, status):
     app.poll_execution()
+    app.process.poll.assert_called_once_with(sqlite_timeout=0.05)
+    status.assert_called_once_with(app.batch_directory, timeout=0.05)
     assert app.status.configure.call_args.kwargs['text'] == (
         'Running — 1 / 3 finished\nRun 2: tiny · operator 3 · k 10\n/batch')
     app.after.assert_called_once_with(300, app.poll_execution)

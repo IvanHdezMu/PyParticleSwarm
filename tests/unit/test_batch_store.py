@@ -71,8 +71,8 @@ def test_status_snapshot_during_concurrent_update(batch, monkeypatch, journal):
             writer.execute("UPDATE runs SET status='succeeded' WHERE ordinal='1'")
 
         @contextmanager
-        def interleave(path):
-            with original_connect(path) as reader:
+        def interleave(path, **kwargs):
+            with original_connect(path, **kwargs) as reader:
                 def execute(sql):
                     if 'LIMIT 1' in sql:
                         update()

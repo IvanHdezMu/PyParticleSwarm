@@ -18,6 +18,10 @@ from ..experiments.batch_store import create_batch, batch_status, finish_batch
 from ..experiments.experiment_process import BatchProcess
 
 
+# Bound lock waits during monitoring; execution writes retain their default.
+BATCH_POLL_SQLITE_TIMEOUT = 0.05
+
+
 FIELD_HELP = {
     'c1': 'Search budget multiplier. The effective budget scales with the number of nodes.',
     'k': 'Size of the route segment used by k-based operators.',
@@ -392,8 +396,8 @@ class ExperimentRunnerApp(ctk.CTk):
                 if self.interrupt_requested or self.closing:
                     self.process.interrupt()
                     self.interrupt_requested = False
-                code = self.process.poll()
-                state = batch_status(self.batch_directory)
+                code = self.process.poll(sqlite_timeout=BATCH_POLL_SQLITE_TIMEOUT)
+                state = batch_status(self.batch_directory, timeout=BATCH_POLL_SQLITE_TIMEOUT)
                 completed = sum(state['counts'][key] for key in ('succeeded','failed','interrupted'))
                 current = state['current']
                 text = f"{state['status'].capitalize()} — {completed:,} / {state['total']:,} finished"

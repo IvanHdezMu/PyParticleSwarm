@@ -16,15 +16,16 @@ def now():
 
 
 @contextmanager
-def connect(directory, *, create=False):
+def connect(directory, *, create=False, timeout=10):
     """Open an existing manifest; only initial batch creation opts into creation.
 
     SQLite raises OperationalError if the manifest cannot be opened. URI mode
     rw prevents accidental creation without a separate filesystem check.
+    timeout bounds SQLite lock waits for this connection only, in seconds.
     """
     uri = (Path(directory) / 'manifest.sqlite3').absolute().as_uri()
     mode = 'rwc' if create else 'rw'
-    db = sqlite3.connect(f'{uri}?mode={mode}', uri=True, timeout=10)
+    db = sqlite3.connect(f'{uri}?mode={mode}', uri=True, timeout=timeout)
     db.row_factory = sqlite3.Row
     try:
         with db:
@@ -85,16 +86,16 @@ def finish_batch(directory, status, error=None):
         db.execute('UPDATE batch SET status=?, ended_at=?, error=?', (status,now(),error))
 
 
-def mark_interrupted(directory, reason='Execution interrupted before completion was confirmed'):
+def mark_interrupted(directory, reason='Execution interrupted before completion was confirmed', *, timeout=10):
     """Call only after the owning process has stopped, or from that process."""
-    with connect(directory) as db:
+    with connect(directory, timeout=timeout) as db:
         db.execute("UPDATE runs SET status='interrupted', ended_at=?, error=? WHERE status='running'", (now(),reason))
         db.execute("UPDATE batch SET status='interrupted', ended_at=?, error=? WHERE status IN ('pending','running')",
                    (now(),reason))
 
 
-def batch_status(directory):
-    with connect(directory) as db:
+def batch_status(directory, *, timeout=10):
+    with connect(directory, timeout=timeout) as db:
         # sqlite3 does not implicitly begin a transaction for SELECT statements.
         # Keep all three queries on one snapshot; connect commits or rolls back.
         db.execute('BEGIN')
