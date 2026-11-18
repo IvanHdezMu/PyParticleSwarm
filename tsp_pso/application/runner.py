@@ -1,196 +1,79 @@
-"""Configure, run, and select TSP particle swarm experiments."""
-from dataclasses import asdict, dataclass
-from datetime import datetime, timezone
-from itertools import product
-import json
-from math import prod
+"""Coordinate experiment execution with explicit inputs and on-demand defaults."""
 from pathlib import Path
-import re
 
-import numpy as np
-import pandas as pd
-from geopy import distance
-from ..algorithms.solver_registry import SOLVER_REGISTRY
 from ..algorithms.core.pso_config import PSOConfig
-from ..infrastructure.tsplib.euc2d import read_euc2d_matrix
-from ..infrastructure.tsplib.geo import read_geo_matrix
+from ..algorithms.solver_registry import SOLVER_REGISTRY
+# Experiment also preserves unpickling of instances saved under the runner module.
+from ..experiments.experiment import Experiment, build_experiments as _build_experiments
+# Keep the public filename helpers and configuration reader available to old callers.
+from ..experiments.result_naming import extra_filename_fields, result_filename
+from ..infrastructure.dataset_reader import load_dataset as _load_dataset
+from ..infrastructure.experiment_options import load_run_options
+from ..infrastructure.run_storage import create_run_directory as _create_run_directory
 
+# ROOT: Project root directory used to resolve default dataset and output paths.
 ROOT = Path(__file__).resolve().parents[2]
 
 
-def load_run_options(path=None):
-    path = Path(path or ROOT / 'config' / 'experiments.json')
-    with path.open(encoding='utf-8') as stream:
-        options = json.load(stream)
-    # Preserve support for explicitly supplied combined configuration files.
-    if 'datasets' in options:
-        return options
-    for section in ('datasets', 'historical_analyses'):
-        with path.with_name(f'{section}.json').open(encoding='utf-8') as stream:
-            options[section] = json.load(stream)[section]
-    return options
-
-
-RUN_OPTIONS = load_run_options()
-DATASETS = RUN_OPTIONS['datasets']
-
-@dataclass(frozen=True)
-class Experiment:
-    dataset: str
-    label: str
-    steps: tuple
-    particles: tuple = (8,)
-    opts: tuple = (10,)
-    minimums: tuple = (0.2,)
-    maximums: tuple = (0.8,)
-    rings: tuple = (True,)
-    full_tanks: tuple = (False,)
-    repetitions: range = range(1, 2)
-    excel: bool = False
-    refuel: bool = False
-    style: str = 'standard'
-    max_capacity: float = 150.0
-    consumption: float = 7.0
-    permut_reset: bool = True
-    k: int = 10
-    analysis_output: str | None = None
-    reset_threshold_divisor: float = 1000
-    primary_operator_share: float = 0.2
-    progress_warmup_multiplier: float = 5
-    verbose: bool = True
-
-    def configurations(self):
-        return product(self.particles, self.steps, self.opts, self.minimums,
-                       self.maximums, self.rings, self.full_tanks, self.repetitions)
-
-    @property
-    def count(self):
-        return prod(len(values) for values in (self.particles, self.steps, self.opts,
-                    self.minimums, self.maximums, self.rings, self.full_tanks, self.repetitions))
-
-
 def build_experiments(options=None):
-    options = RUN_OPTIONS if options is None else options
-    experiments = []
-    for entry in options['experiments']:
-        values = {**options['defaults'], **entry}
-        if values['dataset'] not in options['datasets']:
-            raise ValueError(f"Unknown dataset: {values['dataset']}")
-        for field in ('steps', 'particles', 'opts', 'minimums', 'maximums',
-                      'rings', 'full_tanks'):
-            if not isinstance(values[field], list) or not values[field]:
-                raise ValueError(f"{field} must be a non-empty list.")
-            values[field] = tuple(values[field])
-        repetitions = values['repetitions']
-        values['repetitions'] = range(repetitions['start'], repetitions['stop'])
-        if not values['repetitions']:
-            raise ValueError('The repetition range cannot be empty.')
-        experiments.append(Experiment(**values))
-    return experiments
-
-EXPERIMENTS = build_experiments()
+    """Compatibility entry point; load default options only when called without them."""
+    return _build_experiments(load_run_options() if options is None else options)
 
 
-def load_dataset(name):
-    dataset = DATASETS[name]
-    fmt = dataset['format']
-    path = ROOT / 'datasets' / dataset['filename']
-    if fmt == 'euc':
-        return np.round(read_euc2d_matrix(path), 0), None
-    if fmt == 'matrix':
-        return read_geo_matrix(path), None
-    if fmt == 'json':
-        with path.open(encoding='utf-8') as stream:
-            nodes = json.load(stream)['nodes']
-        coordinates = np.array([[node['latitude'], node['longitude']] for node in nodes], dtype=float)
-        prices = np.array([node['price'] for node in nodes], dtype=float)
-    elif fmt == 'excel':
-        df = pd.read_excel(path)
-        coordinates = df.iloc[:, 1:3].to_numpy()
-        prices = df.iloc[:, 3].to_numpy()
-    else:
-        raise ValueError(f'Unknown dataset format: {fmt}')
-    matrix = np.zeros((len(coordinates), len(coordinates)))
-    for i, start in enumerate(coordinates):
-        for j in range(i + 1, len(coordinates)):
-            matrix[i, j] = matrix[j, i] = distance.distance(start, coordinates[j]).km
-    return matrix, prices
+def load_dataset(name, *, datasets=None, datasets_root=None):
+    """Return (distance matrix, prices) for a named catalog entry.
+
+    Omitted datasets are loaded from the default configuration. Relative dataset
+    filenames use datasets_root, or the project's datasets directory by default;
+    absolute filenames are preserved. Unknown names raise KeyError and reader
+    errors propagate unchanged.
+    """
+    if datasets is None:
+        datasets = load_run_options()['datasets']
+    return _load_dataset(datasets[name], ROOT / 'datasets' if datasets_root is None else datasets_root)
 
 
-def extra_filename_fields(experiment):
-    """Include only varying axes omitted by a legacy filename style."""
-    fields = []
-    if experiment.style in ('fuel', 'bays'):
-        fields.extend(((3, 'minR', experiment.minimums), (4, 'maxR', experiment.maximums)))
-    if experiment.style != 'fuel':
-        fields.extend(((5, 'ring', experiment.rings), (6, 'full', experiment.full_tanks)))
-    return [(index, name, values) for index, name, values in fields if len(values) > 1]
+def create_run_directory(experiment, output_dir=None, *, run_options=None):
+    """Return the reserved run directory after saving its configuration snapshot.
+
+    An explicit output_dir is used as supplied, relative to the working directory
+    when applicable. Otherwise resolve run_options['output_dir'] from ROOT,
+    loading default options only when needed. Storage errors propagate unchanged.
+    """
+    if output_dir is None:
+        options = load_run_options() if run_options is None else run_options
+        output_dir = ROOT / options['output_dir']
+    return _create_run_directory(experiment, output_dir)
 
 
-def result_filename(experiment, configuration):
-    n, c1, opt, minimum, maximum, ring, full, number = configuration
-    prefix = f'{experiment.dataset}_True_{n}_{c1}_{opt}'
-    if experiment.style == 'fuel':
-        suffix = f'{ring}_{full}_{number}'
-    elif experiment.style == 'bays':
-        suffix = str(number)
-    elif experiment.style == 'berlin_grid':
-        suffix = f'{experiment.k}_{number}_{minimum}_{maximum}'
-    else:
-        suffix = f'{experiment.k}_{minimum}_{maximum}_{number}'
-    for index, name, _ in extra_filename_fields(experiment):
-        suffix += f'_{name}{configuration[index]}'
-    return f'{prefix}_{suffix}.xlsx'
+def execute(experiment, output_dir=None, *, problem_type=None, dataset=None,
+            run_options=None, datasets_root=None):
+    """Coordinate a run with an optional dataset descriptor and experiment options.
 
+    Explicit dataset/output paths avoid loading default configuration. Missing
+    values use options loaded on demand, preserving project-relative defaults
+    and working-directory-relative explicit output paths. dataset is a mapping
+    with filename and format; it takes precedence over run_options['datasets'].
+    datasets_root defaults to ROOT/datasets. problem_type overrides the selection
+    based on experiment.refuel.
 
-def create_run_directory(experiment, output_dir=None):
-    """Reserve a unique execution directory and save its effective configuration."""
-    created_at = datetime.now(timezone.utc).replace(microsecond=0)
-
-    def compact(values):
-        values = tuple(values)
-        text = '-'.join(map(str, values)) if len(values) <= 2 else f'{values[0]}-{values[-1]}x{len(values)}'
-        return re.sub(r'[^A-Za-z0-9.-]', '-', text)[:24]
-
-    summary = '_'.join(f'{name}{compact(values)}' for name, values in (
-        ('N', experiment.particles), ('c1', experiment.steps), ('opt', experiment.opts),
-        ('ring', experiment.rings), ('full', experiment.full_tanks),
-        ('k', (experiment.k,)), ('min', experiment.minimums), ('max', experiment.maximums),
-    ))
-    parent = (Path(output_dir) if output_dir is not None
-              else ROOT / RUN_OPTIONS['output_dir']) / experiment.dataset
-    parent.mkdir(parents=True, exist_ok=True)
-    stem = f'{created_at:%Y-%m-%d_%H-%M-%S}_{summary}'
-    attempt = 1
-    while True:
-        destination = parent / (stem if attempt == 1 else f'{stem}__{attempt}')
-        try:
-            destination.mkdir()
-            break
-        except FileExistsError:
-            attempt += 1
-    configuration = asdict(experiment)
-    configuration['repetitions'] = {'start': experiment.repetitions.start,
-                                    'stop': experiment.repetitions.stop,
-                                    'step': experiment.repetitions.step}
-    configuration['created_at'] = created_at.isoformat()
-    with (destination / 'run_config.json').open('x', encoding='utf-8') as stream:
-        json.dump(configuration, stream, indent=2, ensure_ascii=False)
-        stream.write('\n')
-    return destination
-
-
-def execute(experiment, output_dir=None, *, problem_type=None):
-    """Run a registered problem, defaulting to the legacy refuel configuration."""
+    Return the reserved run directory. Duplicate Excel filenames raise ValueError
+    before storage is created; reader, storage and solver errors propagate. Once
+    created, snapshots and partial results remain available after a solver error.
+    """
     if problem_type is None:
         problem_type = 'tspwr' if experiment.refuel else 'tsp'
     solver_class, problem_arguments = SOLVER_REGISTRY[problem_type]
-    matrix, prices = load_dataset(experiment.dataset)
+    if run_options is None and (dataset is None or output_dir is None):
+        run_options = load_run_options()
+    if dataset is None:
+        dataset = run_options['datasets'][experiment.dataset]
+    matrix, prices = _load_dataset(dataset, ROOT / 'datasets' if datasets_root is None else datasets_root)
     if experiment.excel:
         filenames = [result_filename(experiment, c) for c in experiment.configurations()]
         if len(filenames) != len(set(filenames)):
             raise ValueError('Experiment contains duplicate result filenames')
-    destination = create_run_directory(experiment, output_dir)
+    destination = create_run_directory(experiment, output_dir, run_options=run_options)
     for index, configuration in enumerate(experiment.configurations(), 1):
         n, c1, opt, minimum, maximum, ring, full, _ = configuration
         print(f'\nRun {index}/{experiment.count}: N={n}, c1={c1}, '
@@ -210,68 +93,8 @@ def execute(experiment, output_dir=None, *, problem_type=None):
                       maxPermut=maximum, k=experiment.k)
     return destination
 
-def choose_option(title, options, describe, numbers=None):
-    numbered_options = dict(zip(numbers if numbers is not None else range(1, len(options) + 1),
-                                options))
-    print(f'\n{title}')
-    for number, option in numbered_options.items():
-        print(f'{number:2}. {describe(option)}')
-    print(' 0. Exit')
-    while True:
-        try:
-            choice = int(input('\nNumber: '))
-        except ValueError:
-            print('Enter a number from the menu.')
-            continue
-        if choice == 0:
-            return None
-        if choice in numbered_options:
-            return numbered_options[choice]
-        print('That number is not on the menu.')
-
-
-def choose_experiment():
-    return choose_option('What do you want to run?', EXPERIMENTS,
-                         lambda experiment: f'{experiment.dataset}: {experiment.label} '
-                         f'({experiment.count} runs)')
-
-
-def analysis_menu_options(analyses):
-    """Show the same experiments in the same order as run."""
-    by_experiment = {(a['experiment']['dataset'], a['experiment']['label']): a
-                     for a in analyses if 'experiment' in a}
-    return {number: by_experiment[(experiment.dataset, experiment.label)]
-            for number, experiment in enumerate(EXPERIMENTS, 1)}
-
-
 def main():
-    try:
-        mode = choose_option('What do you want to do?', ('run', 'analysis'),
-                             lambda mode: 'run — Execute' if mode == 'run' else 'analysis — Analyze results')
-        if mode == 'run':
-            experiment = choose_experiment()
-            if experiment is not None:
-                execute(experiment)
-        elif mode == 'analysis':
-            from ..analysis.analysis import analyze, first_missing_result, load_analysis_options
-            numbered = analysis_menu_options(load_analysis_options())
-            counts = {(experiment.dataset, experiment.label): experiment.count
-                      for experiment in EXPERIMENTS}
-            analysis = choose_option('Which results do you want to analyze?', list(numbered.values()),
-                                     lambda option: f"{option['label']} "
-                                     f"({counts[(option['experiment']['dataset'], option['experiment']['label'])]} runs)",
-                                     numbers=numbered)
-            if analysis is not None:
-                number = next(number for number, item in numbered.items() if item is analysis)
-                missing = first_missing_result(analysis)
-                if missing is not None:
-                    print(f'Missing results for option {number}: {missing}')
-                    if input(f'Run option {number} now? [y/N]: ').strip().lower() not in ('y', 'yes'):
-                        return
-                    execute(EXPERIMENTS[number - 1])
-                analyze(analysis)
-    except (EOFError, KeyboardInterrupt):
-        print('\nOperation cancelled.')
-    except (OSError, ValueError, KeyError) as error:
-        print(f'Could not complete the operation: {error}')
-
+    """Compatibility entry point for the terminal interface."""
+    # terminal imports runner; defer this reverse dependency until invocation.
+    from ..presentation.terminal import main as terminal_main
+    return terminal_main()

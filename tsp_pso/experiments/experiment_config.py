@@ -11,6 +11,8 @@ from pathlib import Path
 
 SUPPORTED_PROBLEM_MODES = frozenset({'tsp', 'tspwr'})
 SUPPORTED_OPERATORS = frozenset({1, 2, 3, 4, 5, 10, 12, 15, 21})
+# OPERATORS_USING_K / OPERATORS_USING_PRIMARY_SHARE:
+# Operator IDs used to determine which parameters are applicable.
 OPERATORS_USING_K = frozenset({4, 5, 15})
 OPERATORS_USING_PRIMARY_SHARE = frozenset({12, 15, 21})
 FUEL_FIELDS = frozenset({'fuel_capacity', 'consumption', 'full_initial_tank'})
@@ -70,6 +72,7 @@ class RepetitionSpec:
         _positive_integer('repetitions.first_id', self.first_id)
 
 
+# Values are validation lower bounds, not configuration defaults.
 _INTEGER_FIELDS = {'particles': 2, 'c1': 1, 'k': 1}
 _BOOLEAN_FIELDS = ('ring', 'permutation_reset', 'full_initial_tank')
 _PROBABILITY_FIELDS = (
@@ -77,6 +80,7 @@ _PROBABILITY_FIELDS = (
     'primary_operator_share',
 )
 _POSITIVE_FIELDS = ('fuel_capacity', 'consumption', 'reset_threshold_divisor')
+# Collection validation and JSON conversion; execution order is defined separately.
 _SWEEP_FIELDS = (
     'datasets', 'problem_modes', 'particles', 'c1', 'operators', 'k',
     *_BOOLEAN_FIELDS, *_PROBABILITY_FIELDS, *_POSITIVE_FIELDS,

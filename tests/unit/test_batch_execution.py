@@ -1,4 +1,6 @@
 """Manifest persistence and adapter tests without expensive solver executions."""
+from tsp_pso.infrastructure.experiment_options import load_run_options
+from tsp_pso.experiments.experiment import build_experiments
 from dataclasses import replace
 import json
 import pytest
@@ -7,6 +9,8 @@ from tsp_pso.experiments.experiment_config import ExperimentConfiguration, Repet
 from tsp_pso.experiments.experiment_batch import compile_plan, iterate_runs, load_presets
 from tsp_pso.experiments.batch_store import create_batch, batch_status, connect, mark_interrupted
 from tsp_pso.experiments.batch_executor import execute_batch, to_legacy_experiment
+
+from tsp_pso.experiments.result_naming import result_filename
 
 pytestmark = pytest.mark.unit
 
@@ -60,7 +64,7 @@ def test_failure_and_interrupt_preserve_completed_and_pending(tmp_path, error, s
 
 def test_adapter_preserves_legacy_names_and_arguments():
     from tsp_pso.application import runner
-    for preset, old in zip(load_presets(), runner.EXPERIMENTS):
+    for preset, old in zip(load_presets(), build_experiments(load_run_options())):
         for run in iterate_runs(compile_plan(preset)):
             converted = to_legacy_experiment(run)
             assert converted.label == old.label
@@ -69,4 +73,4 @@ def test_adapter_preserves_legacy_names_and_arguments():
             assert converted.style == old.style
             assert converted.full_tanks == (dict(run.legacy_values)['full_initial_tank'],)
             configuration = next(converted.configurations())
-            assert runner.result_filename(converted, configuration) == runner.result_filename(old, configuration)
+            assert result_filename(converted, configuration) == result_filename(old, configuration)

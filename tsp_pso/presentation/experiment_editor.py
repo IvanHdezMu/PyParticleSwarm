@@ -4,6 +4,8 @@ from dataclasses import replace
 from ..experiments.experiment_config import ExperimentConfiguration
 from ..experiments.experiment_batch import compile_plan, count_runs
 
+# NUMERIC_FIELDS: Numeric input labels and accepted types for the GUI.
+# ExperimentConfiguration performs the final value validation.
 NUMERIC_FIELDS = {
     'particles': ('Number of particles', int), 'c1': ('Search effort (c1)', int),
     'k': ('Segment length (k)', int),
@@ -15,6 +17,8 @@ NUMERIC_FIELDS = {
     'consumption': ('Fuel efficiency (km/L)', float),
     'progress_warmup_multiplier': ('Progress warmup multiplier', float),
 }
+# OPERATOR_LABELS: Operator IDs and labels displayed in the GUI.
+# Their insertion order determines the order of the selectable operators.
 OPERATOR_LABELS = {
     1: 'Segment flip (2-opt)', 2: 'Node relocation (2.5-opt)', 3: 'Node swap (2-opt)',
     4: 'k-segment flip', 5: 'k-segment random (legacy)',

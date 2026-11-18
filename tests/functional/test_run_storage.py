@@ -11,8 +11,13 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from tsp_pso.infrastructure.experiment_options import load_run_options
+from tsp_pso.infrastructure import run_storage
+from tsp_pso.experiments.experiment import Experiment, build_experiments
 from tsp_pso.analysis import analysis
 from tsp_pso.application import runner
+
+from tsp_pso.experiments.result_naming import extra_filename_fields, result_filename
 
 pytestmark = pytest.mark.functional
 
@@ -21,7 +26,7 @@ pytestmark = pytest.mark.functional
 def frozen_clock(monkeypatch):
     clock = Mock()
     clock.now.return_value = datetime(2026, 10, 3, 21, 45, 32, tzinfo=timezone.utc)
-    monkeypatch.setattr(runner, 'datetime', clock)
+    monkeypatch.setattr(run_storage, 'datetime', clock)
 
 
 @pytest.fixture
@@ -34,7 +39,7 @@ def workbook_solver(monkeypatch):
             pd.DataFrame({'Step': [5, 13], 'Result': [100 + len(calls), 10 + len(calls)]}).to_excel(
                 kwargs['file_path'], index=False)
 
-    monkeypatch.setattr(runner, 'load_dataset', lambda name: (np.array([[0, 2], [2, 0]]), None))
+    monkeypatch.setattr(runner, '_load_dataset', lambda descriptor, root: (np.array([[0, 2], [2, 0]]), None))
     monkeypatch.setitem(runner.SOLVER_REGISTRY, 'tsp', (lambda **kwargs: SimpleNamespace(run=run), runner.SOLVER_REGISTRY['tsp'][1]))
     monkeypatch.setitem(runner.SOLVER_REGISTRY, 'tspwr', (lambda **kwargs: SimpleNamespace(run=run), runner.SOLVER_REGISTRY['tspwr'][1]))
     return calls
@@ -42,7 +47,7 @@ def workbook_solver(monkeypatch):
 
 @pytest.fixture
 def experiment():
-    return runner.Experiment(dataset='Minas24D', label='storage test', steps=(2,),
+    return Experiment(dataset='Minas24D', label='storage test', steps=(2,),
                              particles=(2,), opts=(3,), repetitions=range(1, 3),
                              excel=True, analysis_output='Analysis_Minas24D.xlsx')
 
@@ -66,14 +71,14 @@ def test_repeated_execution_in_same_second_never_overwrites(experiment, workbook
 
 
 def test_snapshot_contains_complete_effective_configuration(workbook_solver, frozen_clock, tmp_path):
-    options = runner.load_run_options()
+    options = load_run_options()
     options['experiments'] = [{
         'dataset': 'Minas24D', 'label': 'snapshot', 'steps': [1000, 1200, 1400],
         'particles': [2, 4], 'rings': [True], 'full_tanks': [False],
         'repetitions': {'start': 3, 'stop': 5}, 'reset_threshold_divisor': 2000,
         'primary_operator_share': 0.4, 'progress_warmup_multiplier': 2,
     }]
-    experiment, = runner.build_experiments(options)
+    experiment, = build_experiments(options)
     directory = runner.execute(experiment, output_dir=tmp_path)
     saved = json.loads((directory / 'run_config.json').read_text())
     expected = asdict(experiment)
@@ -107,9 +112,7 @@ def test_analysis_discovers_all_runs_and_keeps_results_separate(experiment, work
     assert {a['run_directory'] for a in analysis.discover_run_analyses(root)} == {str(first), str(second)}
 
     # The saved configuration must suffice even if today's catalog changes.
-    monkeypatch.setattr(runner, 'EXPERIMENTS', [])
-    monkeypatch.setattr(runner, 'RUN_OPTIONS', {})
-    monkeypatch.setattr(runner, 'DATASETS', {})
+    monkeypatch.setattr(analysis, 'load_run_options', lambda: {})
     results = analysis.analyze_runs(root)
     assert set(results) == {str(first), str(second)}
     assert results[str(first)]['mean_minimum_result'].tolist() == [11.5]
@@ -151,10 +154,10 @@ def test_incomplete_run_does_not_block_valid_run(experiment, workbook_solver, tm
 
 def test_all_catalog_paths_are_unique_and_names_preserved(frozen_clock, tmp_path):
     paths = []
-    for experiment in runner.EXPERIMENTS:
+    for experiment in build_experiments(load_run_options()):
         directory = runner.create_run_directory(experiment, output_dir=tmp_path)
-        assert runner.extra_filename_fields(experiment) == []
-        paths.extend(directory / runner.result_filename(experiment, c)
+        assert extra_filename_fields(experiment) == []
+        paths.extend(directory / result_filename(experiment, c)
                      for c in experiment.configurations())
     assert len(paths) == 1209
     assert len(set(paths)) == len(paths)
@@ -206,3 +209,126 @@ def test_saved_repetition_step_is_preserved(experiment, workbook_solver, tmp_pat
     assert len(list(directory.glob('*.xlsx'))) == 3
     result = analysis.analyze_runs(directory.parent)[str(directory)]
     assert result['mean_minimum_result'].tolist() == [12]
+
+
+def test_discovered_relative_paths_survive_working_directory_change(
+        experiment, workbook_solver, tmp_path, monkeypatch):
+    directory = runner.execute(experiment, output_dir=tmp_path / 'working' / 'Results')
+    monkeypatch.chdir(tmp_path / 'working')
+    selected, = analysis.discover_run_analyses(Path('Results/Minas24D'))
+    assert Path(selected['run_directory']) == directory
+    assert Path(selected['input_template']).is_absolute()
+    assert Path(selected['output']) == directory / 'Analysis_Minas24D.xlsx'
+    monkeypatch.chdir(tmp_path)
+    result = analysis.analyze(selected)
+    assert result['mean_minimum_result'].tolist() == [11.5]
+    pd.testing.assert_frame_equal(pd.read_excel(directory / 'Analysis_Minas24D.xlsx'),
+                                  result, check_dtype=False)
+    assert not (tmp_path / 'Results').exists()
+    assert set(analysis.analyze_runs(Path('working/Results/Minas24D'))) == {str(directory)}
+
+
+def test_historical_explicit_absolute_paths_ignore_working_directory(tmp_path, monkeypatch):
+    source = tmp_path / 'history.xlsx'
+    destination = tmp_path / 'historical-summary.xlsx'
+    pd.DataFrame({'Step': [7], 'Result': [12]}).to_excel(source, index=False)
+    selected = {'parameters': {'optType': [1]}, 'columns': ['optType'],
+                'repetitions': {'start': 1, 'stop': 2},
+                'input_template': str(source), 'output': str(destination)}
+    elsewhere = tmp_path / 'elsewhere'
+    elsewhere.mkdir()
+    monkeypatch.chdir(elsewhere)
+    result = analysis.analyze(selected, root=elsewhere)
+    pd.testing.assert_frame_equal(pd.read_excel(destination), result, check_dtype=False)
+    assert list(elsewhere.iterdir()) == []
+
+
+@pytest.mark.parametrize('repetitions, omit_step', [
+    (range(1, 6, 2), False), (range(5, 0, -2), False), (range(2, 5), True),
+])
+def test_snapshot_repetition_ranges(experiment, workbook_solver, tmp_path, repetitions, omit_step):
+    directory = runner.execute(replace(experiment, repetitions=repetitions), output_dir=tmp_path)
+    snapshot = directory / 'run_config.json'
+    if omit_step:
+        saved = json.loads(snapshot.read_text())
+        del saved['repetitions']['step']
+        snapshot.write_text(json.dumps(saved))
+    selected, = analysis.discover_run_analyses(directory.parent)
+    assert list(analysis.repetition_numbers(selected)) == list(repetitions)
+    result = analysis.analyze(selected)
+    assert result['mean_minimum_result'].tolist() == [12.]
+    assert result['mean_step_of_minimum'].tolist() == [13.]
+    assert result['best_result'].tolist() == [11]
+
+
+@pytest.mark.parametrize('repetitions', [
+    {'start': 1, 'stop': 3, 'step': 0},
+    {'start': 3, 'stop': 3},
+    {'start': 3, 'stop': 1, 'step': 1},
+    {'start': 1, 'stop': 3, 'step': -1},
+])
+def test_invalid_snapshot_repetitions_are_skipped(experiment, tmp_path, repetitions, capsys):
+    directory = runner.create_run_directory(experiment, output_dir=tmp_path)
+    snapshot = directory / 'run_config.json'
+    saved = json.loads(snapshot.read_text())
+    saved['repetitions'] = repetitions
+    snapshot.write_text(json.dumps(saved))
+    assert analysis.discover_run_analyses(directory.parent) == []
+    assert capsys.readouterr().out == ''
+
+
+@pytest.mark.parametrize('axis', ['steps', 'particles', 'opts', 'minimums', 'maximums',
+                                  'rings', 'full_tanks'])
+@pytest.mark.parametrize('value', [[], None, 'invalid'])
+def test_snapshot_axes_remain_validated(experiment, tmp_path, axis, value):
+    directory = runner.create_run_directory(experiment, output_dir=tmp_path)
+    snapshot = directory / 'run_config.json'
+    saved = json.loads(snapshot.read_text())
+    saved[axis] = value
+    snapshot.write_text(json.dumps(saved))
+    assert analysis.discover_run_analyses(directory.parent) == []
+
+
+def test_saved_excel_runs_remain_available_with_disabled_current_preset(
+        experiment, workbook_solver, tmp_path, monkeypatch):
+    from tsp_pso.presentation import terminal
+
+    directory = runner.execute(experiment, output_dir=tmp_path)
+    options = load_run_options()
+    options['output_dir'] = str(tmp_path)
+    for entry in options['experiments']:
+        entry['excel'] = False
+    monkeypatch.setattr(analysis, 'load_run_options', lambda path=None: options)
+    monkeypatch.setattr(terminal, 'load_run_options', lambda: options)
+    selected = next(item for item in analysis.load_analysis_options()
+                    if item.get('experiment') == {'dataset': 'Minas24D', 'label': 'individual'})
+    assert analysis.first_missing_result(selected) is None
+    assert set(analysis.analyze(selected)) == {str(directory)}
+    (directory / 'Analysis_Minas24D.xlsx').unlink()
+    responses = iter(['2', '8'])
+    monkeypatch.setattr('builtins.input', lambda prompt: next(responses))
+    execute = Mock()
+    monkeypatch.setattr(runner, 'execute', execute)
+    terminal.main()
+    execute.assert_not_called()
+    assert pd.read_excel(directory / 'Analysis_Minas24D.xlsx')['mean_minimum_result'].tolist() == [11.5]
+
+
+def test_bad_history_diagnostic_does_not_block_other_runs(
+        experiment, workbook_solver, tmp_path, capsys):
+    broken = runner.execute(experiment, output_dir=tmp_path)
+    good = runner.execute(experiment, output_dir=tmp_path)
+    raw = next(broken.glob('*.xlsx'))
+    pd.DataFrame({'Step': ['invalid'], 'Result': [1]}).to_excel(raw, index=False)
+    selected = next(item for item in analysis.discover_run_analyses(broken.parent)
+                    if item['run_directory'] == str(broken))
+    with pytest.raises(ValueError) as caught:
+        analysis.analyze(selected)
+    assert str(raw) in str(caught.value)
+    assert isinstance(caught.value.__cause__, TypeError)
+    assert 'invalid' in str(caught.value)
+    assert set(analysis.analyze_runs(tmp_path / 'Minas24D')) == {str(good)}
+    output = capsys.readouterr().out
+    assert f'Skipping run {broken}' in output
+    assert str(raw) in output
+    assert 'invalid' in output

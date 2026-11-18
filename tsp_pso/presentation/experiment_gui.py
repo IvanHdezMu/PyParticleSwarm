@@ -3,6 +3,7 @@ from dataclasses import replace
 from itertools import product
 from pathlib import Path
 import signal
+import sqlite3
 import tkinter as tk
 from tkinter import filedialog, messagebox
 
@@ -10,10 +11,15 @@ import customtkinter as ctk
 
 from tools.dataset_generators.gui import ThemedDropdown
 from ..experiments.experiment_config import ExperimentConfiguration, RepetitionSpec, is_parameter_active
-from ..experiments.experiment_batch import ROOT, load_catalog, load_presets
+from ..infrastructure.experiment_options import ROOT
+from ..experiments.experiment_batch import load_catalog, load_presets
 from .experiment_editor import NUMERIC_FIELDS, OPERATOR_LABELS, add_numeric, parse_numeric, remove_value, toggle_value, review
 from ..experiments.batch_store import create_batch, batch_status, finish_batch
 from ..experiments.experiment_process import BatchProcess
+
+
+# Bound lock waits during monitoring; execution writes retain their default.
+BATCH_POLL_SQLITE_TIMEOUT = 0.05
 
 
 FIELD_HELP = {
@@ -371,36 +377,44 @@ class ExperimentRunnerApp(ctk.CTk):
             self.batch_directory = create_batch(plan)
             try:
                 self.process = BatchProcess(self.batch_directory)
-            except Exception as error:
-                finish_batch(self.batch_directory,'failed',str(error))
+            except (OSError, sqlite3.Error) as error:
+                try:
+                    finish_batch(self.batch_directory,'failed',str(error))
+                except (OSError, sqlite3.Error) as recording_error:
+                    self.status.configure(text=f'Could not launch: {error}\n'
+                                          f'Could not record batch failure: {recording_error}')
+                    return
                 raise
             self.run_button.configure(state='disabled')
             self.status.configure(text=f'Batch starting…\n{self.batch_directory}')
-        except (ValueError,OSError) as error:
+        except (ValueError, OSError, sqlite3.Error) as error:
             self.status.configure(text=f'Could not launch: {error}')
 
     def poll_execution(self):
         if self.process is not None:
-            if self.interrupt_requested:
-                self.process.interrupt()
-                self.interrupt_requested = False
-            code = self.process.poll()
-            state = batch_status(self.batch_directory)
-            completed = sum(state['counts'][key] for key in ('succeeded','failed','interrupted'))
-            current = state['current']
-            text = f"{state['status'].capitalize()} — {completed:,} / {state['total']:,} finished"
-            if current:
-                text += f"\nRun {state['ordinal']}: {current['dataset']} · operator {current['operator']} · k {current['k']}"
-            if state['error']:
-                text += '\n'+state['error']
-            self.status.configure(text=text+'\n'+str(self.batch_directory))
-            if code is not None:
-                self.process = None
-                self.refresh_review()
+            try:
+                if self.interrupt_requested or self.closing:
+                    self.process.interrupt()
+                    self.interrupt_requested = False
+                code = self.process.poll(sqlite_timeout=BATCH_POLL_SQLITE_TIMEOUT)
+                state = batch_status(self.batch_directory, timeout=BATCH_POLL_SQLITE_TIMEOUT)
+                completed = sum(state['counts'][key] for key in ('succeeded','failed','interrupted'))
+                current = state['current']
+                text = f"{state['status'].capitalize()} — {completed:,} / {state['total']:,} finished"
+                if current:
+                    text += f"\nRun {state['ordinal']}: {current['dataset']} · operator {current['operator']} · k {current['k']}"
+                if state['error']:
+                    text += '\n'+state['error']
                 self.status.configure(text=text+'\n'+str(self.batch_directory))
-                if self.closing:
-                    self.destroy()
-                    return
+                if code is not None:
+                    self.process = None
+                    self.refresh_review()
+                    self.status.configure(text=text+'\n'+str(self.batch_directory))
+                    if self.closing:
+                        self.destroy()
+                        return
+            except (OSError, sqlite3.Error) as error:
+                self.status.configure(text=f'Could not update batch status: {error}\n{self.batch_directory}')
         elif self.interrupt_requested:
             self.destroy()
             return

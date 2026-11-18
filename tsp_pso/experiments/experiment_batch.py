@@ -1,19 +1,25 @@
 """Metadata validation, conditional lazy expansion and editable legacy presets."""
 from dataclasses import asdict, dataclass
 from itertools import product, islice
-import json
 from math import prod
 from pathlib import Path
 
+# Retain ROOT as a compatibility alias for callers of the public loaders.
+from ..infrastructure.experiment_options import ROOT, load_catalog_options, load_preset_options
 from .experiment_config import ExperimentConfiguration, RepetitionSpec, is_parameter_active
 
-ROOT = Path(__file__).resolve().parents[2]
+# EXPANSION_VERSION: Identifies the expansion rules used to create saved batches.
+# Review this version whenever the expansion behavior changes.
 EXPANSION_VERSION = 1
+# CONDITIONAL: Parameters that generate additional runs only when applicable.
+# Their order determines the order of the generated runs.
 CONDITIONAL = (
     'k', 'primary_operator_share', 'minimum_reset_probability',
     'maximum_reset_probability', 'reset_threshold_divisor', 'fuel_capacity',
     'consumption', 'full_initial_tank', 'progress_warmup_multiplier',
 )
+# DEFAULTS: Replacement values used when a parameter does not apply
+# but multiple values were configured for it.
 DEFAULTS = dict(k=10, primary_operator_share=0.2, minimum_reset_probability=0.2,
                 maximum_reset_probability=0.8, reset_threshold_divisor=1000,
                 fuel_capacity=150.0, consumption=7.0, full_initial_tank=False,
@@ -30,9 +36,10 @@ class DatasetDescriptor:
 
 
 def load_catalog():
-    with (ROOT / 'config/datasets.json').open(encoding='utf-8') as stream:
-        return tuple(DatasetDescriptor(id=name, **{**data, 'problem_types': tuple(data['problem_types'])})
-                     for name, data in json.load(stream)['datasets'].items())
+    """Build catalog descriptors from the original project-relative JSON path."""
+    options = load_catalog_options(ROOT / 'config/datasets.json')
+    return tuple(DatasetDescriptor(id=name, **{**data, 'problem_types': tuple(data['problem_types'])})
+                 for name, data in options['datasets'].items())
 
 
 @dataclass(frozen=True)
@@ -136,9 +143,17 @@ def preview_runs(plan, limit=5):
 
 
 def load_presets():
-    # Read JSON, not runner globals: importing presets never loads a matrix/solver.
-    with (ROOT / 'config/experiments.json').open(encoding='utf-8') as stream:
-        options = json.load(stream)
+    """Build presets from the original project-relative JSON path."""
+    options = load_preset_options(ROOT / 'config/experiments.json')
+    return build_presets(options)
+
+
+def build_presets(options):
+    """Convert explicit options to ordered presets without I/O or input mutation.
+
+    Overrides replace defaults shallowly; existing model validation and missing
+    option errors propagate unchanged.
+    """
     presets = []
     for entry in options['experiments']:
         e = {**options['defaults'], **entry}

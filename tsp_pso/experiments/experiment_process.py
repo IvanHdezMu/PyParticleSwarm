@@ -6,7 +6,7 @@ import subprocess
 import sys
 import time
 
-from .experiment_batch import ROOT
+from ..infrastructure.experiment_options import ROOT
 from .batch_store import batch_status, mark_interrupted
 
 
@@ -32,7 +32,7 @@ class BatchProcess:
             except ProcessLookupError:
                 pass
 
-    def poll(self):
+    def poll(self, *, sqlite_timeout=10):
         if (self.interrupt_started is not None and self.process.poll() is None
                 and time.monotonic() - self.interrupt_started > 8):
             if os.name == 'posix':
@@ -45,7 +45,8 @@ class BatchProcess:
                                capture_output=True, check=False)
         code = self.process.poll()
         if code is not None:
-            state = batch_status(self.directory)
+            state = batch_status(self.directory, timeout=sqlite_timeout)
             if state['status'] in ('pending', 'running'):
-                mark_interrupted(self.directory, f'Execution process exited ({code}) without a completion record; see execution.log')
+                mark_interrupted(self.directory, f'Execution process exited ({code}) without a completion record; see execution.log',
+                                 timeout=sqlite_timeout)
         return code

@@ -5,7 +5,10 @@ import json
 import numpy as np
 import pytest
 
+from tsp_pso.infrastructure.experiment_options import load_run_options
+from tsp_pso.experiments.experiment import build_experiments
 from tsp_pso.application import runner
+from tsp_pso.presentation import terminal
 from tsp_pso.analysis.analysis import load_analysis_options
 
 pytestmark = pytest.mark.unit
@@ -18,7 +21,7 @@ pytestmark = pytest.mark.unit
     ('Minas30D', 30, True), ('Minas57D', 57, True),
 ])
 def test_configured_dataset_loads(name, size, has_prices):
-    dataset = runner.DATASETS[name]
+    dataset = load_run_options()['datasets'][name]
     assert dataset['source'] == ('Ottoni et al. (2022)' if has_prices else 'TSPLIB')
     assert dataset['problem_types'] == (['tsp', 'tspwr'] if has_prices else ['tsp'])
     assert dataset['filename'].startswith('Ottoni/' if has_prices else 'TSPLIB/')
@@ -33,10 +36,10 @@ def test_configured_dataset_loads(name, size, has_prices):
 
 
 def test_experiment_count_and_order():
-    assert len(runner.DATASETS) == 10
-    experiments = runner.build_experiments(runner.load_run_options())
+    assert len(load_run_options()['datasets']) == 10
+    experiments = build_experiments(load_run_options())
     assert len(experiments) == 22
-    assert experiments == runner.EXPERIMENTS
+    assert experiments == build_experiments(load_run_options())
     assert [(e.dataset, e.label) for e in experiments] == [
         ('berlin52', 'individual'), ('bays29', 'individual'),
         ('st70', 'individual'), ('ch150', 'individual'),
@@ -56,14 +59,14 @@ def test_experiment_count_and_order():
 
 
 def test_experiment_overrides_replace_defaults_shallowly():
-    options = runner.load_run_options()
+    options = load_run_options()
     options['defaults']['particles'] = [2, 4]
     options['defaults']['repetitions'] = {'start': 5, 'stop': 9}
     options['experiments'] = [{
         'dataset': 'Minas24D', 'label': 'override check', 'steps': [1200],
         'particles': [8], 'repetitions': {'start': 1, 'stop': 2},
     }]
-    experiment, = runner.build_experiments(options)
+    experiment, = build_experiments(options)
     assert experiment.particles == (8,)
     assert experiment.repetitions == range(1, 2)
     assert experiment.opts == (10,)
@@ -73,13 +76,13 @@ def test_experiment_overrides_replace_defaults_shallowly():
     # A partial nested override must not inherit the missing key from defaults.
     options['experiments'][0]['repetitions'] = {'stop': 2}
     with pytest.raises(KeyError, match='start'):
-        runner.build_experiments(options)
+        build_experiments(options)
 
 
 def test_historical_analyses_preserved():
     analyses = load_analysis_options()
     historical = analyses[:2]
-    assert historical == runner.load_run_options()['historical_analyses']
+    assert historical == load_run_options()['historical_analyses']
     assert historical == [
         {
             'id': identifier, 'label': f'berlin52: {identifier} (historical)',
@@ -91,14 +94,14 @@ def test_historical_analyses_preserved():
         for identifier in ('00', '02_08')
     ]
     assert len(analyses) == 24
-    numbered = runner.analysis_menu_options(analyses)
+    numbered = terminal.analysis_menu_options(analyses)
     assert list(numbered) == list(range(1, 23))
     assert [(a['experiment']['dataset'], a['experiment']['label'])
-            for a in numbered.values()] == [(e.dataset, e.label) for e in runner.EXPERIMENTS]
+            for a in numbered.values()] == [(e.dataset, e.label) for e in build_experiments(load_run_options())]
 
 
 def test_split_config_uses_sibling_files(tmp_path):
-    expected = runner.load_run_options()
+    expected = load_run_options()
     expected['output_dir'] = 'alternate-results'
     expected['defaults']['verbose'] = False
     expected['historical_analyses'] = []
@@ -108,12 +111,12 @@ def test_split_config_uses_sibling_files(tmp_path):
         ('historical_analyses.json', ['historical_analyses']),
     ]:
         (tmp_path / filename).write_text(json.dumps({key: expected[key] for key in keys}))
-    assert runner.load_run_options(tmp_path / 'experiments.json') == expected
+    assert load_run_options(tmp_path / 'experiments.json') == expected
     assert len(load_analysis_options(tmp_path / 'experiments.json')) == 22
 
 
 def test_explicit_combined_config_remains_supported(tmp_path):
-    expected = runner.load_run_options()
+    expected = load_run_options()
     path = tmp_path / 'combined.json'
     path.write_text(json.dumps(expected))
-    assert runner.load_run_options(path) == expected
+    assert load_run_options(path) == expected

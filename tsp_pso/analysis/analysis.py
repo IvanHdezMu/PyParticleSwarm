@@ -1,21 +1,27 @@
-"""Analyze results using experiments defined in config/experiments.json."""
-from dataclasses import fields, replace
+"""Analyze catalog selections, saved run snapshots and historical Excel results."""
+from dataclasses import fields
 from datetime import datetime
 from itertools import product
 import json
+from pathlib import Path
 import re
 from zipfile import BadZipFile
-from pathlib import Path
 
 import pandas as pd
 
+from ..experiments.experiment import Experiment, build_experiments
+from ..experiments.result_naming import extra_filename_fields, result_filename
+from ..infrastructure.experiment_options import load_run_options
+
+# ROOT: Project root directory used as the default base path
+# when locating and analyzing experiment results.
 ROOT = Path(__file__).resolve().parents[2]
+# METRICS: Names of the analysis metrics, in the same order as their calculated values.
 METRICS = ['mean_minimum_result', 'mean_step_of_minimum', 'best_result']
 
 
 def analysis_for_experiment(analysis, options):
     """Resolve a run reference using the same configurations and names as execute."""
-    from ..application.runner import build_experiments, extra_filename_fields, result_filename
 
     reference = analysis['experiment']
     matches = [experiment for experiment in build_experiments(options)
@@ -23,9 +29,13 @@ def analysis_for_experiment(analysis, options):
                and experiment.label == reference['label']]
     if len(matches) != 1:
         raise ValueError(f"{analysis['id']}: the analysis must match exactly one run.")
-    experiment = matches[0]
-    if not experiment.excel:
+    if not matches[0].excel:
         raise ValueError(f"{analysis['id']}: the run does not save results (excel=false).")
+    return _analysis_from_experiment(analysis, matches[0], options['output_dir'])
+
+
+def _analysis_from_experiment(analysis, experiment, output_dir):
+    """Build a selection independently of whether its current preset saves Excel."""
     parameters = {'random': [True], 'N': list(experiment.particles),
                   'c1': list(experiment.steps), 'optType': list(experiment.opts)}
     if experiment.style == 'fuel':
@@ -37,7 +47,7 @@ def analysis_for_experiment(analysis, options):
         parameters[name] = list(values)
     filename = result_filename(experiment, ('{N}', '{c1}', '{optType}',
                               '{minR}', '{maxR}', '{ring}', '{full}', '{number}'))
-    destination = Path(options['output_dir']) / experiment.dataset
+    destination = Path(output_dir) / experiment.dataset
     return {**analysis, 'run_root': str(destination), 'parameters': parameters, 'columns': list(parameters),
             'repetitions': {'start': experiment.repetitions.start,
                             'stop': experiment.repetitions.stop},
@@ -46,8 +56,14 @@ def analysis_for_experiment(analysis, options):
 
 
 def load_analysis_options(run_options_path=None):
-    from ..application.runner import build_experiments, load_run_options
+    """Return historical analyses followed by analyses of configured experiments.
 
+    Path resolution follows load_run_options(). Validate identifiers, parameter
+    lists, columns and repetitions, raising ValueError for invalid definitions.
+    Catalog selections remain available when their current preset disables Excel;
+    saved snapshots determine availability. Configuration reading errors propagate
+    unchanged.
+    """
     options = load_run_options(run_options_path)
     analyses = list(options.get('historical_analyses', []))
     for experiment in build_experiments(options):
@@ -58,7 +74,7 @@ def load_analysis_options(run_options_path=None):
             'output': experiment.analysis_output or
                       f'Analysis_{experiment.dataset}_{experiment.label}.xlsx',
         }
-        analyses.append(analysis_for_experiment(analysis, options))
+        analyses.append(_analysis_from_experiment(analysis, experiment, options['output_dir']))
     identifiers = set()
     for analysis in analyses:
         if analysis['id'] in identifiers:
@@ -76,9 +92,8 @@ def load_analysis_options(run_options_path=None):
 
 def discover_run_analyses(dataset_root):
     """Read self-contained run snapshots, ignoring unrelated or malformed directories."""
-    from ..application.runner import Experiment, build_experiments, result_filename
 
-    dataset_root = Path(dataset_root)
+    dataset_root = Path(dataset_root).resolve()
     if not dataset_root.is_dir():
         return []
     analyses = []
@@ -94,12 +109,15 @@ def discover_run_analyses(dataset_root):
                 raise ValueError('Run dataset does not match its directory')
             if type(configuration['excel']) is not bool or not configuration['excel']:
                 continue
-            options = {'defaults': {}, 'experiments': [configuration],
-                       'datasets': {configuration['dataset']: {}}, 'output_dir': str(dataset_root.parent)}
-            experiment, = build_experiments(options)
+            for name in ('steps', 'particles', 'opts', 'minimums', 'maximums',
+                         'rings', 'full_tanks'):
+                if not isinstance(configuration[name], list) or not configuration[name]:
+                    raise ValueError(f'{name} must be a non-empty list.')
+                configuration[name] = tuple(configuration[name])
             repetitions = configuration['repetitions']
-            experiment = replace(experiment, repetitions=range(
-                repetitions['start'], repetitions['stop'], repetitions.get('step', 1)))
+            configuration['repetitions'] = range(
+                repetitions['start'], repetitions['stop'], repetitions.get('step', 1))
+            experiment = Experiment(**configuration)
             if not experiment.repetitions:
                 raise ValueError('Empty repetitions')
             output = experiment.analysis_output or f'Analysis_{experiment.dataset}_{experiment.label}.xlsx'
@@ -107,11 +125,11 @@ def discover_run_analyses(dataset_root):
                 raise ValueError('Analysis output must be an Excel filename inside the run directory')
             if output in {result_filename(experiment, c) for c in experiment.configurations()}:
                 raise ValueError('Analysis output collides with a raw result')
-            analysis = analysis_for_experiment({
+            analysis = _analysis_from_experiment({
                 'id': directory.name, 'label': experiment.label,
                 'experiment': {'dataset': experiment.dataset, 'label': experiment.label},
                 'output': output,
-            }, options)
+            }, experiment, dataset_root.parent)
             analysis['input_template'] = str(directory / Path(analysis['input_template']).name)
             analysis['output'] = str(directory / output)
             analysis['repetitions'] = repetitions
@@ -134,11 +152,18 @@ def analyze_runs(dataset_root):
 
 
 def repetition_numbers(analysis):
+    """Return the saved start/stop range, honoring step when present (default 1)."""
     repetitions = analysis['repetitions']
     return range(repetitions['start'], repetitions['stop'], repetitions.get('step', 1))
 
 
 def first_missing_result(analysis, root=None):
+    """Return the first missing input Path, or None when the selection is available.
+
+    Catalog selections require a discoverable run snapshot, not a complete set
+    of workbooks. Historical and individual-run selections check each expected
+    file. Relative paths use root, or the project root when it is omitted.
+    """
     base = Path(root) if root is not None else ROOT
     if 'experiment' in analysis and 'run_directory' not in analysis:
         dataset_root = base / analysis['run_root']
@@ -153,12 +178,28 @@ def first_missing_result(analysis, root=None):
     return None
 
 
+def _history_minimum(frame):
+    """Return the first sampled minimum and its Step without changing the frame."""
+    if not {'Result', 'Step'}.issubset(frame.columns):
+        raise ValueError('missing Result or Step columns.')
+    if frame.empty or frame['Result'].isna().all():
+        raise ValueError('does not contain valid results.')
+    index = frame['Result'].idxmin()
+    minimum = frame.loc[index, 'Result']
+    step = frame.loc[index, 'Step']
+    if pd.isna(step):
+        raise ValueError('the minimum result has no Step.')
+    return minimum, step
+
+
 def analyze(analysis, root=None):
     """Group minimum results and steps by configuration and save the completed table.
 
     Experiment selections scan dataset run directories. Historical and individual
     run analyses reject incomplete inputs; the directory scanner skips failed runs.
-    Relative paths are resolved from the project directory.
+    Relative paths use root, or the project directory when omitted. Return a
+    DataFrame for a single analysis, or a mapping of run paths to DataFrames for
+    a catalog selection. Single analyses propagate read/validation/write errors.
     """
     base = Path(root) if root is not None else ROOT
     if 'experiment' in analysis and 'run_directory' not in analysis:
@@ -170,27 +211,30 @@ def analyze(analysis, root=None):
         raise ValueError('The repetition range cannot be empty.')
     for values in product(*parameters.values()):
         configuration = dict(zip(parameters, values))
-        minimums, steps = [], []
+        minimums, steps, paths = [], [], []
         for number in numbers:
             path = base / analysis['input_template'].format(**configuration, number=number)
             try:
                 frame = pd.read_excel(path)
             except FileNotFoundError as error:
                 raise FileNotFoundError(f'Missing results file: {path}') from error
-            if not {'Result', 'Step'}.issubset(frame.columns):
-                raise ValueError(f'{path}: missing Result or Step columns.')
-            if frame.empty or frame['Result'].isna().all():
-                raise ValueError(f'{path}: does not contain valid results.')
-            index = frame['Result'].idxmin()
-            minimum = frame.loc[index, 'Result']
-            step = frame.loc[index, 'Step']
-            if pd.isna(step):
-                raise ValueError(f'{path}: the minimum result has no Step.')
+            except (OSError, ValueError, KeyError, TypeError, BadZipFile) as error:
+                raise ValueError(f'{path}: {error}') from error
+            try:
+                minimum, step = _history_minimum(frame)
+            except (ValueError, KeyError, TypeError) as error:
+                raise ValueError(f'{path}: {error}') from error
             minimums.append(minimum)
             steps.append(step)
+            paths.append(path)
         row = {column: configuration[column] for column in analysis['columns']}
-        row.update(zip(METRICS, (sum(minimums) / len(minimums),
-                                sum(steps) / len(steps), min(minimums))))
+        try:
+            row.update(zip(METRICS, (sum(minimums) / len(minimums),
+                                    sum(steps) / len(steps), min(minimums))))
+        except (ValueError, TypeError) as error:
+            inputs = '; '.join(f'{path} (minimum={minimum!r}, Step={step!r})'
+                               for path, minimum, step in zip(paths, minimums, steps))
+            raise ValueError(f'Cannot aggregate histories: {inputs}: {error}') from error
         rows.append(row)
     table = pd.DataFrame(rows, columns=analysis['columns'] + METRICS)
     if analysis['output'] is not None:
