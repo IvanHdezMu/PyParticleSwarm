@@ -1,11 +1,11 @@
 # Constants, defaults and shared metadata
 
-This reference describes production data identified by the audit of all 78 Python
-files (42 production files and 36 test files). It distinguishes module metadata,
+This reference describes production data identified by the audit of all 82 Python
+files (42 production files and 40 test files). It distinguishes module metadata,
 dataclass defaults, imported aliases and shared runtime state. Ordinary imports of
 functions, classes and modules are not themselves constants.
 
-The production inventory contains 24 module-level data definitions and nine
+The production inventory contains 25 module-level data definitions and nine
 imported bindings to those definitions. The sections below also cover solver
 class attributes and every dataclass field with a default. Values describe the
 current contracts; changing them can affect compatibility even when the change
@@ -310,6 +310,19 @@ Defined only in `experiment_gui.py`, this dictionary supplies optional text for
 size, primary share, probabilities, reset threshold and recording warmup,
 respectively. Changes affect help text only, not validation or calculations.
 
+### `BATCH_POLL_SQLITE_TIMEOUT`
+
+Defined in [experiment_gui.py](../tsp_pso/presentation/experiment_gui.py), this
+float has the value `0.05` seconds. `poll_execution()` passes it to
+`BatchProcess.poll(sqlite_timeout=...)` and `batch_status(timeout=...)` to limit
+SQLite lock waits exclusively during GUI monitoring and reconciliation. When
+`BatchProcess.poll()` detects that the execution process has exited, it forwards
+the same timeout to its status read and, if needed, `mark_interrupted()`.
+
+This bounds lock waits for those operations, not the total polling duration or
+the polling interval. Other consumers, including execution writes, retain the
+default timeout of 10 seconds; the GUI does not change a global SQLite timeout.
+
 ## Paths, files and imported aliases
 
 Three modules independently define `ROOT = Path(__file__).resolve().parents[2]`.
@@ -512,6 +525,6 @@ Keep metadata near the responsibility that interprets it. A single project-wide
 Existing globals outside these tables are ordinary imported modules/functions or
 classes, including compatibility reexports such as `runner.Experiment`.
 `main.py`, terminal, storage helpers, TSPLIB readers and package initializers do
-not introduce additional module data constants. Local literals such as the
-SQLite timeout or interruption grace period are operational policy, not shared
-module state.
+not introduce additional module data constants. The default SQLite timeout and
+the interruption grace period remain local operational policy; the GUI polling
+timeout is the module-level constant documented above.
