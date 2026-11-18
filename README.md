@@ -124,7 +124,8 @@ scientific numeric controls retain their editable sweeps.
 Numeric fields have an **Add** button (or press Enter) and removable value chips.
 Values retain insertion order; duplicates and invalid values are rejected. Add a
 replacement before removing the last value. Boolean sweep controls allow Off,
-On, or both. Presets populate the form without executing anything.
+On, or both. Presets populate the form without executing anything. Add or clear
+any typed value in an active numeric sweep field before launching a batch.
 
 The collapsed **Advanced settings** section contains the reset threshold divisor,
 first repetition ID, progress warmup multiplier, and output directory. Presets
@@ -145,6 +146,17 @@ reads metadata only. Inactive settings remain available for later edits. Click
 sequentially in a separate coordinator process while the GUI remains responsive;
 each solver manages its own multiprocessing pool. Editing the form afterward
 does not change the frozen configuration of the launched batch.
+
+The status area shows the current batch state, finished-run count, active run,
+errors, and output directory. **Run batch** remains unavailable until tracking
+confirms that the execution has ended. If a status update fails, the GUI displays
+a diagnostic and keeps checking; this does not mean the batch has finished or
+failed. The GUI tracks the batch launched in that window; it does not reopen
+previous batches or display numerical results.
+
+If launch fails, the status area reports the error. After addressing its cause,
+you can try launching a new batch; any partially created output directory is
+left in place.
 
 Batch output is stored under:
 
@@ -167,7 +179,10 @@ individually. A failed run stops the batch; later runs remain pending.
 interruption, stops the active batch. Completed files/statuses remain saved; the
 unconfirmed active run is marked interrupted and later runs stay pending. Partial
 active-run artifacts may remain. Abrupt OS termination or power loss can leave
-stale running status; there is no automatic recovery/resume UI.
+stale running status; there is no automatic recovery/resume UI. After confirming
+window closure, wait for interruption and final status handling to complete; the
+window can remain open if status access keeps failing. Ctrl+C during a batch
+interrupts execution but leaves the GUI open; Ctrl+C while idle closes it.
 
 An already-created, new pending batch can also be started headlessly:
 
