@@ -4,7 +4,7 @@ from pathlib import Path
 from ..algorithms.core.pso_config import PSOConfig
 from ..algorithms.solver_registry import SOLVER_REGISTRY
 # Experiment also preserves unpickling of instances saved under the runner module.
-from ..experiments.experiment import Experiment as Experiment, build_experiments as _build_experiments
+from ..experiments.experiment import Experiment as Experiment
 from ..experiments.result_naming import result_filename
 from ..infrastructure.dataset_reader import load_dataset as _load_dataset
 from ..infrastructure.experiment_options import load_run_options
@@ -12,24 +12,6 @@ from ..infrastructure.run_storage import create_run_directory as _create_run_dir
 
 # ROOT: Project root directory used to resolve default dataset and output paths.
 ROOT = Path(__file__).resolve().parents[2]
-
-
-def build_experiments(options=None):
-    """Compatibility entry point; load default options only when called without them."""
-    return _build_experiments(load_run_options() if options is None else options)
-
-
-def load_dataset(name, *, datasets=None, datasets_root=None):
-    """Return (distance matrix, prices) for a named catalog entry.
-
-    Omitted datasets are loaded from the default configuration. Relative dataset
-    filenames use datasets_root, or the project's datasets directory by default;
-    absolute filenames are preserved. Unknown names raise KeyError and reader
-    errors propagate unchanged.
-    """
-    if datasets is None:
-        datasets = load_run_options()['datasets']
-    return _load_dataset(datasets[name], ROOT / 'datasets' if datasets_root is None else datasets_root)
 
 
 def execute(run, output_dir=None, *, dataset=None, run_options=None, datasets_root=None):

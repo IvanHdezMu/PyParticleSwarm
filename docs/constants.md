@@ -332,7 +332,7 @@ each other. A `Path` is immutable; its module binding can still be replaced.
 | Definition | Local consumers | Effect of changing it |
 | --- | --- | --- |
 | [infrastructure/experiment_options.py](../tsp_pso/infrastructure/experiment_options.py) | `load_run_options()`, `load_catalog_options()`, `load_preset_options()` | Changes default configuration locations. Also supplies the aliases below. |
-| [application/runner.py](../tsp_pso/application/runner.py) | `load_dataset()`, `execute()` | Changes default dataset and configured output bases. Explicit output paths retain working-directory semantics. |
+| [application/runner.py](../tsp_pso/application/runner.py) | `execute()` | Changes default dataset and configured output bases. Explicit output paths retain working-directory semantics. |
 | [analysis/analysis.py](../tsp_pso/analysis/analysis.py) | `analyze()` | Changes the default base for relative analysis paths; explicit `root` takes precedence. |
 
 The infrastructure root is imported into:

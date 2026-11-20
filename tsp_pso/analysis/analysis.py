@@ -46,20 +46,6 @@ def historical_result_filename(experiment, configuration):
                            configuration, extra_filename_fields(experiment))
 
 
-def analysis_for_experiment(analysis, options):
-    """Resolve a run reference using the same configurations and names as execute."""
-
-    reference = analysis['experiment']
-    matches = [experiment for experiment in build_experiments(options)
-               if experiment.dataset == reference['dataset']
-               and experiment.label == reference['label']]
-    if len(matches) != 1:
-        raise ValueError(f"{analysis['id']}: the analysis must match exactly one run.")
-    if not matches[0].excel:
-        raise ValueError(f"{analysis['id']}: the run does not save results (excel=false).")
-    return _analysis_from_experiment(analysis, matches[0], options['output_dir'])
-
-
 def _analysis_from_experiment(analysis, experiment, output_dir):
     """Build a selection independently of whether its current preset saves Excel."""
     parameters = {'random': [True], 'N': list(experiment.particles),

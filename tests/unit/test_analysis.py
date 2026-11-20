@@ -90,16 +90,6 @@ def test_catalog_definitions_preserve_names_columns_and_order(monkeypatch):
             assert actual.name == result_filename(experiment, configuration)
 
 
-@pytest.mark.parametrize('matches', [0, 2])
-def test_public_analysis_reference_requires_exactly_one_match(matches):
-    options = analysis.load_run_options()
-    options['experiments'] = options['experiments'][:1] * matches
-    reference = {'id': 'selection', 'experiment': {'dataset': 'berlin52', 'label': 'individual'},
-                 'output': None}
-    with pytest.raises(ValueError, match='must match exactly one run'):
-        analysis.analysis_for_experiment(reference, options)
-
-
 def test_disabled_excel_presets_do_not_block_catalog_or_history(monkeypatch):
     expected = analysis.load_analysis_options()
     options = analysis.load_run_options()
@@ -107,8 +97,6 @@ def test_disabled_excel_presets_do_not_block_catalog_or_history(monkeypatch):
     monkeypatch.setattr(analysis, 'load_run_options', lambda path=None: options)
     actual = analysis.load_analysis_options()
     assert actual == expected
-    with pytest.raises(ValueError, match='excel=false'):
-        analysis.analysis_for_experiment(actual[2], options)
 
 
 @pytest.mark.parametrize('error_type', [OSError, ValueError, KeyError, TypeError, BadZipFile])

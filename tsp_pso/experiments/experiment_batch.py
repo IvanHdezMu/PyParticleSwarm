@@ -1,6 +1,6 @@
 """Metadata validation, conditional lazy expansion and editable legacy presets."""
 from dataclasses import asdict, dataclass
-from itertools import product, islice
+from itertools import product
 from math import prod
 from pathlib import Path
 
@@ -134,12 +134,6 @@ def iterate_runs(plan):
                     excel=c.excel, output_dir=c.output_dir, name=c.name,
                     legacy_style=c.legacy_style, legacy_label=c.legacy_label, analysis_output=c.analysis_output,
                     legacy_values=effective)
-
-
-def preview_runs(plan, limit=5):
-    if type(limit) is not int or limit < 0:
-        raise ValueError('Preview limit must be a nonnegative integer')
-    return tuple(islice(iterate_runs(plan), limit))
 
 
 def load_presets():

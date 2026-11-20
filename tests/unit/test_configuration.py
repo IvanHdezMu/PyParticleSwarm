@@ -7,7 +7,8 @@ import pytest
 
 from tsp_pso.infrastructure.experiment_options import load_run_options
 from tsp_pso.experiments.experiment import build_experiments
-from tsp_pso.application import runner
+from tsp_pso.infrastructure.dataset_reader import load_dataset
+from tsp_pso.infrastructure.experiment_options import ROOT
 from tsp_pso.analysis.analysis import load_analysis_options
 
 pytestmark = pytest.mark.unit
@@ -24,7 +25,7 @@ def test_configured_dataset_loads(name, size, has_prices):
     assert dataset['source'] == ('Ottoni et al. (2022)' if has_prices else 'TSPLIB')
     assert dataset['problem_types'] == (['tsp', 'tspwr'] if has_prices else ['tsp'])
     assert dataset['filename'].startswith('Ottoni/' if has_prices else 'TSPLIB/')
-    matrix, prices = runner.load_dataset(name)
+    matrix, prices = load_dataset(dataset, ROOT / 'datasets')
     assert matrix.shape == (size, size)
     assert np.all(np.isfinite(matrix))
     if has_prices:

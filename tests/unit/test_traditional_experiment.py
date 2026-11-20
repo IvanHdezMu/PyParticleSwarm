@@ -1,34 +1,18 @@
 """Compatibility of the extracted traditional experiment model."""
 
-from copy import copy, deepcopy
+from copy import copy
 from multiprocessing import get_all_start_methods, get_context
 import pickle
 
 import pytest
 
 from tsp_pso.application import runner
-from tsp_pso.infrastructure.experiment_options import load_run_options
-from tsp_pso.experiments.experiment import Experiment, build_experiments
-
-
-@pytest.mark.unit
-def test_runner_wrapper_uses_current_options(monkeypatch):
-    options = load_run_options()
-    options['experiments'] = [dict(options['experiments'][0], label='wrapper test')]
-    monkeypatch.setattr(runner, 'load_run_options', lambda: options)
-    expected = build_experiments(options)
-    assert runner.Experiment is Experiment
-    assert runner.build_experiments() == expected
-    assert runner.build_experiments(None) == expected
-    assert runner.build_experiments(options) == expected
-    explicit = deepcopy(options)
-    explicit['experiments'][0]['label'] = 'explicit test'
-    assert runner.build_experiments(explicit) == build_experiments(explicit)
-    assert runner.build_experiments(explicit) != expected
+from tsp_pso.experiments.experiment import Experiment
 
 
 @pytest.mark.unit
 def test_old_module_pickle_remains_loadable():
+    assert runner.Experiment is Experiment
     experiment = Experiment(dataset='sample', label='pickle', steps=(2,),
                             repetitions=range(3, 9, 2))
     current = pickle.dumps(experiment, protocol=0)

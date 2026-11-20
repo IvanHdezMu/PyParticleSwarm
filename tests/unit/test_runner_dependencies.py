@@ -104,7 +104,6 @@ def test_traditional_presets_and_configuration_order():
     experiments = build_experiments(options)
     assert len(experiments) == 22
     assert sum(e.count for e in experiments) == 1209
-    assert experiments == runner.build_experiments()
     for experiment, preset in zip(experiments, load_presets()):
         old = list(experiment.configurations())
         new = [concrete_tuple(run)
