@@ -1,16 +1,14 @@
 """Sequential CPU adapter and process entry point; no solver semantics live here."""
-import json
 from pathlib import Path
 import sys
 
 from ..application import runner
 from .batch_store import (
-    finish_batch, finish_run, mark_interrupted, start_batch, start_run,
+    finish_batch, finish_run, mark_interrupted, start_batch, start_run, read_batch,
 )
 from .experiment_batch import (
-    DatasetDescriptor, EXPANSION_VERSION, compile_plan, count_runs, iterate_runs,
+    iterate_runs,
 )
-from .experiment_config import ExperimentConfiguration
 
 
 def execute_one(run, output_dir, descriptor):
@@ -34,16 +32,12 @@ def execute_batch(directory, run_function=None):
     generate the summary; analysis errors are logged separately from run status.
     """
     directory = Path(directory)
-    with (directory / 'batch.json').open(encoding='utf-8') as stream:
-        snapshot = json.load(stream)
-    if snapshot['expansion_version'] != EXPANSION_VERSION:
-        raise ValueError('Unsupported expansion version')
-    config = ExperimentConfiguration.from_dict(snapshot['configuration'])
-    catalog = tuple(DatasetDescriptor(**{**d, 'problem_types': tuple(d['problem_types'])}) for d in snapshot['datasets'])
-    plan = compile_plan(config, catalog)
-    if count_runs(plan) != int(snapshot['total_runs']):
-        raise ValueError('Saved run count does not match the configuration')
-    descriptors = {d.id: d for d in catalog}
+    plan, batch, runs = read_batch(directory)
+    if batch['status'] != 'pending':
+        raise ValueError('Only a new pending batch may be started; resume is not implemented')
+    if runs or any(batch[name] is not None for name in ('started_at', 'ended_at', 'error')):
+        raise ValueError('Inconsistent pending batch: existing runs or execution metadata')
+    descriptors = {d.id: d for d in plan.datasets}
     run_function = execute_one if run_function is None else run_function
     start_batch(directory)
     current = None

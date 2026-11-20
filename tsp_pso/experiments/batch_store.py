@@ -1,14 +1,15 @@
 """Small SQLite manifest. Unmaterialized plan ordinals are implicitly pending."""
-from contextlib import contextmanager
+from contextlib import closing, contextmanager
 from datetime import datetime, timezone
 import json
 from pathlib import Path
 import sqlite3
 from uuid import uuid4
-from dataclasses import asdict
+from dataclasses import asdict, fields
 
 from ..infrastructure.experiment_options import ROOT
-from .experiment_batch import EXPANSION_VERSION, count_runs
+from .experiment_batch import EXPANSION_VERSION, DatasetDescriptor, compile_plan, count_runs
+from .experiment_config import ExperimentConfiguration
 
 
 def now():
@@ -108,3 +109,59 @@ def batch_status(directory, *, timeout=10):
     batch['current'] = json.loads(active['configuration']) if active else None
     batch['ordinal'] = int(active['ordinal']) if active else None
     return batch
+
+
+def positive_decimal(value):
+    """Read persisted arbitrary-size counts/ordinals without SQLite casts."""
+    if not isinstance(value, str) or not value.isascii() or not value.isdecimal():
+        raise ValueError(f'Expected a positive decimal string, got {value!r}')
+    number = int(value)
+    if number < 1 or str(number) != value:
+        raise ValueError(f'Invalid count or ordinal: {value!r}')
+    return number
+
+
+def read_batch(directory):
+    """Read and validate shared version-one JSON/manifest structure without writes."""
+    directory = Path(directory).resolve()
+    with (directory / 'batch.json').open(encoding='utf-8') as stream:
+        snapshot = json.load(stream)
+    if (type(snapshot['expansion_version']) is not int
+            or snapshot['expansion_version'] != EXPANSION_VERSION):
+        raise ValueError('Unsupported expansion version')
+    identifier = snapshot['batch_id']
+    if not isinstance(identifier, str) or not identifier:
+        raise ValueError('Invalid batch identifier')
+    datetime.fromisoformat(snapshot['created_at'])
+    requested = snapshot['configuration']
+    if set(requested) != {f.name for f in fields(ExperimentConfiguration)}:
+        raise ValueError('Incomplete or incompatible batch configuration')
+    configuration = ExperimentConfiguration.from_dict(requested)
+    catalog = tuple(DatasetDescriptor(**item) for item in snapshot['datasets'])
+    for item in catalog:
+        if (any(not isinstance(value, str) or not value for value in
+                (item.id, item.filename, item.format, item.source))
+                or not isinstance(item.problem_types, list) or not item.problem_types
+                or any(mode not in ('tsp', 'tspwr') for mode in item.problem_types)):
+            raise ValueError('Invalid saved dataset descriptor')
+    if len({item.id for item in catalog}) != len(catalog):
+        raise ValueError('Duplicate dataset descriptors')
+    plan = compile_plan(configuration, catalog)
+    total = positive_decimal(snapshot['total_runs'])
+    if count_runs(plan) != total:
+        raise ValueError('Declared total does not match the saved configuration')
+
+    uri = (directory / 'manifest.sqlite3').as_uri() + '?mode=ro'
+    with closing(sqlite3.connect(uri, uri=True)) as db:
+        db.row_factory = sqlite3.Row
+        db.execute('BEGIN')
+        batches = [dict(row) for row in db.execute('SELECT id,total,status,created_at,started_at,ended_at,error FROM batch')]
+        runs = [dict(row) for row in db.execute('SELECT ordinal,run_id,status,configuration,started_at,ended_at,output,error FROM runs')]
+    if len(batches) != 1 or batches[0]['id'] != identifier:
+        raise ValueError('Batch identifier mismatch between JSON and manifest')
+    batch = batches[0]
+    if batch['created_at'] != snapshot['created_at']:
+        raise ValueError('Creation timestamp differs between JSON and manifest')
+    if positive_decimal(batch['total']) != total:
+        raise ValueError('Declared totals disagree between JSON and manifest')
+    return plan, batch, runs

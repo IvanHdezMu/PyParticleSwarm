@@ -1,5 +1,4 @@
 """Analyze catalog selections, saved run snapshots and historical Excel results."""
-from contextlib import closing
 from dataclasses import fields
 from datetime import datetime
 from itertools import product
@@ -13,9 +12,9 @@ import pandas as pd
 
 from ..experiments.experiment import Experiment, build_experiments
 from ..experiments.experiment_batch import (
-    CONDITIONAL, EXPANSION_VERSION, ConcreteRunConfiguration, DatasetDescriptor,
-    compile_plan, count_runs,
+    CONDITIONAL, ConcreteRunConfiguration,
 )
+from ..experiments.batch_store import read_batch, positive_decimal
 from ..experiments.experiment_config import ExperimentConfiguration, is_parameter_active
 from ..experiments.result_naming import result_filename
 from ..infrastructure.experiment_options import load_run_options
@@ -292,16 +291,6 @@ def _batch_json(path):
         return json.load(stream)
 
 
-def _batch_positive_decimal(value):
-    """Read persisted arbitrary-size counts/ordinals without SQLite casts."""
-    if not isinstance(value, str) or not value.isascii() or not value.isdecimal():
-        raise ValueError(f'Expected a positive decimal string, got {value!r}')
-    number = int(value)
-    if number < 1 or str(number) != value:
-        raise ValueError(f'Invalid count or ordinal: {value!r}')
-    return number
-
-
 def _batch_same_value(actual, expected):
     """Use numeric equality without accepting booleans in place of numbers."""
     if isinstance(expected, dict):
@@ -315,56 +304,23 @@ def _batch_same_value(actual, expected):
 
 
 def _batch_load_batch(directory):
-    snapshot = _batch_json(directory / 'batch.json')
-    if (type(snapshot['expansion_version']) is not int
-            or snapshot['expansion_version'] != EXPANSION_VERSION):
-        raise ValueError('Unsupported expansion version')
-    identifier = snapshot['batch_id']
-    if not isinstance(identifier, str) or not identifier:
-        raise ValueError('Invalid batch identifier')
-    datetime.fromisoformat(snapshot['created_at'])
-    requested = snapshot['configuration']
-    if set(requested) != {f.name for f in fields(ExperimentConfiguration)}:
-        raise ValueError('Incomplete or incompatible batch configuration')
-    configuration = ExperimentConfiguration.from_dict(requested)
+    plan, batch, runs = read_batch(directory)
+    configuration = plan.configuration
+    total = positive_decimal(batch['total'])
+    identifier = batch['id']
     if len(configuration.datasets) != 1 or len(configuration.problem_modes) != 1:
         raise ValueError('Batch analysis requires exactly one dataset and one problem mode')
     if not configuration.excel:
         raise ValueError('Batch has excel=False; no histories are available')
-    catalog = tuple(DatasetDescriptor(**item) for item in snapshot['datasets'])
-    for item in catalog:
-        if (any(not isinstance(value, str) or not value for value in
-                (item.id, item.filename, item.format, item.source))
-                or not isinstance(item.problem_types, list) or not item.problem_types
-                or any(mode not in ('tsp', 'tspwr') for mode in item.problem_types)):
-            raise ValueError('Invalid saved dataset descriptor')
-    if len({item.id for item in catalog}) != len(catalog):
-        raise ValueError('Duplicate dataset descriptors')
-    plan = compile_plan(configuration, catalog)
-    total = _batch_positive_decimal(snapshot['total_runs'])
-    if count_runs(plan) != total:
-        raise ValueError('Declared total does not match the saved configuration')
-
-    uri = (directory / 'manifest.sqlite3').as_uri() + '?mode=ro'
-    with closing(sqlite3.connect(uri, uri=True)) as db:
-        db.row_factory = sqlite3.Row
-        db.execute('BEGIN')
-        batches = [dict(row) for row in db.execute('SELECT * FROM batch')]
-        runs = [dict(row) for row in db.execute('SELECT * FROM runs')]
-    if len(batches) != 1 or batches[0]['id'] != identifier:
-        raise ValueError('Batch identifier mismatch between JSON and manifest')
-    batch = batches[0]
     if batch['status'] != 'succeeded':
         raise ValueError(f"Batch status is {batch['status']!r}; expected succeeded")
     if not batch['started_at'] or not batch['ended_at'] or batch['error'] is not None:
         raise ValueError('Inconsistent batch completion record')
-    if _batch_positive_decimal(batch['total']) != total:
-        raise ValueError('Declared totals disagree between JSON and manifest')
     if len(runs) != total:
         raise ValueError(f'Incomplete batch: expected {total} runs, found {len(runs)}')
-    runs.sort(key=lambda row: _batch_positive_decimal(row['ordinal']))
+    runs.sort(key=lambda row: positive_decimal(row['ordinal']))
     for ordinal, row in enumerate(runs, 1):
-        if _batch_positive_decimal(row['ordinal']) != ordinal:
+        if positive_decimal(row['ordinal']) != ordinal:
             raise ValueError(f'Missing, duplicate or inconsistent ordinal at run {ordinal}')
         if row['run_id'] != f'{identifier}-{ordinal}':
             raise ValueError(f'Run {ordinal}: inconsistent run_id')
