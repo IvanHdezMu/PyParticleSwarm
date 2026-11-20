@@ -26,11 +26,32 @@ Run one concrete configuration at a time through a singleton legacy Experiment a
 
 Commit running status before execution and terminal status before dispatching the next run. On Ctrl+C stop dispatch, unwind the current solver Pool, mark an unconfirmed active run interrupted, and leave completed runs and future implicit pending runs intact. Abrupt process termination may leave running status until inspection; recovery must distinguish this from confirmed success. No automatic resume/retry is implemented.
 
+## Automatic analysis
+
+After recording successful completion, the coordinator calls `analyze_batch()`
+in the existing `analysis/analysis.py`. `prepare_batch_groups()` validates the
+saved batch, manifest and run snapshots, then supplies parameters and ordered
+Excel paths to the original `analyze()`; no statistical formula is duplicated.
+Groups use all saved effective scalars and ascending repetition IDs, rather than
+reconstructing a Cartesian product of inactive axes. Numeric ordinal order
+preserves the first appearance of each configuration. Paths are rebased below
+the selected batch directory, supporting moved batches.
+
+The entry point requires one dataset and one problem mode, matching the GUI.
+API batches with multiple selections still execute but cannot use this summary.
+A valid complete batch produces `Analysis.xlsx`, with one `Analysis` sheet, a
+row per configuration, the 18 parameter columns documented in README and the
+three original metrics, an autofilter and frozen headers. Temporary writing and
+final replacement preserve any earlier summary if validation or writing fails.
+Analysis errors (including disabled Excel or empty histories) are recorded in
+`execution.log` without changing `succeeded` or rerunning solvers. This work runs
+in the existing coordinator, with no new GUI control or multiprocessing policy.
+
 ## Scaling and limitations
 
-Lazy expansion does not remove solver memory costs: dense matrices require approximately 8*n*n bytes, swarm arrays scale with particles*n, multiprocessing adds overhead, and Excel history is buffered. Do not cache every matrix or result. Current singleton execution bounds legacy filename enumeration. Batch numerical summaries and historical cross-repetition analysis require a later manifest-aware adapter; raw Excel artifacts remain usable, and legacy analysis stays accessible.
+Lazy expansion does not remove solver memory costs: dense matrices require approximately 8*n*n bytes, swarm arrays scale with particles*n, multiprocessing adds overhead, and Excel history is buffered. Do not cache every matrix or result. Current singleton execution bounds legacy filename enumeration. Batch analysis reads one history at a time but retains manifest records, grouped paths and the summary table in memory. Legacy analysis remains accessible.
 
-No fake GPU selection, fixed numeric dropdowns, live convergence graphs, pause/resume, retry UI, or parallel batches. Backend policy is separate from scientific configuration. Future work includes bounded matrix reuse, dataset discovery/import, structured final results, reproducible solver RNG policy, batch aggregation and real GPU adapters.
+No fake GPU selection, fixed numeric dropdowns, live convergence graphs, pause/resume, retry UI, or parallel batches. Backend policy is separate from scientific configuration. Future work includes bounded matrix reuse, dataset discovery/import, structured final results, reproducible solver RNG policy, aggregation across multiple batches and real GPU adapters.
 
 ## Implementation stages
 

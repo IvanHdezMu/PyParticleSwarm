@@ -245,6 +245,39 @@ Tables contain the configured parameter columns followed by the three metrics
 in the order above. They are printed to the console and written to Excel without
 a row index when an output is defined.
 
+**Automatic batch summary.** After all runs succeed, the existing coordinator
+calls `analyze_batch(batch_directory)` in `analysis.py`. Each GUI batch has one
+dataset and problem mode and produces `<batch>/Analysis.xlsx`: one sheet named
+`Analysis`, one row per effective configuration, all repetitions summarized,
+with an autofilter and the first row frozen. No GUI action is needed.
+
+The columns are, in order: `dataset`, `problem_mode`, `particles`, `c1`,
+`operator`, `ring`, `permutation_reset`, `k`, `primary_operator_share`,
+`minimum_reset_probability`, `maximum_reset_probability`,
+`reset_threshold_divisor`, `progress_warmup_multiplier`, `fuel_capacity`,
+`consumption`, `full_initial_tank`, `repetitions`, `inactive_parameters`, then
+the three metrics above. Conditional columns contain the saved effective scalar
+values; `inactive_parameters` identifies inactive expansion axes, not parameters
+guaranteed to have no internal solver effects.
+
+`prepare_batch_groups()` validates the JSON snapshot, read-only manifest and
+run snapshots, groups by effective settings, and supplies explicit workbook paths
+to the original `analyze()`. It preserves first-ordinal configuration order and
+ascending repetition IDs, including IDs starting above 1. It uses saved catalog
+metadata to check counts without loading datasets or expanding all planned runs.
+Paths are resolved below the selected batch, so moved batches remain analyzable.
+There is no change to statistical formulas or individual workbooks.
+
+A complete successful batch with usable Excel histories is required. Missing,
+empty, corrupt or inconsistent results reject the whole summary. `excel=False`
+and API-created batches selecting multiple datasets or problem modes cannot be
+summarized by this entry point. Analysis errors go to `execution.log`; scientific
+execution remains `succeeded` and runs are not repeated. The summary is written
+temporarily and published only after completion, preserving an existing summary
+if analysis or publication fails. To retry only the analysis after resolving an
+artifact problem, call `analyze_batch(path)`; it returns the summary path or
+raises the error. Relative batch paths resolve from the current working directory.
+
 **Terminal analysis.** Run `python3 main.py --terminal` and choose **analysis**.
 The menu mirrors the current experiment ordering. Selecting an experiment scans
 the timestamped run directories for its dataset, including other labels and
@@ -266,8 +299,9 @@ python3 -c "from tsp_pso.analysis.analysis import analyze_runs; analyze_runs('Re
 
 Use the actual dataset directory for your results. The scanner examines immediate
 timestamped child directories, not an entire recursive batch tree. For a batch,
-pass `Results/batches/<batch-id>/runs/<ordinal>/<dataset>` instead. There is no
-automatic cross-run-directory or cross-repetition batch aggregation.
+pass `Results/batches/<batch-id>/runs/<ordinal>/<dataset>` to analyze just that
+individual run. Use the automatic batch summary described above to combine its
+equivalent repetitions across ordinal directories.
 
 Discovery reads each candidate directory's `run_config.json`, requiring the saved
 experiment fields, a parseable `created_at`, and a dataset matching the parent
@@ -373,7 +407,8 @@ arguments, loading defaults on demand when needed. There are no `RUN_OPTIONS`,
   runner does not persist a numerical result or best route. The solver's direct
   Python return value is separate from persisted experiment artifacts.
 - Analysis needs valid sampled Excel histories. Empty histories are not usable,
-  and no automatic aggregation spans run directories or singleton batch runs.
+  including for automatic batch summaries. The batch summary accepts one dataset
+  and one problem mode; it does not combine separate batches.
 - Repetition IDs are labels, not seeds. Solver randomness and process scheduling
   do not guarantee reproducible trajectories across executions or platforms.
 - The refueling model does not guarantee physically feasible tours. Fuel-related
