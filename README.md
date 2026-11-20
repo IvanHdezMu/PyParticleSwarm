@@ -371,8 +371,10 @@ interface belongs to `presentation/`. Analysis uses the extracted experiment,
 naming and configuration modules directly.
 
 Importing runner does not read configuration JSON or build experiments. Its
-`execute()` function accepts optional `dataset`, `run_options` and `datasets_root`
-arguments, loading defaults on demand when needed. There are no `RUN_OPTIONS`,
+`execute()` function requires an explicit `dataset` descriptor and accepts an
+optional `datasets_root`. An omitted output directory comes from the concrete
+configuration, relative to the project root; explicit output paths retain their
+working-directory semantics. Execution does not load historical option catalogs. There are no `RUN_OPTIONS`,
 `DATASETS` or `EXPERIMENTS` globals in runner. Execution and compatibility helpers
 remain available through Python, but `execute(Experiment)` and the historical
 `runner.create_run_directory()` wrapper are no longer supported. `Experiment`,

@@ -30,7 +30,7 @@ def test_reset_threshold_divisor_config_and_forwarding(monkeypatch, tmp_path, ov
     monkeypatch.setitem(runner.SOLVER_REGISTRY, 'tsp', (factory, runner.SOLVER_REGISTRY['tsp'][1]))
     monkeypatch.setitem(runner.SOLVER_REGISTRY, 'tspwr', (factory, runner.SOLVER_REGISTRY['tspwr'][1]))
     monkeypatch.setattr(runner, '_load_dataset', lambda descriptor, root: (np.array([[0, 2], [2, 0]]), None))
-    runner.execute(concrete_run(experiment), output_dir=tmp_path)
+    runner.execute(concrete_run(experiment), output_dir=tmp_path, dataset={})
     factory.assert_called_once()
     assert factory.call_args.kwargs['config'].reset_threshold_divisor == experiment.reset_threshold_divisor
     factory.return_value.run.assert_called_once()
@@ -51,7 +51,7 @@ def test_primary_operator_share_config_and_forwarding(monkeypatch, tmp_path, ove
     monkeypatch.setitem(runner.SOLVER_REGISTRY, 'tsp', (factory, runner.SOLVER_REGISTRY['tsp'][1]))
     monkeypatch.setitem(runner.SOLVER_REGISTRY, 'tspwr', (factory, runner.SOLVER_REGISTRY['tspwr'][1]))
     monkeypatch.setattr(runner, '_load_dataset', lambda descriptor, root: (np.array([[0, 2], [2, 0]]), None))
-    runner.execute(concrete_run(experiment), output_dir=tmp_path)
+    runner.execute(concrete_run(experiment), output_dir=tmp_path, dataset={})
     factory.assert_called_once()
     assert factory.call_args.kwargs['config'].primary_operator_share == experiment.primary_operator_share
     factory.return_value.run.assert_called_once()
@@ -72,7 +72,7 @@ def test_progress_warmup_multiplier_config_and_forwarding(monkeypatch, tmp_path,
     monkeypatch.setitem(runner.SOLVER_REGISTRY, 'tsp', (factory, runner.SOLVER_REGISTRY['tsp'][1]))
     monkeypatch.setitem(runner.SOLVER_REGISTRY, 'tspwr', (factory, runner.SOLVER_REGISTRY['tspwr'][1]))
     monkeypatch.setattr(runner, '_load_dataset', lambda descriptor, root: (np.array([[0, 2], [2, 0]]), None))
-    runner.execute(concrete_run(experiment), output_dir=tmp_path)
+    runner.execute(concrete_run(experiment), output_dir=tmp_path, dataset={})
     factory.assert_called_once()
     assert factory.call_args.kwargs['config'].progress_warmup_multiplier == experiment.progress_warmup_multiplier
     factory.return_value.run.assert_called_once()
@@ -92,7 +92,7 @@ def test_existing_experiment_verbose_behavior(monkeypatch, tmp_path):
         assert experiment.verbose is (3 <= number <= 10)
         factory.reset_mock()
         for configuration in experiment.configurations():
-            runner.execute(concrete_run(experiment, configuration), output_dir=tmp_path)
+            runner.execute(concrete_run(experiment, configuration), output_dir=tmp_path, dataset={})
         assert factory.return_value.run.call_count == experiment.count
         for call in factory.return_value.run.call_args_list:
             assert call.kwargs['verbose'] is (3 <= number <= 10)
@@ -114,7 +114,7 @@ def test_experiment_verbose_override(monkeypatch, tmp_path, verbose, label, exce
     monkeypatch.setitem(runner.SOLVER_REGISTRY, 'tsp', (factory, runner.SOLVER_REGISTRY['tsp'][1]))
     monkeypatch.setitem(runner.SOLVER_REGISTRY, 'tspwr', (factory, runner.SOLVER_REGISTRY['tspwr'][1]))
     monkeypatch.setattr(runner, '_load_dataset', lambda descriptor, root: (np.array([[0, 2], [2, 0]]), None))
-    runner.execute(concrete_run(experiment), output_dir=tmp_path)
+    runner.execute(concrete_run(experiment), output_dir=tmp_path, dataset={})
     factory.return_value.run.assert_called_once()
     assert factory.return_value.run.call_args.kwargs['verbose'] is verbose
     assert factory.return_value.run.call_args.kwargs['excel'] is excel
@@ -133,7 +133,7 @@ def test_solver_class_selection(monkeypatch, tmp_path, refuel):
         dataset='Minas24D', label='class selection', steps=(2,), refuel=refuel,
     )
 
-    runner.execute(concrete_run(experiment), output_dir=tmp_path)
+    runner.execute(concrete_run(experiment), output_dir=tmp_path, dataset={})
 
     selected, unused = (tspwr_factory, tsp_factory) if refuel else (tsp_factory, tspwr_factory)
     selected.assert_called_once()
@@ -179,7 +179,7 @@ def test_execute_additional_registered_solver(monkeypatch, tmp_path):
     monkeypatch.setattr(runner, '_load_dataset', lambda descriptor, root: (matrix, None))
     experiment = Experiment(dataset='Minas24D', label='registry', steps=(2,))
 
-    runner.execute(replace(concrete_run(experiment), problem_mode='additional'), output_dir=tmp_path)
+    runner.execute(replace(concrete_run(experiment), problem_mode='additional'), output_dir=tmp_path, dataset={})
 
     assert len(created) == 1
     assert type(created[0]) is AdditionalSolver
@@ -194,5 +194,5 @@ def test_execute_additional_registered_solver(monkeypatch, tmp_path):
 def test_unknown_solver_is_rejected_before_writing(tmp_path):
     experiment = Experiment(dataset='Minas24D', label='unknown', steps=(2,))
     with pytest.raises(KeyError, match='unknown'):
-        runner.execute(replace(concrete_run(experiment), problem_mode='unknown'), output_dir=tmp_path)
+        runner.execute(replace(concrete_run(experiment), problem_mode='unknown'), output_dir=tmp_path, dataset={})
     assert not list(tmp_path.iterdir())

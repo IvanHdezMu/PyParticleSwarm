@@ -57,7 +57,8 @@ def test_minas24d_preset_finds_known_optimum(monkeypatch, tmp_path):
         return solver
 
     monkeypatch.setitem(runner.SOLVER_REGISTRY, 'tsp', (capture_solver, runner.SOLVER_REGISTRY['tsp'][1]))
-    run_directory = runner.execute(concrete_run(experiment), output_dir=tmp_path)
+    run_directory = runner.execute(concrete_run(experiment), output_dir=tmp_path,
+                                   dataset=load_run_options()['datasets'][experiment.dataset])
 
     assert len(created_solvers) == 1
     solver = created_solvers[0]
@@ -129,7 +130,8 @@ def test_minas24d_refuel_ring_finds_known_best_cost(monkeypatch, tmp_path):
 
     monkeypatch.setitem(runner.SOLVER_REGISTRY, 'tspwr', (capture_solver, runner.SOLVER_REGISTRY['tspwr'][1]))
     # execute() loads both coordinates and fuel prices from the repository workbook.
-    run_directory = runner.execute(concrete_run(experiment), output_dir=tmp_path)
+    run_directory = runner.execute(concrete_run(experiment), output_dir=tmp_path,
+                                   dataset=load_run_options()['datasets'][experiment.dataset])
 
     assert len(created_solvers) == 1
     solver = created_solvers[0]

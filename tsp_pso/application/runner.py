@@ -1,4 +1,4 @@
-"""Coordinate experiment execution with explicit inputs and on-demand defaults."""
+"""Coordinate concrete run execution with explicit dataset inputs."""
 from pathlib import Path
 
 from ..algorithms.core.pso_config import PSOConfig
@@ -7,29 +7,24 @@ from ..algorithms.solver_registry import SOLVER_REGISTRY
 from ..experiments.experiment import Experiment as Experiment
 from ..experiments.result_naming import result_filename
 from ..infrastructure.dataset_reader import load_dataset as _load_dataset
-from ..infrastructure.experiment_options import load_run_options
 from ..infrastructure.run_storage import create_run_directory as _create_run_directory
 
 # ROOT: Project root directory used to resolve default dataset and output paths.
 ROOT = Path(__file__).resolve().parents[2]
 
 
-def execute(run, output_dir=None, *, dataset=None, run_options=None, datasets_root=None):
+def execute(run, output_dir=None, *, dataset, datasets_root=None):
     """Execute one ConcreteRunConfiguration using its persisted effective scalars.
 
-    Explicit dataset/output paths avoid default option loading. Otherwise use
-    supplied run_options or project defaults, preserving existing path semantics.
+    The dataset descriptor is explicit. An omitted output directory uses the
+    concrete configuration, relative to ROOT; explicit paths keep their meaning.
     Return the reserved directory; snapshots survive solver failures. Historical
     Experiment inputs are deliberately not an execution API.
     """
     solver_class, problem_arguments = SOLVER_REGISTRY[run.problem_mode]
     values = dict(run.legacy_values)
-    if run_options is None and (dataset is None or output_dir is None):
-        run_options = load_run_options()
-    if dataset is None:
-        dataset = run_options['datasets'][run.dataset]
     if output_dir is None:
-        output_dir = ROOT / run_options['output_dir']
+        output_dir = ROOT / run.output_dir
     matrix, prices = _load_dataset(dataset, ROOT / 'datasets' if datasets_root is None else datasets_root)
     configuration = (run.particles, run.c1, run.operator,
                      values['minimum_reset_probability'], values['maximum_reset_probability'],

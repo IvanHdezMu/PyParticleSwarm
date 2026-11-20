@@ -1,6 +1,6 @@
 """Path, reservation and failure contracts of execution storage."""
 from conftest import concrete_run
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from datetime import datetime, timezone
 import json
 from pathlib import Path
@@ -61,8 +61,8 @@ def test_runner_path_contract(tmp_path, monkeypatch, experiment, mode):
     expected = project / configured if output is None else Path(output)
     monkeypatch.setattr(runner, '_load_dataset', Mock(return_value=(None, None)))
     monkeypatch.setitem(runner.SOLVER_REGISTRY, 'tsp', (Mock(), runner.SOLVER_REGISTRY['tsp'][1]))
-    directory = runner.execute(concrete_run(experiment), output,
-                               run_options={'output_dir': configured, 'datasets': {'sample': {}}})
+    run = replace(concrete_run(experiment), output_dir=Path(configured))
+    directory = runner.execute(run, output, dataset={})
     assert directory.parent == expected / experiment.dataset
     assert (directory / 'run_config.json').is_file()
 

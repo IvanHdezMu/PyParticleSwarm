@@ -8,6 +8,7 @@ import numpy as np
 import pytest
 
 from tsp_pso.application import runner
+from tsp_pso.infrastructure import experiment_options
 from tsp_pso.experiments.batch_executor import execute_one
 from tsp_pso.experiments.experiment import Experiment
 from tsp_pso.experiments.experiment_batch import DatasetDescriptor, compile_plan, iterate_runs
@@ -51,7 +52,7 @@ def test_batch_matches_historical_solver_and_artifacts(tmp_path, monkeypatch, mo
     prices = np.array([3., 5.])
     reader = Mock(return_value=(matrix, prices))
     monkeypatch.setattr(runner, '_load_dataset', reader)
-    monkeypatch.setattr(runner, 'load_run_options', Mock(side_effect=AssertionError('live catalog')))
+    monkeypatch.setattr(experiment_options, 'load_run_options', Mock(side_effect=AssertionError('live catalog')))
     selected, other = Mock(), Mock()
     for key, factory in ((mode, selected), ('tspwr' if mode == 'tsp' else 'tsp', other)):
         monkeypatch.setitem(runner.SOLVER_REGISTRY, key, (factory, runner.SOLVER_REGISTRY[key][1]))
@@ -123,6 +124,6 @@ def test_historical_model_is_not_an_execution_input(tmp_path, monkeypatch):
     reader = Mock(side_effect=AssertionError('dataset read'))
     monkeypatch.setattr(runner, '_load_dataset', reader)
     with pytest.raises(AttributeError, match='problem_mode'):
-        runner.execute(Experiment(dataset='sample', label='read only', steps=(2,)), tmp_path)
+        runner.execute(Experiment(dataset='sample', label='read only', steps=(2,)), tmp_path, dataset={})
     reader.assert_not_called()
     assert not list(tmp_path.iterdir())
