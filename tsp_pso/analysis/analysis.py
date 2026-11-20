@@ -192,7 +192,19 @@ def _history_minimum(frame):
     return minimum, step
 
 
-def analyze(analysis, root=None):
+def _traditional_groups(analysis):
+    """Yield Cartesian configurations and their ordered, template-based paths."""
+    parameters = analysis['parameters']
+    numbers = repetition_numbers(analysis)
+    if not numbers:
+        raise ValueError('The repetition range cannot be empty.')
+    for values in product(*parameters.values()):
+        configuration = dict(zip(parameters, values))
+        yield configuration, (analysis['input_template'].format(**configuration, number=number)
+                              for number in numbers)
+
+
+def analyze(analysis, root=None, *, groups=None):
     """Group minimum results and steps by configuration and save the completed table.
 
     Experiment selections scan dataset run directories. Historical and individual
@@ -200,20 +212,25 @@ def analyze(analysis, root=None):
     Relative paths use root, or the project directory when omitted. Return a
     DataFrame for a single analysis, or a mapping of run paths to DataFrames for
     a catalog selection. Single analyses propagate read/validation/write errors.
+
+    Optional groups supplies ordered (parameter_mapping, excel_paths) pairs instead
+    of Cartesian parameters, repetitions and input_template. Each path iterable
+    must be nonempty; paths may be strings or Paths, relative to base or absolute.
+    Groups and histories are consumed in supplied order, without sorting or extra
+    combinations. Explicit groups bypass catalog discovery and require only
+    columns and output in the analysis definition. An empty group iterable yields
+    an empty table. Both inputs share the same statistics and output handling.
     """
     base = Path(root) if root is not None else ROOT
-    if 'experiment' in analysis and 'run_directory' not in analysis:
-        return analyze_runs(base / analysis['run_root'])
-    parameters = analysis['parameters']
+    if groups is None:
+        if 'experiment' in analysis and 'run_directory' not in analysis:
+            return analyze_runs(base / analysis['run_root'])
+        groups = _traditional_groups(analysis)
     rows = []
-    numbers = repetition_numbers(analysis)
-    if not numbers:
-        raise ValueError('The repetition range cannot be empty.')
-    for values in product(*parameters.values()):
-        configuration = dict(zip(parameters, values))
+    for configuration, excel_paths in groups:
         minimums, steps, paths = [], [], []
-        for number in numbers:
-            path = base / analysis['input_template'].format(**configuration, number=number)
+        for path in excel_paths:
+            path = base / path
             try:
                 frame = pd.read_excel(path)
             except FileNotFoundError as error:
@@ -227,6 +244,8 @@ def analyze(analysis, root=None):
             minimums.append(minimum)
             steps.append(step)
             paths.append(path)
+        if not minimums:
+            raise ValueError(f'The repetition paths cannot be empty: {configuration}')
         row = {column: configuration[column] for column in analysis['columns']}
         try:
             row.update(zip(METRICS, (sum(minimums) / len(minimums),
