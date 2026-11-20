@@ -10,7 +10,6 @@ from tsp_pso.experiments.experiment_config import ExperimentConfiguration, Repet
 from tsp_pso.experiments.experiment_batch import (
     DatasetDescriptor, compile_plan, count_runs, iterate_runs, load_presets,
 )
-from tsp_pso.application import runner
 
 pytestmark = pytest.mark.unit
 CATALOG = tuple(DatasetDescriptor(n, n+'.json', 'json', 'test', ('tsp', 'tspwr')) for n in ('a', 'b'))

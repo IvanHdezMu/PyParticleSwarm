@@ -1,7 +1,6 @@
 """Small GUI-independent editing operations; validation remains in the model."""
 from dataclasses import replace
 
-from ..experiments.experiment_config import ExperimentConfiguration
 from ..experiments.experiment_batch import compile_plan, count_runs
 
 # NUMERIC_FIELDS: Numeric input labels and accepted types for the GUI.
@@ -64,7 +63,7 @@ def review(configuration, catalog):
     plan = compile_plan(configuration, catalog)
     warnings = []
     if not configuration.excel:
-        warnings.append('Excel is off: the legacy runner saves configuration, but no numerical result file.')
+        warnings.append('Excel is off: execution saves configuration, but no numerical result file.')
     if any(low > high for low in configuration.minimum_reset_probability
            for high in configuration.maximum_reset_probability) and True in configuration.permutation_reset:
         warnings.append('Some minimum reset probabilities exceed maximums; values will be preserved.')

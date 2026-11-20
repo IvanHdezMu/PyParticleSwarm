@@ -1,4 +1,4 @@
-"""Regression for menu option 8 using its real configuration and workbook."""
+"""Regression for the Minas24D preset using its real configuration and workbook."""
 from conftest import concrete_run
 from tsp_pso.infrastructure.experiment_options import load_run_options
 from tsp_pso.experiments.experiment import build_experiments
@@ -22,9 +22,9 @@ from tsp_pso.analysis.analysis import historical_result_filename as result_filen
 pytestmark = pytest.mark.functional
 
 
-def test_option_8_minas24d_finds_known_optimum(monkeypatch, tmp_path):
+def test_minas24d_preset_finds_known_optimum(monkeypatch, tmp_path):
     experiment = build_experiments(load_run_options())[7]
-    # Pin the menu configuration so future edits cannot silently change this case.
+    # Pin the preset configuration so future edits cannot silently change this case.
     assert experiment == Experiment(
         dataset='Minas24D', label='individual', steps=(1200,), particles=(8,),
         opts=(10,), minimums=(0.2,), maximums=(0.8,), rings=(False,),
@@ -37,7 +37,7 @@ def test_option_8_minas24d_finds_known_optimum(monkeypatch, tmp_path):
         'source': 'Ottoni et al. (2022)', 'problem_types': ['tsp', 'tspwr'],
     }
 
-    # The original runner has no seed and uses the default Pool size. One real
+    # The runner has no seed and uses the default Pool size. One real
     # spawned worker with an explicit seed removes task scheduling and inherited
     # RNG state as sources of variation. Seed 7 also controls swarm initialization.
     seed = 7

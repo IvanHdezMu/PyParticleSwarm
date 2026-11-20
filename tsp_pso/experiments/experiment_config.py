@@ -26,8 +26,8 @@ def is_parameter_active(name, *, problem_mode, operator, permutation_reset,
                         verbose=False, excel=True):
     """Return applicability for a validated scalar selection, without expansion.
 
-    Inactive values remain part of user intent. The future runner adapter must
-    still forward safe legacy arguments (notably a positive reset divisor).
+    Inactive values remain part of user intent. The runner must
+    forward persisted effective arguments (notably a positive reset divisor).
     """
     if name == 'k':
         return operator in OPERATORS_USING_K
