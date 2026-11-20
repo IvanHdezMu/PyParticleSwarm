@@ -209,7 +209,7 @@ def _traditional_groups(analysis):
                               for number in numbers)
 
 
-def analyze(analysis, root=None, *, groups=None):
+def analyze(analysis, root=None, *, groups=None, announce=True):
     """Group minimum results and steps by configuration and save the completed table.
 
     Experiment selections scan dataset run directories. Historical and individual
@@ -222,7 +222,8 @@ def analyze(analysis, root=None, *, groups=None):
     of Cartesian parameters, repetitions and input_template. Each path iterable
     must be nonempty; paths may be strings or Paths, relative to base or absolute.
     Groups and histories are consumed in supplied order, without sorting or extra
-    combinations. Explicit groups bypass catalog discovery and require only
+    combinations. announce=False suppresses the single-workbook save notice until
+    a caller publishes its temporary output. Explicit groups bypass catalog discovery and require only
     columns and output in the analysis definition. An empty group iterable yields
     an empty table. Both inputs share the same statistics and output handling.
     """
@@ -265,7 +266,8 @@ def analyze(analysis, root=None, *, groups=None):
         destination = base / analysis['output']
         destination.parent.mkdir(parents=True, exist_ok=True)
         table.to_excel(destination, index=False)
-        print(f'Analysis saved to {destination}')
+        if announce:
+            print(f'Analysis saved to {destination}')
     print(table.to_string(index=False))
     return table
 
@@ -490,7 +492,7 @@ def analyze_batch(directory):
     destination = directory / 'Analysis.xlsx'
     with TemporaryDirectory(prefix='.analysis-', dir=directory) as temporary:
         output = Path(temporary) / 'Analysis.xlsx'
-        analyze({'columns': BATCH_COLUMNS, 'output': output}, groups=groups)
+        analyze({'columns': BATCH_COLUMNS, 'output': output}, groups=groups, announce=False)
         workbook = load_workbook(output)
         try:
             sheet = workbook.active
@@ -501,4 +503,5 @@ def analyze_batch(directory):
         finally:
             workbook.close()
         output.replace(destination)
+    print(f'Analysis saved to {destination}')
     return destination

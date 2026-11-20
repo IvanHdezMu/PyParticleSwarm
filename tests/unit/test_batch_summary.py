@@ -8,7 +8,7 @@ from openpyxl import load_workbook
 from tsp_pso.analysis import analysis as module
 
 
-def test_workbook_layout_and_original_calculations(completed_batch, monkeypatch):
+def test_workbook_layout_and_original_calculations(completed_batch, monkeypatch, capsys):
     directory = completed_batch(particles=(2, 4), ring=(False, True))
     groups = module.prepare_batch_groups(directory)
     expected = module.analyze({'columns': module.BATCH_COLUMNS, 'output': None}, groups=groups)
@@ -23,6 +23,9 @@ def test_workbook_layout_and_original_calculations(completed_batch, monkeypatch)
     raw = {p: p.read_bytes() for p in directory.rglob('*.xlsx')}
     output = module.analyze_batch(directory)
     assert output == directory / 'Analysis.xlsx'
+    notices = [line for line in capsys.readouterr().out.splitlines() if 'Analysis saved to' in line]
+    assert notices == [f'Analysis saved to {output}']
+    assert '.analysis-' not in notices[0]
     assert calls == [groups]
     pd.testing.assert_frame_equal(pd.read_excel(output), expected, check_dtype=False)
     workbook = load_workbook(output)
@@ -38,7 +41,7 @@ def test_workbook_layout_and_original_calculations(completed_batch, monkeypatch)
 
 @pytest.mark.parametrize('existing', [False, True])
 @pytest.mark.parametrize('failure', ['missing', 'corrupt', 'empty', 'write', 'format', 'publish'])
-def test_failure_preserves_previous_summary(completed_batch, monkeypatch, existing, failure):
+def test_failure_preserves_previous_summary(completed_batch, monkeypatch, capsys, existing, failure):
     directory = completed_batch()
     output = directory / 'Analysis.xlsx'
     if existing:
@@ -62,6 +65,7 @@ def test_failure_preserves_previous_summary(completed_batch, monkeypatch, existi
             monkeypatch.setattr(Path, 'replace', fail)
     with pytest.raises((ValueError, OSError)):
         module.analyze_batch(directory)
+    assert 'Analysis saved to' not in capsys.readouterr().out
     assert output.exists() == existing
     if existing:
         assert output.read_bytes() == b'previous summary'
