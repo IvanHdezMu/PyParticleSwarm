@@ -1,16 +1,17 @@
 """Manifest persistence and adapter tests without expensive solver executions."""
 from tsp_pso.infrastructure.experiment_options import load_run_options
 from tsp_pso.experiments.experiment import build_experiments
-from dataclasses import replace
 import json
 import pytest
 
 from tsp_pso.experiments.experiment_config import ExperimentConfiguration, RepetitionSpec
 from tsp_pso.experiments.experiment_batch import compile_plan, iterate_runs, load_presets
 from tsp_pso.experiments.batch_store import create_batch, batch_status, connect, mark_interrupted
-from tsp_pso.experiments.batch_executor import execute_batch, to_legacy_experiment
+from tsp_pso.experiments.batch_executor import execute_batch
 
 from tsp_pso.experiments.result_naming import result_filename
+from tsp_pso.analysis.analysis import historical_result_filename
+from conftest import concrete_tuple
 
 pytestmark = pytest.mark.unit
 
@@ -62,15 +63,11 @@ def test_failure_and_interrupt_preserve_completed_and_pending(tmp_path, error, s
     assert batch_status(directory)['counts']['succeeded'] == 1
 
 
-def test_adapter_preserves_legacy_names_and_arguments():
-    from tsp_pso.application import runner
+def test_concrete_runs_preserve_historical_names_and_values():
     for preset, old in zip(load_presets(), build_experiments(load_run_options())):
         for run in iterate_runs(compile_plan(preset)):
-            converted = to_legacy_experiment(run)
-            assert converted.label == old.label
-            assert converted.k == old.k
-            assert converted.refuel == old.refuel
-            assert converted.style == old.style
-            assert converted.full_tanks == (dict(run.legacy_values)['full_initial_tank'],)
-            configuration = next(converted.configurations())
-            assert result_filename(converted, configuration) == result_filename(old, configuration)
+            assert run.legacy_label == old.label
+            assert dict(run.legacy_values)['k'] == old.k
+            assert (run.problem_mode == 'tspwr') == old.refuel
+            configuration = concrete_tuple(run)
+            assert result_filename(run.dataset, run.legacy_style, old.k, configuration) == historical_result_filename(old, configuration)

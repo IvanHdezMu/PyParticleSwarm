@@ -1,6 +1,5 @@
 """Contracts for pure preset conversion and its compatible JSON loader."""
 from copy import deepcopy
-from dataclasses import replace
 import json
 from pathlib import Path
 from unittest.mock import Mock
@@ -8,7 +7,7 @@ from unittest.mock import Mock
 import pytest
 
 from tsp_pso.experiments import experiment_batch
-from tsp_pso.experiments.batch_executor import to_legacy_experiment
+from conftest import concrete_tuple
 from tsp_pso.experiments.experiment import build_experiments
 from tsp_pso.experiments.experiment_config import RepetitionSpec
 from tsp_pso.infrastructure.experiment_options import load_run_options
@@ -41,14 +40,19 @@ def test_catalog_presets_match_loader_and_ordered_traditional_configurations():
     assert [p.name for p in presets] == [f'{e.dataset}: {e.label}' for e in traditional]
     total = 0
     for preset, old in zip(presets, traditional):
-        actual = [to_legacy_experiment(run)
-                  for run in experiment_batch.iterate_runs(experiment_batch.compile_plan(preset))]
-        expected = [replace(old, particles=(n,), steps=(c1,), opts=(operator,),
-                            minimums=(minimum,), maximums=(maximum,), rings=(ring,),
-                            full_tanks=(full,), repetitions=range(number, number + 1))
-                    for n, c1, operator, minimum, maximum, ring, full, number
-                    in old.configurations()]
-        assert actual == expected
+        actual = list(experiment_batch.iterate_runs(experiment_batch.compile_plan(preset)))
+        assert [concrete_tuple(run) for run in actual] == list(old.configurations())
+        for run in actual:
+            assert dict(run.legacy_values) == dict(
+                k=old.k, primary_operator_share=old.primary_operator_share,
+                minimum_reset_probability=concrete_tuple(run)[3], maximum_reset_probability=concrete_tuple(run)[4],
+                reset_threshold_divisor=old.reset_threshold_divisor, fuel_capacity=old.max_capacity,
+                consumption=old.consumption, full_initial_tank=concrete_tuple(run)[6],
+                progress_warmup_multiplier=old.progress_warmup_multiplier)
+            assert (run.verbose, run.excel, run.legacy_style, run.legacy_label, run.analysis_output,
+                    run.permutation_reset, run.problem_mode) == (
+                        old.verbose, old.excel, old.style, old.label, old.analysis_output,
+                        old.permut_reset, 'tspwr' if old.refuel else 'tsp')
         total += len(actual)
     assert total == 1209
 

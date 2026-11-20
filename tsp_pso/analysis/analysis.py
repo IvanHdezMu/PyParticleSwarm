@@ -7,7 +7,6 @@ import json
 from pathlib import Path, PureWindowsPath
 import re
 import sqlite3
-from types import SimpleNamespace
 from zipfile import BadZipFile
 
 import pandas as pd
@@ -18,7 +17,7 @@ from ..experiments.experiment_batch import (
     compile_plan, count_runs,
 )
 from ..experiments.experiment_config import ExperimentConfiguration, is_parameter_active
-from ..experiments.result_naming import extra_filename_fields, result_filename
+from ..experiments.result_naming import result_filename
 from ..infrastructure.experiment_options import load_run_options
 
 # ROOT: Project root directory used as the default base path
@@ -26,6 +25,26 @@ from ..infrastructure.experiment_options import load_run_options
 ROOT = Path(__file__).resolve().parents[2]
 # METRICS: Names of the analysis metrics, in the same order as their calculated values.
 METRICS = ['mean_minimum_result', 'mean_step_of_minimum', 'best_result']
+
+
+def extra_filename_fields(experiment):
+    """Return (configuration index, suffix label, axis values) for omitted sweeps.
+
+    Only axes with multiple values are included, in their established suffix
+    order, so legacy names stay unchanged for experiments without those sweeps.
+    """
+    fields = []
+    if experiment.style in ('fuel', 'bays'):
+        fields.extend(((3, 'minR', experiment.minimums), (4, 'maxR', experiment.maximums)))
+    if experiment.style != 'fuel':
+        fields.extend(((5, 'ring', experiment.rings), (6, 'full', experiment.full_tanks)))
+    return [(index, name, values) for index, name, values in fields if len(values) > 1]
+
+
+def historical_result_filename(experiment, configuration):
+    """Read historical sweep names using the shared scalar formatter."""
+    return result_filename(experiment.dataset, experiment.style, experiment.k,
+                           configuration, extra_filename_fields(experiment))
 
 
 def analysis_for_experiment(analysis, options):
@@ -53,7 +72,7 @@ def _analysis_from_experiment(analysis, experiment, output_dir):
                           maxR=list(experiment.maximums))
     for _, name, values in extra_filename_fields(experiment):
         parameters[name] = list(values)
-    filename = result_filename(experiment, ('{N}', '{c1}', '{optType}',
+    filename = historical_result_filename(experiment, ('{N}', '{c1}', '{optType}',
                               '{minR}', '{maxR}', '{ring}', '{full}', '{number}'))
     destination = Path(output_dir) / experiment.dataset
     return {**analysis, 'run_root': str(destination), 'parameters': parameters, 'columns': list(parameters),
@@ -131,7 +150,7 @@ def discover_run_analyses(dataset_root):
             output = experiment.analysis_output or f'Analysis_{experiment.dataset}_{experiment.label}.xlsx'
             if Path(output).name != output or not output.endswith('.xlsx'):
                 raise ValueError('Analysis output must be an Excel filename inside the run directory')
-            if output in {result_filename(experiment, c) for c in experiment.configurations()}:
+            if output in {historical_result_filename(experiment, c) for c in experiment.configurations()}:
                 raise ValueError('Analysis output collides with a raw result')
             analysis = _analysis_from_experiment({
                 'id': directory.name, 'label': experiment.label,
@@ -437,7 +456,7 @@ def _batch_result_path(directory, record, run):
     configuration = (run['particles'], run['c1'], run['operator'],
                      e['minimum_reset_probability'], e['maximum_reset_probability'],
                      run['ring'], e['full_initial_tank'], run['repetition_id'])
-    path = destination / result_filename(SimpleNamespace(**saved), configuration)
+    path = destination / result_filename(saved['dataset'], saved['style'], saved['k'], configuration)
     if not path.is_file():
         raise ValueError(f'Missing result history: {path}')
     return path

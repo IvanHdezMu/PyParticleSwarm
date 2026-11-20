@@ -1,4 +1,5 @@
 """Explicit execution inputs and absence of import-time configuration state."""
+from conftest import concrete_run, concrete_tuple
 from copy import deepcopy
 from pathlib import Path
 import json
@@ -48,7 +49,7 @@ def test_explicit_datasets_are_independent(tmp_path, monkeypatch):
             {'latitude': 0, 'longitude': i, 'price': i + 1}]}))
         descriptors.append({'filename': path.name, 'format': 'json'})
     original = deepcopy(descriptors)
-    destinations = [runner.execute(experiment, tmp_path / 'output', dataset=d, datasets_root=tmp_path)
+    destinations = [runner.execute(concrete_run(experiment), tmp_path / 'output', dataset=d, datasets_root=tmp_path)
                     for d in descriptors]
     assert descriptors == original
     first, second = [call.kwargs for call in factory.call_args_list]
@@ -70,7 +71,7 @@ def test_execute_uses_supplied_options_and_default_output(tmp_path, monkeypatch)
     factory = Mock()
     monkeypatch.setitem(runner.SOLVER_REGISTRY, 'tsp', (factory, runner.SOLVER_REGISTRY['tsp'][1]))
     experiment = Experiment(dataset='sample', label='options', steps=(2,), excel=False)
-    destination = runner.execute(experiment, run_options=options)
+    destination = runner.execute(concrete_run(experiment), run_options=options)
     reader.assert_called_once_with(options['datasets']['sample'], tmp_path / 'datasets')
     assert destination.parent == tmp_path / 'Results' / 'sample'
     assert options == original
@@ -92,7 +93,7 @@ def test_batch_passes_snapshot_descriptor_without_catalog_mutation(tmp_path, mon
             batch_executor.execute_one(run, tmp_path, descriptor)
     else:
         assert batch_executor.execute_one(run, tmp_path, descriptor) == tmp_path
-    execute.assert_called_once_with(batch_executor.to_legacy_experiment(run), output_dir=tmp_path,
+    execute.assert_called_once_with(run, output_dir=tmp_path,
         dataset={'filename': descriptor.filename, 'format': descriptor.format,
                  'source': descriptor.source, 'problem_types': descriptor.problem_types})
     assert vars(runner) == before
@@ -106,6 +107,6 @@ def test_traditional_presets_and_configuration_order():
     assert experiments == runner.build_experiments()
     for experiment, preset in zip(experiments, load_presets()):
         old = list(experiment.configurations())
-        new = [next(batch_executor.to_legacy_experiment(run).configurations())
+        new = [concrete_tuple(run)
                for run in iterate_runs(compile_plan(preset))]
         assert new == old

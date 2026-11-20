@@ -4,9 +4,8 @@ from pathlib import Path
 from ..algorithms.core.pso_config import PSOConfig
 from ..algorithms.solver_registry import SOLVER_REGISTRY
 # Experiment also preserves unpickling of instances saved under the runner module.
-from ..experiments.experiment import Experiment, build_experiments as _build_experiments
-# Keep the public filename helpers and configuration reader available to old callers.
-from ..experiments.result_naming import extra_filename_fields, result_filename
+from ..experiments.experiment import Experiment as Experiment, build_experiments as _build_experiments
+from ..experiments.result_naming import result_filename
 from ..infrastructure.dataset_reader import load_dataset as _load_dataset
 from ..infrastructure.experiment_options import load_run_options
 from ..infrastructure.run_storage import create_run_directory as _create_run_directory
@@ -33,62 +32,40 @@ def load_dataset(name, *, datasets=None, datasets_root=None):
     return _load_dataset(datasets[name], ROOT / 'datasets' if datasets_root is None else datasets_root)
 
 
-def create_run_directory(experiment, output_dir=None, *, run_options=None):
-    """Return the reserved run directory after saving its configuration snapshot.
+def execute(run, output_dir=None, *, dataset=None, run_options=None, datasets_root=None):
+    """Execute one ConcreteRunConfiguration using its persisted effective scalars.
 
-    An explicit output_dir is used as supplied, relative to the working directory
-    when applicable. Otherwise resolve run_options['output_dir'] from ROOT,
-    loading default options only when needed. Storage errors propagate unchanged.
+    Explicit dataset/output paths avoid default option loading. Otherwise use
+    supplied run_options or project defaults, preserving existing path semantics.
+    Return the reserved directory; snapshots survive solver failures. Historical
+    Experiment inputs are deliberately not an execution API.
     """
-    if output_dir is None:
-        options = load_run_options() if run_options is None else run_options
-        output_dir = ROOT / options['output_dir']
-    return _create_run_directory(experiment, output_dir)
-
-
-def execute(experiment, output_dir=None, *, problem_type=None, dataset=None,
-            run_options=None, datasets_root=None):
-    """Coordinate a run with an optional dataset descriptor and experiment options.
-
-    Explicit dataset/output paths avoid loading default configuration. Missing
-    values use options loaded on demand, preserving project-relative defaults
-    and working-directory-relative explicit output paths. dataset is a mapping
-    with filename and format; it takes precedence over run_options['datasets'].
-    datasets_root defaults to ROOT/datasets. problem_type overrides the selection
-    based on experiment.refuel.
-
-    Return the reserved run directory. Duplicate Excel filenames raise ValueError
-    before storage is created; reader, storage and solver errors propagate. Once
-    created, snapshots and partial results remain available after a solver error.
-    """
-    if problem_type is None:
-        problem_type = 'tspwr' if experiment.refuel else 'tsp'
-    solver_class, problem_arguments = SOLVER_REGISTRY[problem_type]
+    solver_class, problem_arguments = SOLVER_REGISTRY[run.problem_mode]
+    values = dict(run.legacy_values)
     if run_options is None and (dataset is None or output_dir is None):
         run_options = load_run_options()
     if dataset is None:
-        dataset = run_options['datasets'][experiment.dataset]
+        dataset = run_options['datasets'][run.dataset]
+    if output_dir is None:
+        output_dir = ROOT / run_options['output_dir']
     matrix, prices = _load_dataset(dataset, ROOT / 'datasets' if datasets_root is None else datasets_root)
-    if experiment.excel:
-        filenames = [result_filename(experiment, c) for c in experiment.configurations()]
-        if len(filenames) != len(set(filenames)):
-            raise ValueError('Experiment contains duplicate result filenames')
-    destination = create_run_directory(experiment, output_dir, run_options=run_options)
-    for index, configuration in enumerate(experiment.configurations(), 1):
-        n, c1, opt, minimum, maximum, ring, full, _ = configuration
-        print(f'\nRun {index}/{experiment.count}: N={n}, c1={c1}, '
-              f'Opt={opt}, circuit={ring}, full tank={full}')
-        algorithm = solver_class(
-            matrix=matrix,
-            config=PSOConfig(
-                N=n, c1=c1, ring_mode=ring,
-                reset_threshold_divisor=experiment.reset_threshold_divisor,
-                primary_operator_share=experiment.primary_operator_share,
-                progress_warmup_multiplier=experiment.progress_warmup_multiplier),
-            **problem_arguments(experiment, prices, full))
-        algorithm.run(verbose=experiment.verbose,
-                      optType=opt, excel=experiment.excel,
-                      file_path=destination / result_filename(experiment, configuration),
-                      permutReset=experiment.permut_reset, minPermut=minimum,
-                      maxPermut=maximum, k=experiment.k)
+    configuration = (run.particles, run.c1, run.operator,
+                     values['minimum_reset_probability'], values['maximum_reset_probability'],
+                     run.ring, values['full_initial_tank'], run.repetition_id)
+    filename = result_filename(run.dataset, run.legacy_style, values['k'], configuration)
+    destination = _create_run_directory(run, output_dir, values)
+    print(f"\nRun 1/1: N={run.particles}, c1={run.c1}, Opt={run.operator}, "
+          f"circuit={run.ring}, full tank={values['full_initial_tank']}")
+    algorithm = solver_class(
+        matrix=matrix,
+        config=PSOConfig(N=run.particles, c1=run.c1, ring_mode=run.ring,
+                         reset_threshold_divisor=values['reset_threshold_divisor'],
+                         primary_operator_share=values['primary_operator_share'],
+                         progress_warmup_multiplier=values['progress_warmup_multiplier']),
+        **problem_arguments(prices, values['full_initial_tank'],
+                            values['fuel_capacity'], values['consumption']))
+    algorithm.run(verbose=run.verbose, optType=run.operator, excel=run.excel,
+                  file_path=destination / filename, permutReset=run.permutation_reset,
+                  minPermut=values['minimum_reset_probability'],
+                  maxPermut=values['maximum_reset_probability'], k=values['k'])
     return destination

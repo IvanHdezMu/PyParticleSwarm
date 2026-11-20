@@ -1,35 +1,25 @@
 """Reserve execution directories and persist their effective configurations."""
-from dataclasses import asdict
 from datetime import datetime, timezone
 import json
 from pathlib import Path
 import re
 
 
-def create_run_directory(experiment, output_dir):
-    """Reserve a run directory under output_dir/experiment.dataset and return its Path.
+def create_run_directory(run, output_dir, values):
+    """Reserve one concrete run's directory and persist the historical JSON schema.
 
-    output_dir is an explicit base path; relative paths remain relative to the
-    working directory. Reserve a UTC timestamped directory atomically, retrying
-    collisions with __2, __3, etc., then exclusively write run_config.json from
-    the experiment dataclass. Save the snapshot even when Excel is disabled.
-    Creation and writing errors propagate; a writing failure leaves the reserved
-    directory in place.
+    values is the effective scalar mapping already read by the caller. Relative
+    output paths use the working directory. Reserve atomically, never overwrite,
+    and keep partial artifacts if snapshot writing or subsequent execution fails.
     """
     created_at = datetime.now(timezone.utc).replace(microsecond=0)
-
-    def compact(values):
-        """Summarize an axis in at most 24 filename-safe characters, preserving order."""
-        values = tuple(values)
-        text = '-'.join(map(str, values)) if len(values) <= 2 else f'{values[0]}-{values[-1]}x{len(values)}'
-        return re.sub(r'[^A-Za-z0-9.-]', '-', text)[:24]
-
-    summary = '_'.join(f'{name}{compact(values)}' for name, values in (
-        ('N', experiment.particles), ('c1', experiment.steps), ('opt', experiment.opts),
-        ('ring', experiment.rings), ('full', experiment.full_tanks),
-        ('k', (experiment.k,)), ('min', experiment.minimums), ('max', experiment.maximums),
-    ))
-    parent = Path(output_dir) / experiment.dataset
+    summary = '_'.join(name + re.sub(r'[^A-Za-z0-9.-]', '-', str(value))[:24]
+                       for name, value in (
+                           ('N', run.particles), ('c1', run.c1), ('opt', run.operator),
+                           ('ring', run.ring), ('full', values['full_initial_tank']),
+                           ('k', values['k']), ('min', values['minimum_reset_probability']),
+                           ('max', values['maximum_reset_probability'])))
+    parent = Path(output_dir) / run.dataset
     parent.mkdir(parents=True, exist_ok=True)
     stem = f'{created_at:%Y-%m-%d_%H-%M-%S}_{summary}'
     attempt = 1
@@ -40,10 +30,18 @@ def create_run_directory(experiment, output_dir):
             break
         except FileExistsError:
             attempt += 1
-    configuration = asdict(experiment)
-    configuration['repetitions'] = {'start': experiment.repetitions.start,
-                                    'stop': experiment.repetitions.stop,
-                                    'step': experiment.repetitions.step}
+    configuration = dict(
+        dataset=run.dataset, label=re.sub(r'[<>:"/\\|?*\x00-\x1f]', '-', run.legacy_label or run.name),
+        steps=(run.c1,), particles=(run.particles,), opts=(run.operator,),
+        minimums=(values['minimum_reset_probability'],), maximums=(values['maximum_reset_probability'],),
+        rings=(run.ring,), full_tanks=(values['full_initial_tank'],),
+        repetitions=dict(start=run.repetition_id, stop=run.repetition_id + 1, step=1),
+        excel=run.excel, refuel=run.problem_mode == 'tspwr', style=run.legacy_style,
+        max_capacity=values['fuel_capacity'], consumption=values['consumption'],
+        permut_reset=run.permutation_reset, k=values['k'], analysis_output=run.analysis_output,
+        reset_threshold_divisor=values['reset_threshold_divisor'],
+        primary_operator_share=values['primary_operator_share'],
+        progress_warmup_multiplier=values['progress_warmup_multiplier'], verbose=run.verbose)
     configuration['created_at'] = created_at.isoformat()
     with (destination / 'run_config.json').open('x', encoding='utf-8') as stream:
         json.dump(configuration, stream, indent=2, ensure_ascii=False)

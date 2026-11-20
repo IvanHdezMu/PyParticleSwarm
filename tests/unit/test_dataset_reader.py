@@ -86,7 +86,6 @@ def test_runner_wrapper_and_batch_catalog(tmp_path, monkeypatch):
         runner.load_dataset('absent', datasets=catalog)
     descriptor = SimpleNamespace(id='sample', filename='sample.json', format='json',
                                  source='test', problem_types=('tspwr',))
-    monkeypatch.setattr(batch_executor, 'to_legacy_experiment', lambda run: run)
     def execute(run, output_dir, *, dataset):
         matrix, prices = load_dataset(dataset, root)
         np.testing.assert_array_equal(matrix, [[0.]])

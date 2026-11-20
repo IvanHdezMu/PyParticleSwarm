@@ -1,4 +1,5 @@
 """Regression for menu option 8 using its real configuration and workbook."""
+from conftest import concrete_run
 from tsp_pso.infrastructure.experiment_options import load_run_options
 from tsp_pso.experiments.experiment import build_experiments
 
@@ -16,7 +17,7 @@ from tsp_pso.algorithms.tspwr.tspwr_particle_swarm import TSPWRParticleSwarm
 
 from conftest import assert_permutation
 
-from tsp_pso.experiments.result_naming import result_filename
+from tsp_pso.analysis.analysis import historical_result_filename as result_filename
 
 pytestmark = pytest.mark.functional
 
@@ -56,7 +57,7 @@ def test_option_8_minas24d_finds_known_optimum(monkeypatch, tmp_path):
         return solver
 
     monkeypatch.setitem(runner.SOLVER_REGISTRY, 'tsp', (capture_solver, runner.SOLVER_REGISTRY['tsp'][1]))
-    run_directory = runner.execute(experiment, output_dir=tmp_path)
+    run_directory = runner.execute(concrete_run(experiment), output_dir=tmp_path)
 
     assert len(created_solvers) == 1
     solver = created_solvers[0]
@@ -128,7 +129,7 @@ def test_minas24d_refuel_ring_finds_known_best_cost(monkeypatch, tmp_path):
 
     monkeypatch.setitem(runner.SOLVER_REGISTRY, 'tspwr', (capture_solver, runner.SOLVER_REGISTRY['tspwr'][1]))
     # execute() loads both coordinates and fuel prices from the repository workbook.
-    run_directory = runner.execute(experiment, output_dir=tmp_path)
+    run_directory = runner.execute(concrete_run(experiment), output_dir=tmp_path)
 
     assert len(created_solvers) == 1
     solver = created_solvers[0]

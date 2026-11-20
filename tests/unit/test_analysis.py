@@ -57,7 +57,7 @@ def test_all_metrics_and_summary_excel_contract(tmp_path):
 def test_catalog_definitions_preserve_names_columns_and_order(monkeypatch):
     from pathlib import Path
     from tsp_pso.experiments.experiment import build_experiments
-    from tsp_pso.experiments.result_naming import result_filename
+    from tsp_pso.analysis.analysis import historical_result_filename as result_filename
 
     options = analysis.load_run_options()
     experiments = build_experiments(options)

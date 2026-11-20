@@ -1,4 +1,5 @@
 """Path, reservation and failure contracts of execution storage."""
+from conftest import concrete_run
 from dataclasses import asdict
 from datetime import datetime, timezone
 import json
@@ -17,8 +18,8 @@ pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def experiment():
-    return Experiment(dataset='sample', label='configuración', particles=(2, 4),
-                      steps=(100, 200, 300), repetitions=range(2, 8, 2), excel=False)
+    return Experiment(dataset='sample', label='configuración', particles=(2,),
+                      steps=(100,), repetitions=range(2, 3), excel=False)
 
 
 @pytest.fixture
@@ -30,14 +31,14 @@ def clock(monkeypatch):
 
 
 def test_reservation_collisions_and_exact_snapshot(tmp_path, experiment, clock):
-    directories = [run_storage.create_run_directory(experiment, tmp_path) for _ in range(3)]
+    directories = [run_storage.create_run_directory(concrete_run(experiment), tmp_path, dict(concrete_run(experiment).legacy_values)) for _ in range(3)]
     assert [p.name for p in directories] == [directories[0].name,
                                            directories[0].name + '__2',
                                            directories[0].name + '__3']
-    assert directories[0].name.startswith('2026-10-03_21-45-32_N2-4_c1100-300x3_')
+    assert directories[0].name.startswith('2026-10-03_21-45-32_N2_c1100_')
     assert all(call.args == (timezone.utc,) for call in clock.now.call_args_list)
     expected = asdict(experiment)
-    expected['repetitions'] = {'start': 2, 'stop': 8, 'step': 2}
+    expected['repetitions'] = {'start': 2, 'stop': 3, 'step': 1}
     expected['created_at'] = '2026-10-03T21:45:32+00:00'
     for directory in directories:
         assert (directory / 'run_config.json').read_bytes() == (
@@ -58,7 +59,10 @@ def test_runner_path_contract(tmp_path, monkeypatch, experiment, mode):
     output = {'default': None, 'default_absolute': None, 'relative': 'relative',
               'absolute': tmp_path / 'absolute', 'empty': ''}[mode]
     expected = project / configured if output is None else Path(output)
-    directory = runner.create_run_directory(experiment, output, run_options={'output_dir': configured})
+    monkeypatch.setattr(runner, '_load_dataset', Mock(return_value=(None, None)))
+    monkeypatch.setitem(runner.SOLVER_REGISTRY, 'tsp', (Mock(), runner.SOLVER_REGISTRY['tsp'][1]))
+    directory = runner.execute(concrete_run(experiment), output,
+                               run_options={'output_dir': configured, 'datasets': {'sample': {}}})
     assert directory.parent == expected / experiment.dataset
     assert (directory / 'run_config.json').is_file()
 
@@ -81,7 +85,7 @@ def test_storage_errors_propagate(tmp_path, monkeypatch, experiment, stage):
     monkeypatch.setattr(Path, 'mkdir', mkdir)
     monkeypatch.setattr(Path, 'open', open_file)
     with pytest.raises(PermissionError) as raised:
-        run_storage.create_run_directory(experiment, tmp_path)
+        run_storage.create_run_directory(concrete_run(experiment), tmp_path, dict(concrete_run(experiment).legacy_values))
     assert raised.value is error
     if stage == 'snapshot':
         assert len(list((tmp_path / 'sample').iterdir())) == 1

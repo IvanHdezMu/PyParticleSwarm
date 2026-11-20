@@ -46,7 +46,8 @@ The main components are:
   consumption is **km/liter**. Dataset prices remain a separate input.
 - [`SOLVER_REGISTRY`](tsp_pso/algorithms/solver_registry.py): maps `tsp` and `tspwr`
   to their solver classes and problem-specific argument builders. The application
-  runner retains compatibility with experiment configurations using `refuel`.
+  runner accepts only concrete run configurations; argument builders receive
+  scientific scalar values, not experiment models.
 - [`ParticleExecutor`](tsp_pso/infrastructure/executors/particle_executor.py),
   [`ExcelResultWriter`](tsp_pso/infrastructure/writers/excel_result_writer.py), and
   [`ConsolePresenter`](tsp_pso/presentation/console_presenter.py): process-pool
@@ -188,14 +189,13 @@ An already-created, new pending batch can also be started headlessly:
 python3 -m tsp_pso.experiments.batch_executor PATH_TO_BATCH
 ```
 
-This is not a resume command. The batch coordinator adapts each concrete run to
-the existing `Experiment`/`execute()` application API, which selects the current
-specialized solver through the registry. The dataset descriptor saved in the
-batch snapshot is passed explicitly to `execute()`; no shared dataset catalog is
-modified. See the
-[Experiment Runner architecture](docs/experiment-runner-design.md) for expansion,
-persistence, and interruption details; its legacy-adapter terminology refers to
-this experiment API boundary.
+This is not a resume command. The coordinator passes each
+`ConcreteRunConfiguration` directly to `runner.execute()`. The runner converts
+persisted `legacy_values` once and forwards the effective values to the solver
+and storage. The saved dataset descriptor is passed explicitly; no shared catalog
+is modified. The registry receives only prices, initial tank, capacity and
+consumption. No historical model or intermediate configuration is constructed.
+See the [Experiment Runner architecture](docs/experiment-runner-design.md).
 
 ## Results and Analysis
 
@@ -203,9 +203,9 @@ Each application-level experiment execution reserves a new directory under
 `Results/<dataset>/<timestamp>_<parameters>/`. Names use UTC timestamps with
 second precision and a compact parameter summary; collisions receive `__2`,
 `__3`, and so on via atomic directory creation. Existing directories are never
-reused. All combinations and repetitions in that execution share the directory,
-and `execute()` returns its path. Batch runs use the nested layout shown above,
-with one concrete configuration and repetition per application-level execution.
+reused. Each execution contains exactly one configuration and repetition, and
+`execute()` returns its path. Batch runs use the nested layout shown above. Older
+snapshots containing whole sweeps remain readable by the historical analyzer.
 
 [`run_storage.py`](tsp_pso/infrastructure/run_storage.py) owns directory reservation
 and snapshot writing. The application default output path is resolved from the
@@ -213,7 +213,7 @@ project root and experiment options. In direct Python calls to `execute()`, an
 explicit relative `output_dir` is relative to the working directory; absolute
 paths are preserved. This differs from the project-relative batch output setting.
 
-`run_config.json` records the effective experiment configuration, sweep lists,
+`run_config.json` retains its historical schema: effective settings, singleton lists,
 repetition bounds/step, and `created_at`, even with Excel disabled. Existing raw
 filename conventions are preserved; suffixes distinguish varying parameters that
 would otherwise collide within an execution.
@@ -374,7 +374,11 @@ Importing runner does not read configuration JSON or build experiments. Its
 `execute()` function accepts optional `dataset`, `run_options` and `datasets_root`
 arguments, loading defaults on demand when needed. There are no `RUN_OPTIONS`,
 `DATASETS` or `EXPERIMENTS` globals in runner. Execution and compatibility helpers
-remain available through Python; the terminal-only `runner.main()` was removed.
+remain available through Python, but `execute(Experiment)` and the historical
+`runner.create_run_directory()` wrapper are no longer supported. `Experiment`,
+`build_experiments()` and the `runner.Experiment` pickle name remain for historical
+configuration and result reading. The scalar `result_filename()` is shared by
+execution and historical analysis; the latter alone reconstructs sweep suffixes.
 
 ## Limitations
 

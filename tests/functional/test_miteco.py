@@ -1,5 +1,5 @@
 """End-to-end compatibility of the saved MITECO JSON with real refuel execution."""
-
+from conftest import concrete_run
 from functools import partial
 from multiprocessing import get_context
 
@@ -48,7 +48,7 @@ def test_miteco_json_runs_in_refuel_mode(monkeypatch, tmp_path):
         repetitions=range(1, 2), refuel=True, max_capacity=150.0, consumption=7.0,
         permut_reset=False, k=3, excel=False, verbose=False,
     )
-    runner.execute(experiment, output_dir=tmp_path, dataset=dataset)
+    runner.execute(concrete_run(experiment), output_dir=tmp_path, dataset=dataset)
 
     assert len(created_solvers) == 1
     solver = created_solvers[0]

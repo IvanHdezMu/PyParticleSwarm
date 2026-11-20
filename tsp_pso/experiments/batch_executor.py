@@ -1,40 +1,16 @@
 """Sequential CPU adapter and process entry point; no solver semantics live here."""
 import json
 from pathlib import Path
-import re
 import sys
 
 from ..application import runner
 from .batch_store import (
     finish_batch, finish_run, mark_interrupted, start_batch, start_run,
 )
-from .experiment import Experiment
 from .experiment_batch import (
     DatasetDescriptor, EXPANSION_VERSION, compile_plan, count_runs, iterate_runs,
 )
 from .experiment_config import ExperimentConfiguration
-
-
-def to_legacy_experiment(run):
-    """Convert an expanded run to a single-configuration traditional Experiment.
-
-    Preserve the repetition ID and saved inactive fields; sanitize only the label
-    used for storage. Required legacy values must be present or KeyError propagates.
-    """
-    e = dict(run.legacy_values)
-    return Experiment(
-        dataset=run.dataset, label=re.sub(r'[<>:"/\\|?*\x00-\x1f]', '-', run.legacy_label or run.name), particles=(run.particles,), steps=(run.c1,),
-        opts=(run.operator,), minimums=(e['minimum_reset_probability'],),
-        maximums=(e['maximum_reset_probability'],), rings=(run.ring,),
-        full_tanks=(e['full_initial_tank'],),
-        repetitions=range(run.repetition_id, run.repetition_id + 1),
-        excel=run.excel, verbose=run.verbose, refuel=run.problem_mode=='tspwr',
-        style=run.legacy_style, analysis_output=run.analysis_output,
-        max_capacity=e['fuel_capacity'], consumption=e['consumption'],
-        permut_reset=run.permutation_reset, k=e['k'],
-        reset_threshold_divisor=e['reset_threshold_divisor'],
-        primary_operator_share=e['primary_operator_share'],
-        progress_warmup_multiplier=e['progress_warmup_multiplier'])
 
 
 def execute_one(run, output_dir, descriptor):
@@ -45,7 +21,7 @@ def execute_one(run, output_dir, descriptor):
     """
     dataset = dict(filename=descriptor.filename, format=descriptor.format,
                    source=descriptor.source, problem_types=descriptor.problem_types)
-    return runner.execute(to_legacy_experiment(run), output_dir=output_dir, dataset=dataset)
+    return runner.execute(run, output_dir=output_dir, dataset=dataset)
 
 
 def execute_batch(directory, run_function=None):
