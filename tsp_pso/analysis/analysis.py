@@ -520,3 +520,31 @@ def prepare_batch_groups(directory):
         return prepared
     except (OSError, sqlite3.Error, ValueError, KeyError, TypeError, AttributeError) as error:
         raise ValueError(f'Batch {directory}: {error}') from error
+
+
+def analyze_batch(directory):
+    """Publish Analysis.xlsx for a complete, single-dataset/problem batch.
+
+    Use the original analyzer for all reading, statistics and workbook writing.
+    Return the published Path; any failure leaves an existing summary intact.
+    """
+    from tempfile import TemporaryDirectory
+    from openpyxl import load_workbook
+
+    directory = Path(directory).resolve()
+    groups = prepare_batch_groups(directory)
+    destination = directory / 'Analysis.xlsx'
+    with TemporaryDirectory(prefix='.analysis-', dir=directory) as temporary:
+        output = Path(temporary) / 'Analysis.xlsx'
+        analyze({'columns': BATCH_COLUMNS, 'output': output}, groups=groups)
+        workbook = load_workbook(output)
+        try:
+            sheet = workbook.active
+            sheet.title = 'Analysis'
+            sheet.auto_filter.ref = sheet.dimensions
+            sheet.freeze_panes = 'A2'
+            workbook.save(output)
+        finally:
+            workbook.close()
+        output.replace(destination)
+    return destination
