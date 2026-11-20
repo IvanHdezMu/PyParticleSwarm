@@ -160,3 +160,83 @@ def test_existing_excel_value_inference_is_preserved(tmp_path, result):
     assert table['mean_minimum_result'].tolist() == [expected]
     assert table['best_result'].tolist() == [expected]
     assert table['mean_step_of_minimum'].tolist() == [3.]
+
+
+def test_repetition_minima_have_equal_weight_despite_missing_samples(tmp_path):
+    histories = (
+        [[None, None], [7.5, 1.25], [9, 2.5]],
+        [[2, 8], [4.5, 3.75], [8, 6], [10, 5]],
+    )
+    for number, history in enumerate(histories, 17):
+        pd.DataFrame(history, columns=['Step', 'Result']).to_excel(
+            tmp_path / f'{number}.xlsx', index=False)
+    selected = {'parameters': {'p': [1]}, 'columns': ['p'],
+                'repetitions': {'start': 17, 'stop': 19},
+                'input_template': '{number}.xlsx', 'output': None}
+
+    table = analysis.analyze(selected, root=tmp_path)
+
+    # Each history contributes one minimum, regardless of its sample count.
+    assert table['mean_minimum_result'].tolist() == [2.5]
+    assert table['mean_step_of_minimum'].tolist() == [6.0]
+    assert table['best_result'].tolist() == [1.25]
+
+
+def test_missing_results_in_later_repetition_reject_entire_summary(tmp_path):
+    pd.DataFrame({'Step': [1], 'Result': [10]}).to_excel(
+        tmp_path / '1.xlsx', index=False)
+    pd.DataFrame({'Step': [2, 3], 'Result': [None, None]}).to_excel(
+        tmp_path / '2.xlsx', index=False)
+    selected = {'parameters': {'p': [1]}, 'columns': ['p'],
+                'repetitions': {'start': 1, 'stop': 3},
+                'input_template': '{number}.xlsx', 'output': 'Analysis.xlsx'}
+
+    with pytest.raises(ValueError, match='does not contain valid results') as caught:
+        analysis.analyze(selected, root=tmp_path)
+
+    assert str(tmp_path / '2.xlsx') in str(caught.value)
+    assert not (tmp_path / 'Analysis.xlsx').exists()
+
+
+@pytest.mark.parametrize('repetitions, expected_order, expected_mean', [
+    ({'start': 17, 'stop': 20}, [17, 18, 19], 1 / 3),
+    ({'start': 19, 'stop': 16, 'step': -1}, [19, 18, 17], 0.0),
+])
+def test_repetition_order_preserves_floating_point_summation(
+        tmp_path, monkeypatch, repetitions, expected_order, expected_mean):
+    # Synthetic values expose rounding differences hidden by integer examples.
+    results = {17: 1e16, 18: -1e16, 19: 1.0}
+    reads = []
+
+    def read_history(path):
+        number = int(path.stem)
+        reads.append(number)
+        return pd.DataFrame({'Step': [7.0], 'Result': [results[number]]})
+
+    monkeypatch.setattr(pd, 'read_excel', read_history)
+    selected = {'parameters': {'p': [1]}, 'columns': ['p'],
+                'repetitions': repetitions,
+                'input_template': '{number}.xlsx', 'output': None}
+
+    table = analysis.analyze(selected, root=tmp_path)
+
+    assert reads == expected_order
+    assert table['mean_minimum_result'].tolist() == [expected_mean]
+    assert table['mean_step_of_minimum'].tolist() == [7.0]
+    assert table['best_result'].tolist() == [-1e16]
+
+
+def test_opposite_infinite_minima_preserve_nan_mean(tmp_path):
+    for number, result in enumerate((float('inf'), float('-inf')), 1):
+        pd.DataFrame({'Step': [number], 'Result': [result]}).to_excel(
+            tmp_path / f'{number}.xlsx', index=False)
+    selected = {'parameters': {'p': [1]}, 'columns': ['p'],
+                'repetitions': {'start': 1, 'stop': 3},
+                'input_template': '{number}.xlsx', 'output': None}
+
+    with pytest.warns(RuntimeWarning, match='invalid value'):
+        table = analysis.analyze(selected, root=tmp_path)
+
+    assert pd.isna(table.loc[0, 'mean_minimum_result'])
+    assert table['mean_step_of_minimum'].tolist() == [1.5]
+    assert table['best_result'].tolist() == [float('-inf')]
