@@ -54,7 +54,8 @@ def execute_batch(directory, run_function=None):
     Validate the snapshot version and expanded count before starting. An optional
     run_function(run, output_dir, descriptor) must return the execution directory.
     Record the first execution failure or interruption and stop; setup errors
-    propagate. Re-entrant/resume execution is intentionally rejected.
+    propagate. Re-entrant/resume execution is intentionally rejected. After success,
+    generate the summary; analysis errors are logged separately from run status.
     """
     directory = Path(directory)
     with (directory / 'batch.json').open(encoding='utf-8') as stream:
@@ -88,6 +89,21 @@ def execute_batch(directory, run_function=None):
         if current is not None:
             finish_run(directory, current, 'failed', error=message)
         finish_batch(directory, 'failed', error=message)
+    else:
+        try:
+            from ..analysis.analysis import analyze_batch
+            analyze_batch(directory)
+        except (Exception, KeyboardInterrupt) as error:
+            message = f'Batch succeeded; analysis failed: {type(error).__name__}: {error}'
+            # The coordinator may already redirect these streams to execution.log.
+            # Flush before appending so buffered execution output is not overwritten.
+            sys.stdout.flush()
+            sys.stderr.flush()
+            try:
+                with (directory / 'execution.log').open('a', encoding='utf-8') as log:
+                    log.write(message + '\n')
+            except OSError as log_error:
+                print(f'{message}; cannot write execution.log: {log_error}', file=sys.stderr)
     return directory
 
 
