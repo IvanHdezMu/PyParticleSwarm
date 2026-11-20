@@ -165,27 +165,6 @@ def repetition_numbers(analysis):
     return range(repetitions['start'], repetitions['stop'], repetitions.get('step', 1))
 
 
-def first_missing_result(analysis, root=None):
-    """Return the first missing input Path, or None when the selection is available.
-
-    Catalog selections require a discoverable run snapshot, not a complete set
-    of workbooks. Historical and individual-run selections check each expected
-    file. Relative paths use root, or the project root when it is omitted.
-    """
-    base = Path(root) if root is not None else ROOT
-    if 'experiment' in analysis and 'run_directory' not in analysis:
-        dataset_root = base / analysis['run_root']
-        return None if discover_run_analyses(dataset_root) else dataset_root / 'run_config.json'
-    parameters = analysis['parameters']
-    for values in product(*parameters.values()):
-        configuration = dict(zip(parameters, values))
-        for number in repetition_numbers(analysis):
-            path = base / analysis['input_template'].format(**configuration, number=number)
-            if not path.is_file():
-                return path
-    return None
-
-
 def _history_minimum(frame):
     """Return the first sampled minimum and its Step without changing the frame."""
     if not {'Result', 'Step'}.issubset(frame.columns):

@@ -92,9 +92,3 @@ def execute(experiment, output_dir=None, *, problem_type=None, dataset=None,
                       permutReset=experiment.permut_reset, minPermut=minimum,
                       maxPermut=maximum, k=experiment.k)
     return destination
-
-def main():
-    """Compatibility entry point for the terminal interface."""
-    # terminal imports runner; defer this reverse dependency until invocation.
-    from ..presentation.terminal import main as terminal_main
-    return terminal_main()

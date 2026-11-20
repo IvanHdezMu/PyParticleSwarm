@@ -59,4 +59,4 @@ No fake GPU selection, fixed numeric dropdowns, live convergence graphs, pause/r
 2. Shared branch expansion/counting and legacy preset regression.
 3. SQLite batch lifecycle and thin legacy adapter with offline failure/interruption tests.
 4. CustomTkinter editor with free numeric chips, Boolean sets, editable presets and exact count.
-5. GUI startup, legacy terminal access, offline end-to-end tests and documentation.
+5. GUI startup, offline end-to-end tests and documentation.

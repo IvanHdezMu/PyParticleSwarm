@@ -7,7 +7,7 @@ PyParticleSwarm explores route optimization using Particle Swarm Optimization
 Problem (TSP)** and a **TSP with refueling (TSPWR)** formulation, configurable
 experiments, persistent batch execution, and analysis of Excel result histories.
 
-The project includes a desktop Experiment Runner, terminal run/analysis menus,
+The project includes a desktop Experiment Runner,
 TSPLIB and geographic dataset readers, and a separate MITECO fuel-station dataset
 generator. The algorithms, experiment orchestration, presentation, and output
 components live in separate packages.
@@ -72,19 +72,17 @@ still needs display access.
 
 ```bash
 python3 main.py             # Desktop Experiment Runner
-python3 main.py --terminal  # Terminal run/analysis menus; no display required
 ```
 
-In the terminal interface, select **run** and then a configured experiment, or
-**analysis** to inspect saved results as described below. Experiment definitions
-and defaults are in [`config/experiments.json`](config/experiments.json); dataset
-paths, formats, and supported problems are in
-[`config/datasets.json`](config/datasets.json). The desktop entry point uses
-`presentation/experiment_gui.py`; terminal menus live in
-[`presentation/terminal.py`](tsp_pso/presentation/terminal.py).
+Experiment definitions and defaults are in
+[`config/experiments.json`](config/experiments.json); dataset paths, formats, and
+supported problems are in [`config/datasets.json`](config/datasets.json).
+The application opens the GUI in `presentation/experiment_gui.py`.
+Interactive terminal menus and the `--terminal` option have been removed;
+historical analysis remains available through the Python APIs described below.
 
-The traditional terminal experiments use the full Cartesian product from
-[`Experiment`](tsp_pso/experiments/experiment.py), including inactive sweep values.
+The traditional Python [`Experiment`](tsp_pso/experiments/experiment.py) API uses
+the full Cartesian product, including inactive sweep values.
 The current configuration contains 22 experiments and 1,209 configurations; the
 GUI/batch expansion applies the conditional rules described below instead.
 
@@ -278,19 +276,6 @@ if analysis or publication fails. To retry only the analysis after resolving an
 artifact problem, call `analyze_batch(path)`; it returns the summary path or
 raises the error. Relative batch paths resolve from the current working directory.
 
-**Terminal analysis.** Run `python3 main.py --terminal` and choose **analysis**.
-The menu mirrors the current experiment ordering. Selecting an experiment scans
-the timestamped run directories for its dataset, including other labels and
-configurations. Each run is reconstructed from its saved configuration and
-analyzed independently; its summary is saved in the same run directory. All 22
-configured presets retain their menu positions even when a preset has
-`excel=false`: previously saved Excel runs for that dataset remain available,
-as do historical definitions through the Python API. If no eligible run snapshot
-is found, the menu offers to execute the selected experiment only when that
-preset saves Excel. Otherwise it explains that execution would not save results
-and returns without offering to run it. Snapshot discovery does not check that
-all workbooks are complete; those checks happen during analysis.
-
 **Direct directory analysis.** For example, from the repository root:
 
 ```bash
@@ -331,10 +316,9 @@ summary for that run, but does not remove a summary from an earlier analysis.
 [`config/historical_analyses.json`](config/historical_analyses.json) defines the
 older Berlin52 layouts (`00` and `02_08`), their repetition ranges and filename
 templates. They retain their existing paths; flat-layout results are not
-migrated automatically. These definitions are loaded by `load_analysis_options()`
-but are **not listed in the current experiment-only terminal menu**. To analyze
-an existing historical dataset from a shell, select its definition explicitly
-through the Python API:
+migrated automatically. These definitions are loaded by `load_analysis_options()`.
+To analyze an existing historical dataset from a shell, select its definition
+explicitly through the Python API:
 
 ```bash
 python3 - <<'PY'
@@ -360,7 +344,7 @@ validation rules, expansion order and imported aliases.
 
 | Path | Purpose |
 | --- | --- |
-| [`main.py`](main.py) | Desktop entry point and terminal mode. |
+| [`main.py`](main.py) | Desktop entry point. |
 | [`tsp_pso/algorithms/core/`](tsp_pso/algorithms/core/) | Shared `ParticleSwarm` and `PSOConfig`. |
 | [`tsp_pso/algorithms/tsp/`](tsp_pso/algorithms/tsp/) | TSP specialization. |
 | [`tsp_pso/algorithms/tspwr/`](tsp_pso/algorithms/tspwr/) | TSPWR specialization and `RefuelConfig`. |
@@ -369,7 +353,6 @@ validation rules, expansion order and imported aliases.
 | [`tsp_pso/experiments/experiment.py`](tsp_pso/experiments/experiment.py) | Traditional `Experiment` model and `build_experiments(options)`. |
 | [`tsp_pso/experiments/result_naming.py`](tsp_pso/experiments/result_naming.py) | Shared filename conventions for execution and analysis. |
 | [`tsp_pso/experiments/`](tsp_pso/experiments/) | `experiment_config.py`, `experiment_batch.py`, `batch_store.py`, `batch_executor.py` and `experiment_process.py`: validated configuration, presets, lazy expansion, persistence and batch coordination. |
-| [`tsp_pso/presentation/terminal.py`](tsp_pso/presentation/terminal.py) | Interactive execution/analysis menus, confirmations and cancellation handling. |
 | [`tsp_pso/presentation/`](tsp_pso/presentation/) | Desktop Experiment GUI/editor and solver console presenter. |
 | [`tsp_pso/infrastructure/experiment_options.py`](tsp_pso/infrastructure/experiment_options.py) | JSON option loading and complementary configuration files. |
 | [`tsp_pso/infrastructure/dataset_reader.py`](tsp_pso/infrastructure/dataset_reader.py) | Dataset reading from an explicit descriptor and dataset root, reusing `tsplib/`. |
@@ -383,16 +366,15 @@ validation rules, expansion order and imported aliases.
 | [`.devcontainer/requirements.txt`](.devcontainer/requirements.txt) | Application dependencies installed by the devcontainer. |
 
 `application/runner.py` coordinates operations; experiment definitions and naming
-belong to `experiments/`, file access belongs to `infrastructure/`, and interactive
-menus belong to `presentation/terminal.py`. Analysis uses the extracted experiment,
+belong to `experiments/`, file access belongs to `infrastructure/`, and the desktop
+interface belongs to `presentation/`. Analysis uses the extracted experiment,
 naming and configuration modules directly.
 
 Importing runner does not read configuration JSON or build experiments. Its
 `execute()` function accepts optional `dataset`, `run_options` and `datasets_root`
 arguments, loading defaults on demand when needed. There are no `RUN_OPTIONS`,
-`DATASETS` or `EXPERIMENTS` globals in runner. Compatibility helpers, including
-`runner.main()`, remain available; the normal terminal entry point is
-`presentation.terminal.main()`.
+`DATASETS` or `EXPERIMENTS` globals in runner. Execution and compatibility helpers
+remain available through Python; the terminal-only `runner.main()` was removed.
 
 ## Limitations
 

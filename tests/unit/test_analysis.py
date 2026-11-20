@@ -101,18 +101,12 @@ def test_public_analysis_reference_requires_exactly_one_match(matches):
 
 
 def test_disabled_excel_presets_do_not_block_catalog_or_history(monkeypatch):
-    from tsp_pso.experiments.experiment import build_experiments
-    from tsp_pso.presentation.terminal import analysis_menu_options
-
     expected = analysis.load_analysis_options()
     options = analysis.load_run_options()
     options['experiments'][0]['excel'] = False
     monkeypatch.setattr(analysis, 'load_run_options', lambda path=None: options)
     actual = analysis.load_analysis_options()
     assert actual == expected
-    menu = analysis_menu_options(actual, build_experiments(options))
-    assert list(menu) == list(range(1, 23))
-    assert list(menu.values()) == actual[2:]
     with pytest.raises(ValueError, match='excel=false'):
         analysis.analysis_for_experiment(actual[2], options)
 

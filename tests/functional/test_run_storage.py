@@ -128,10 +128,9 @@ def test_analysis_discovers_all_runs_and_keeps_results_separate(experiment, work
 def test_catalog_analysis_entry_scans_dataset_runs(experiment, workbook_solver, tmp_path):
     selected = next(a for a in analysis.load_analysis_options()
                     if a.get('experiment') == {'dataset': 'Minas24D', 'label': 'individual'})
-    assert analysis.first_missing_result(selected, root=tmp_path) is not None
+    assert analysis.analyze(selected, root=tmp_path) == {}
     first = runner.execute(experiment, output_dir=tmp_path / 'Results')
     second = runner.execute(replace(experiment, label='arbitrary UI label'), output_dir=tmp_path / 'Results')
-    assert analysis.first_missing_result(selected, root=tmp_path) is None
     assert set(analysis.analyze(selected, root=tmp_path)) == {str(first), str(second)}
 
 
@@ -190,7 +189,6 @@ def test_historical_analysis_keeps_legacy_paths(tmp_path):
             path = tmp_path / historical['input_template'].format(optType=operator, number=number)
             path.parent.mkdir(parents=True, exist_ok=True)
             pd.DataFrame({'Step': [1], 'Result': [operator * 10 + number]}).to_excel(path, index=False)
-    assert analysis.first_missing_result(historical, root=tmp_path) is None
     result = analysis.analyze(historical, root=tmp_path)
     assert result['optType'].tolist() == [1, 2, 3, 4, 5]
     assert result['mean_minimum_result'].tolist() == [15.5, 25.5, 35.5, 45.5, 55.5]
@@ -291,25 +289,17 @@ def test_snapshot_axes_remain_validated(experiment, tmp_path, axis, value):
 
 def test_saved_excel_runs_remain_available_with_disabled_current_preset(
         experiment, workbook_solver, tmp_path, monkeypatch):
-    from tsp_pso.presentation import terminal
-
     directory = runner.execute(experiment, output_dir=tmp_path)
     options = load_run_options()
     options['output_dir'] = str(tmp_path)
     for entry in options['experiments']:
         entry['excel'] = False
     monkeypatch.setattr(analysis, 'load_run_options', lambda path=None: options)
-    monkeypatch.setattr(terminal, 'load_run_options', lambda: options)
     selected = next(item for item in analysis.load_analysis_options()
                     if item.get('experiment') == {'dataset': 'Minas24D', 'label': 'individual'})
-    assert analysis.first_missing_result(selected) is None
-    assert set(analysis.analyze(selected)) == {str(directory)}
-    (directory / 'Analysis_Minas24D.xlsx').unlink()
-    responses = iter(['2', '8'])
-    monkeypatch.setattr('builtins.input', lambda prompt: next(responses))
     execute = Mock()
     monkeypatch.setattr(runner, 'execute', execute)
-    terminal.main()
+    assert set(analysis.analyze(selected)) == {str(directory)}
     execute.assert_not_called()
     assert pd.read_excel(directory / 'Analysis_Minas24D.xlsx')['mean_minimum_result'].tolist() == [11.5]
 
