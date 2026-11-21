@@ -1,15 +1,19 @@
 """Read real batch artifacts and Excel histories without executing a solver."""
 import hashlib
 import json
-from pathlib import Path
 import shutil
 import sqlite3
+from pathlib import Path
 
 import pandas as pd
 import pytest
 
-from tsp_pso.analysis.analysis import METRICS, analyze
-from tsp_pso.analysis.analysis import prepare_batch_groups, BATCH_COLUMNS
+from tsp_pso.analysis.analysis import (
+    BATCH_COLUMNS,
+    METRICS,
+    analyze,
+    prepare_batch_groups,
+)
 from tsp_pso.experiments.experiment_config import RepetitionSpec
 
 pytestmark = pytest.mark.functional
@@ -55,7 +59,7 @@ def test_moved_batch_is_read_only_and_independent_of_live_catalog(
 
 
 @pytest.mark.parametrize('style', ['standard', 'berlin_grid', 'bays', 'fuel'])
-def test_batch_statistics_equal_traditional_analysis_on_same_histories(
+def test_batch_statistics_equal_explicit_analysis_on_same_histories(
         completed_batch, tmp_path, style):
     histories = {
         17: [[None, None], [7.5, 1.25], [3, 1.25]],
@@ -64,19 +68,16 @@ def test_batch_statistics_equal_traditional_analysis_on_same_histories(
     directory = completed_batch(legacy_style=style, history=lambda r: histories[r.repetition_id])
     with sqlite3.connect(directory / 'manifest.sqlite3') as db:
         records = db.execute('SELECT configuration,output FROM runs').fetchall()
-    flat = tmp_path / 'traditional'
+    flat = tmp_path / 'explicit'
     flat.mkdir()
     for payload, output in records:
         repetition = json.loads(payload)['repetition_id']
         source, = Path(output).glob('*.xlsx')
         shutil.copyfile(source, flat / f'{repetition}.xlsx')
-    traditional = analyze({
-        'parameters': {'p': [1]}, 'columns': ['p'],
-        'repetitions': {'start': 17, 'stop': 19},
-        'input_template': str(flat / '{number}.xlsx'), 'output': None,
-    })
+    explicit = analyze({'columns': ['p'], 'output': None}, groups=[
+        ({'p': 1}, [flat / f'{number}.xlsx' for number in (17, 18)])])
     actual = _analyze_prepared(directory)
-    pd.testing.assert_frame_equal(actual[METRICS], traditional[METRICS], check_exact=True)
+    pd.testing.assert_frame_equal(actual[METRICS], explicit[METRICS], check_exact=True)
     assert not (directory / 'Analysis.xlsx').exists()
 
 

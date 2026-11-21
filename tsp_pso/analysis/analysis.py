@@ -1,172 +1,27 @@
-"""Analyze catalog selections, saved run snapshots and historical Excel results."""
-from dataclasses import fields
-from datetime import datetime
-from itertools import product
+"""Analyze explicit groups of Excel histories and completed batches."""
 import json
-from pathlib import Path, PureWindowsPath
-import re
 import sqlite3
+from datetime import datetime
+from pathlib import Path, PureWindowsPath
 from zipfile import BadZipFile
 
 import pandas as pd
 
-from ..experiments.experiment import Experiment, build_experiments
+from ..experiments.batch_store import positive_decimal, read_batch
 from ..experiments.experiment_batch import (
-    CONDITIONAL, ConcreteRunConfiguration,
+    CONDITIONAL,
+    validate_run_configuration,
 )
-from ..experiments.batch_store import read_batch, positive_decimal
-from ..experiments.experiment_config import ExperimentConfiguration, is_parameter_active
+from ..experiments.experiment_batch import (
+    RUN_AXES as _BATCH_AXES,
+)
 from ..experiments.result_naming import result_filename
-from ..infrastructure.experiment_options import load_run_options
 
 # ROOT: Project root directory used as the default base path
 # when locating and analyzing experiment results.
 ROOT = Path(__file__).resolve().parents[2]
 # METRICS: Names of the analysis metrics, in the same order as their calculated values.
 METRICS = ['mean_minimum_result', 'mean_step_of_minimum', 'best_result']
-
-
-def extra_filename_fields(experiment):
-    """Return (configuration index, suffix label, axis values) for omitted sweeps.
-
-    Only axes with multiple values are included, in their established suffix
-    order, so legacy names stay unchanged for experiments without those sweeps.
-    """
-    fields = []
-    if experiment.style in ('fuel', 'bays'):
-        fields.extend(((3, 'minR', experiment.minimums), (4, 'maxR', experiment.maximums)))
-    if experiment.style != 'fuel':
-        fields.extend(((5, 'ring', experiment.rings), (6, 'full', experiment.full_tanks)))
-    return [(index, name, values) for index, name, values in fields if len(values) > 1]
-
-
-def historical_result_filename(experiment, configuration):
-    """Read historical sweep names using the shared scalar formatter."""
-    return result_filename(experiment.dataset, experiment.style, experiment.k,
-                           configuration, extra_filename_fields(experiment))
-
-
-def _analysis_from_experiment(analysis, experiment, output_dir):
-    """Build a selection independently of whether its current preset saves Excel."""
-    parameters = {'random': [True], 'N': list(experiment.particles),
-                  'c1': list(experiment.steps), 'optType': list(experiment.opts)}
-    if experiment.style == 'fuel':
-        parameters.update(ring=list(experiment.rings), full=list(experiment.full_tanks))
-    elif experiment.style != 'bays':
-        parameters.update(kv=[experiment.k], minR=list(experiment.minimums),
-                          maxR=list(experiment.maximums))
-    for _, name, values in extra_filename_fields(experiment):
-        parameters[name] = list(values)
-    filename = historical_result_filename(experiment, ('{N}', '{c1}', '{optType}',
-                              '{minR}', '{maxR}', '{ring}', '{full}', '{number}'))
-    destination = Path(output_dir) / experiment.dataset
-    return {**analysis, 'run_root': str(destination), 'parameters': parameters, 'columns': list(parameters),
-            'repetitions': {'start': experiment.repetitions.start,
-                            'stop': experiment.repetitions.stop},
-            'input_template': str(destination / filename),
-            'output': str(destination / analysis['output']) if analysis['output'] else None}
-
-
-def load_analysis_options(run_options_path=None):
-    """Return historical analyses followed by analyses of configured experiments.
-
-    Path resolution follows load_run_options(). Validate identifiers, parameter
-    lists, columns and repetitions, raising ValueError for invalid definitions.
-    Catalog selections remain available when their current preset disables Excel;
-    saved snapshots determine availability. Configuration reading errors propagate
-    unchanged.
-    """
-    options = load_run_options(run_options_path)
-    analyses = list(options.get('historical_analyses', []))
-    for experiment in build_experiments(options):
-        analysis = {
-            'id': f'{experiment.dataset}_{experiment.label}',
-            'label': f'{experiment.dataset}: {experiment.label}',
-            'experiment': {'dataset': experiment.dataset, 'label': experiment.label},
-            'output': experiment.analysis_output or
-                      f'Analysis_{experiment.dataset}_{experiment.label}.xlsx',
-        }
-        analyses.append(_analysis_from_experiment(analysis, experiment, options['output_dir']))
-    identifiers = set()
-    for analysis in analyses:
-        if analysis['id'] in identifiers:
-            raise ValueError(f"Duplicate analysis identifier: {analysis['id']}")
-        identifiers.add(analysis['id'])
-        parameters = analysis['parameters']
-        if not parameters or any(not isinstance(v, list) or not v for v in parameters.values()):
-            raise ValueError(f"Empty or invalid parameters in {analysis['id']}.")
-        if any(column not in parameters for column in analysis['columns']):
-            raise ValueError(f"Unknown columns in {analysis['id']}.")
-        if not repetition_numbers(analysis):
-            raise ValueError(f"Empty repetitions in {analysis['id']}.")
-    return analyses
-
-
-def discover_run_analyses(dataset_root):
-    """Read self-contained run snapshots, ignoring unrelated or malformed directories."""
-
-    dataset_root = Path(dataset_root).resolve()
-    if not dataset_root.is_dir():
-        return []
-    analyses = []
-    for directory in sorted(dataset_root.iterdir()):
-        if not directory.is_dir() or not re.match(r'^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}_', directory.name):
-            continue
-        try:
-            with (directory / 'run_config.json').open(encoding='utf-8') as stream:
-                saved = json.load(stream)
-            datetime.fromisoformat(saved['created_at'])
-            configuration = {field.name: saved[field.name] for field in fields(Experiment)}
-            if configuration['dataset'] != dataset_root.name:
-                raise ValueError('Run dataset does not match its directory')
-            if type(configuration['excel']) is not bool or not configuration['excel']:
-                continue
-            for name in ('steps', 'particles', 'opts', 'minimums', 'maximums',
-                         'rings', 'full_tanks'):
-                if not isinstance(configuration[name], list) or not configuration[name]:
-                    raise ValueError(f'{name} must be a non-empty list.')
-                configuration[name] = tuple(configuration[name])
-            repetitions = configuration['repetitions']
-            configuration['repetitions'] = range(
-                repetitions['start'], repetitions['stop'], repetitions.get('step', 1))
-            experiment = Experiment(**configuration)
-            if not experiment.repetitions:
-                raise ValueError('Empty repetitions')
-            output = experiment.analysis_output or f'Analysis_{experiment.dataset}_{experiment.label}.xlsx'
-            if Path(output).name != output or not output.endswith('.xlsx'):
-                raise ValueError('Analysis output must be an Excel filename inside the run directory')
-            if output in {historical_result_filename(experiment, c) for c in experiment.configurations()}:
-                raise ValueError('Analysis output collides with a raw result')
-            analysis = _analysis_from_experiment({
-                'id': directory.name, 'label': experiment.label,
-                'experiment': {'dataset': experiment.dataset, 'label': experiment.label},
-                'output': output,
-            }, experiment, dataset_root.parent)
-            analysis['input_template'] = str(directory / Path(analysis['input_template']).name)
-            analysis['output'] = str(directory / output)
-            analysis['repetitions'] = repetitions
-            analysis['run_directory'] = str(directory)
-            analyses.append(analysis)
-        except (OSError, ValueError, KeyError, TypeError, AttributeError):
-            continue
-    return analyses
-
-
-def analyze_runs(dataset_root):
-    """Analyze each discovered run separately; incomplete runs do not block others."""
-    results = {}
-    for analysis in discover_run_analyses(Path(dataset_root).resolve()):
-        try:
-            results[analysis['run_directory']] = analyze(analysis)
-        except (OSError, ValueError, KeyError, TypeError, BadZipFile) as error:
-            print(f"Skipping run {analysis['run_directory']}: {error}")
-    return results
-
-
-def repetition_numbers(analysis):
-    """Return the saved start/stop range, honoring step when present (default 1)."""
-    repetitions = analysis['repetitions']
-    return range(repetitions['start'], repetitions['stop'], repetitions.get('step', 1))
 
 
 def _history_minimum(frame):
@@ -183,41 +38,16 @@ def _history_minimum(frame):
     return minimum, step
 
 
-def _traditional_groups(analysis):
-    """Yield Cartesian configurations and their ordered, template-based paths."""
-    parameters = analysis['parameters']
-    numbers = repetition_numbers(analysis)
-    if not numbers:
-        raise ValueError('The repetition range cannot be empty.')
-    for values in product(*parameters.values()):
-        configuration = dict(zip(parameters, values))
-        yield configuration, (analysis['input_template'].format(**configuration, number=number)
-                              for number in numbers)
+def analyze(analysis, root=None, *, groups, announce=True):
+    """Summarize ordered (parameter_mapping, excel_paths) groups and save Excel.
 
-
-def analyze(analysis, root=None, *, groups=None, announce=True):
-    """Group minimum results and steps by configuration and save the completed table.
-
-    Experiment selections scan dataset run directories. Historical and individual
-    run analyses reject incomplete inputs; the directory scanner skips failed runs.
-    Relative paths use root, or the project directory when omitted. Return a
-    DataFrame for a single analysis, or a mapping of run paths to DataFrames for
-    a catalog selection. Single analyses propagate read/validation/write errors.
-
-    Optional groups supplies ordered (parameter_mapping, excel_paths) pairs instead
-    of Cartesian parameters, repetitions and input_template. Each path iterable
-    must be nonempty; paths may be strings or Paths, relative to base or absolute.
-    Groups and histories are consumed in supplied order, without sorting or extra
-    combinations. announce=False suppresses the single-workbook save notice until
-    a caller publishes its temporary output. Explicit groups bypass catalog discovery and require only
-    columns and output in the analysis definition. An empty group iterable yields
-    an empty table. Both inputs share the same statistics and output handling.
+    Relative paths use root, or the project directory when omitted. Each path
+    iterable must be nonempty. Groups and histories retain their supplied order.
+    The definition supplies columns and output; output=None skips writing.
+    announce=False suppresses the save notice until a caller publishes its
+    temporary output. Return a DataFrame, empty when the group iterable is empty.
     """
     base = Path(root) if root is not None else ROOT
-    if groups is None:
-        if 'experiment' in analysis and 'run_directory' not in analysis:
-            return analyze_runs(base / analysis['run_root'])
-        groups = _traditional_groups(analysis)
     rows = []
     for configuration, excel_paths in groups:
         minimums, steps, paths = [], [], []
@@ -258,11 +88,6 @@ def analyze(analysis, root=None, *, groups=None, announce=True):
     return table
 
 
-_BATCH_AXES = {
-    'dataset': 'datasets', 'problem_mode': 'problem_modes', 'operator': 'operators',
-    'particles': 'particles', 'c1': 'c1', 'ring': 'ring',
-    'permutation_reset': 'permutation_reset',
-}
 _BATCH_KEY_FIELDS = (*_BATCH_AXES, *CONDITIONAL, 'verbose', 'excel')
 # Parameter columns only; analyze() appends the unchanged METRICS.
 BATCH_COLUMNS = [
@@ -316,49 +141,10 @@ def _batch_load_batch(directory):
 
 
 def _batch_configuration(run, requested):
-    if set(run) != {f.name for f in fields(ConcreteRunConfiguration)}:
-        raise ValueError('Incomplete or incompatible concrete configuration')
-    effective = run['legacy_values']
-    if not isinstance(effective, dict) or set(effective) != set(CONDITIONAL):
-        raise ValueError('legacy_values must contain all nine effective scalars')
-    # Reuse scalar validation through singleton axes, without expanding any runs.
-    values = {axis: [run[name]] for name, axis in _BATCH_AXES.items()}
-    values.update({name: [effective[name]] for name in CONDITIONAL})
-    values.update({name: run[name] for name in (
-        'name', 'verbose', 'excel', 'output_dir', 'legacy_style',
-        'legacy_label', 'analysis_output')})
-    values['repetitions'] = {'count': 1, 'first_id': run['repetition_id']}
-    ExperimentConfiguration.from_dict(values)
-    for name, axis in _BATCH_AXES.items():
-        if run[name] not in getattr(requested, axis):
-            raise ValueError(f'{name} is not in the saved request')
-    for name in ('verbose', 'excel'):
-        if run[name] != getattr(requested, name):
-            raise ValueError(f'{name} differs from the saved request')
+    values = validate_run_configuration(run, requested)
     if not run['excel']:
         raise ValueError('Run has excel=False')
-    inactive = []
-    for name in CONDITIONAL:
-        active = is_parameter_active(name, problem_mode=run['problem_mode'],
-                                     operator=run['operator'],
-                                     permutation_reset=run['permutation_reset'],
-                                     verbose=run['verbose'], excel=run['excel'])
-        axis = getattr(requested, name)
-        if active:
-            if (run[name] is None or not _batch_same_value(run[name], effective[name])
-                    or run[name] not in axis):
-                raise ValueError(f'Inconsistent active parameter: {name}')
-        else:
-            if run[name] is not None:
-                raise ValueError(f'Inactive expansion parameter must be null: {name}')
-            if len(axis) == 1 and effective[name] != axis[0]:
-                raise ValueError(f'Inactive singleton differs from saved request: {name}')
-            inactive.append(name)
-    # Inactive multi-value fallbacks are persisted evidence, not modern defaults.
-    return {name: run[name] for name in _BATCH_AXES} | effective | {
-        'verbose': run['verbose'], 'excel': run['excel'],
-        'inactive_parameters': ', '.join(inactive),
-    }
+    return values
 
 
 def _batch_result_path(directory, record, run):

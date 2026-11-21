@@ -1,6 +1,8 @@
 """Small offline execution through the new adapter and existing real solver."""
 from functools import partial
 import json
+import os
+import signal
 from multiprocessing import Pool
 from pathlib import Path
 
@@ -44,7 +46,7 @@ def test_offline_batch_writes_real_excel_and_manifest(tmp_path, monkeypatch, mod
 
 
 @pytest.mark.skipif(__import__('os').name != 'posix', reason='POSIX process-group signal integration')
-def test_real_process_interrupt_preserves_finished_run(tmp_path):
+def test_external_process_death_preserves_finished_run(tmp_path):
     import time
     from tsp_pso.experiments.experiment_process import BatchProcess
     dataset=tmp_path/'tiny-process.json'
@@ -61,13 +63,15 @@ def test_real_process_interrupt_preserves_finished_run(tmp_path):
         while time.monotonic()<deadline:
             state=batch_status(directory)
             if state['counts']['succeeded']==1 and state['counts']['running']==1:
-                process.interrupt()
+                os.killpg(process.process.pid, signal.SIGKILL)
                 break
             assert process.poll() is None, state
             time.sleep(.05)
         else:
             pytest.fail('First tiny run did not complete before timeout')
-        while process.poll() is None and time.monotonic()<deadline:
+        while time.monotonic()<deadline:
+            if process.poll() is not None and batch_status(directory)['status'] == 'interrupted':
+                break
             time.sleep(.05)
         assert process.poll() is not None
         state=batch_status(directory)
@@ -75,7 +79,9 @@ def test_real_process_interrupt_preserves_finished_run(tmp_path):
         assert state['counts']=={'running':0,'succeeded':1,'failed':0,'interrupted':1,'pending':1}
         assert list((directory/'runs/1').rglob('run_config.json'))
     finally:
-        process.interrupt()
-        cleanup_deadline=time.monotonic()+12
-        while process.poll() is None and time.monotonic()<cleanup_deadline:
-            time.sleep(.1)
+        if process.process.poll() is None:
+            try:
+                os.killpg(process.process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+        process.process.wait(timeout=12)

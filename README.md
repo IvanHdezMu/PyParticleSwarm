@@ -79,19 +79,13 @@ Experiment definitions and defaults are in
 [`config/experiments.json`](config/experiments.json); dataset paths, formats, and
 supported problems are in [`config/datasets.json`](config/datasets.json).
 The application opens the GUI in `presentation/experiment_gui.py`.
-Interactive terminal menus and the `--terminal` option have been removed;
-historical analysis remains available through the Python APIs described below.
+Interactive terminal menus and the `--terminal` option have been removed.
+The GUI retains 22 editable presets totaling 1,209 concrete runs with the
+conditional expansion rules described below.
 
-The traditional Python [`Experiment`](tsp_pso/experiments/experiment.py) API uses
-the full Cartesian product, including inactive sweep values.
-The current configuration contains 22 experiments and 1,209 configurations; the
-GUI/batch expansion applies the conditional rules described below instead.
-
-[`load_run_options()`](tsp_pso/infrastructure/experiment_options.py) reads the
-project's `config/experiments.json` by default, combining it with sibling
-`datasets.json` and `historical_analyses.json`. Its Python API also accepts combined
-JSON configuration files. An explicitly supplied relative configuration path is
-relative to the working directory; complementary files are read from its directory.
+`load_preset_options()` reads `config/experiments.json` and
+`load_catalog_options()` reads `config/datasets.json`. Both accept an explicit
+path; relative paths resolve from the working directory.
 
 [`dataset_reader.py`](tsp_pso/infrastructure/dataset_reader.py) supports `euc`
 (rounded TSPLIB Euclidean distances), `matrix` (TSPLIB edge weights), `excel`
@@ -160,36 +154,55 @@ left in place.
 Batch output is stored under:
 
 ```text
-Results/batches/<batch-id>/
+Results/batches/2026-11-21_10-35-12_bays29_TSP/
   batch.json                 # original configuration and dataset metadata
-  manifest.sqlite3           # durable status of dispatched runs
+  manifest.sqlite3           # complete persisted queue and durable run status
   execution.log              # solver output and process diagnostics
   runs/<ordinal>/<dataset>/<timestamp>_<parameters>/
     run_config.json
     <result-name>.xlsx        # when Excel output is enabled
 ```
 
-An alternative output directory replaces `Results`; relative paths are resolved
-from the project root. Pending runs are implicit, so a huge batch does not create
-a database row for every possible execution. Completed runs are committed
-individually. A failed run stops the batch; later runs remain pending.
+Batch folders use the UTC creation time, dataset and uppercase problem type:
+`YYYY-MM-DD_HH-MM-SS_dataset_TSP` (or `TSPWR`). Name collisions receive `__2`,
+`__3`, etc.; existing directories are never replaced. API batches with multiple
+selections join dataset IDs and problem types with `+`; unsafe filename characters
+in dataset IDs become underscores. The internal batch ID remains independent.
 
-**Ctrl+C in the launching terminal**, or closing the window and confirming the
-interruption, stops the active batch. Completed files/statuses remain saved; the
-unconfirmed active run is marked interrupted and later runs stay pending. Partial
-active-run artifacts may remain. Abrupt OS termination or power loss can leave
-stale running status; there is no automatic recovery/resume UI. After confirming
-window closure, wait for interruption and final status handling to complete; the
-window can remain open if status access keeps failing. Ctrl+C during a batch
-interrupts execution but leaves the GUI open; Ctrl+C while idle closes it.
+The initial screen discovers batches under `Results`, including nested result
+folders, and lists the most recently created first. `Show completed batches`
+retains this order when toggled. Use **Choose results folder…** to locate batches saved elsewhere.
+**New batch** opens the existing editor; opening a saved batch shows its immutable
+configuration, status and progress. Only one batch runs at a time in this window.
 
-An already-created, new pending batch can also be started headlessly:
+New batches persist their complete concrete queue before starting, with a limit
+of **10,000 runs**. Preparation occurs outside the Tk thread and is published only
+when complete. Relative output directories are resolved from the project root.
+
+**Pause** requests a cooperative stop: the current run finishes and is committed
+before the batch becomes paused. **Resume** reads the saved queue, preserving
+repetition IDs and effective values; successful runs are never repeated. Pause A
+before opening B. Closing the window asks to finish the current run and pause;
+the window remains open until that completes. There is no immediate Cancel.
+Ctrl+C in the GUI requests pause during execution and closes an idle window.
+
+Unexpected interruption is recoverable on Linux after verifying that the previous
+process group has stopped. An OS lock prevents concurrent coordinators. If previous
+workers survive, recovery is refused until they exit; a PID alone is not proof of
+ownership. No PSO checkpoint or RNG state is restored: an interrupted run starts
+again, preserving earlier attempt files. `execution.log` is appended on restart.
+Unsuccessful solver runs remain failed and are not retried automatically.
+
+Cross-platform orphan-process recovery beyond Linux is not
+implemented; the backend refuses recovery when it cannot verify safety.
+
+The existing internal coordinator entry point accepts a saved batch directory:
 
 ```bash
 python3 -m tsp_pso.experiments.batch_executor PATH_TO_BATCH
 ```
 
-This is not a resume command. The coordinator passes each
+The coordinator passes each
 `ConcreteRunConfiguration` directly to `runner.execute()`. The runner converts
 persisted `legacy_values` once and forwards the effective values to the solver
 and storage. The saved dataset descriptor is passed explicitly; no shared catalog
@@ -276,66 +289,12 @@ if analysis or publication fails. To retry only the analysis after resolving an
 artifact problem, call `analyze_batch(path)`; it returns the summary path or
 raises the error. Relative batch paths resolve from the current working directory.
 
-**Direct directory analysis.** For example, from the repository root:
-
-```bash
-python3 -c "from tsp_pso.analysis.analysis import analyze_runs; analyze_runs('Results/Minas24D')"
-```
-
-Use the actual dataset directory for your results. The scanner examines immediate
-timestamped child directories, not an entire recursive batch tree. For a batch,
-pass `Results/batches/<batch-id>/runs/<ordinal>/<dataset>` to analyze just that
-individual run. Use the automatic batch summary described above to combine its
-equivalent repetitions across ordinal directories.
-
-Discovery reads each candidate directory's `run_config.json`, requiring the saved
-experiment fields, a parseable `created_at`, and a dataset matching the parent
-directory. It uses the saved configuration independently of today's presets.
-Saved repetition ranges use `start`, exclusive `stop`, and `step` (default 1 when
-omitted), including valid negative steps. Empty ranges and a zero step are invalid.
-Both `discover_run_analyses()` and `analyze_runs()` resolve a relative dataset
-directory from the current working directory; discovered input and output paths
-are absolute, so they remain valid when passed to `analyze()` from elsewhere.
-
-Each run's summary uses its saved `analysis_output` filename, or
-`Analysis_<dataset>_<label>.xlsx` when none is set, inside that run's directory.
-Reanalysis replaces that summary; it does not combine runs or read existing
-summaries as raw input. `analyze_runs()` returns a mapping from absolute run
-directory strings to the successfully generated DataFrames.
-
-Malformed snapshots and Excel-disabled runs are silently skipped. Missing, empty,
-corrupt, or invalid workbooks cause the affected run to be skipped with a diagnostic;
-other runs can still be analyzed. Individual/historical analysis requires all
-configured inputs and rejects missing files, missing columns, or unusable data.
-Read and calculation errors include the input path; aggregation errors list the
-participating paths and their selected minimum/step values. Contextual errors
-retain the original exception as their cause. An input failure produces no new
-summary for that run, but does not remove a summary from an earlier analysis.
-
-**Historical results.**
-[`config/historical_analyses.json`](config/historical_analyses.json) defines the
-older Berlin52 layouts (`00` and `02_08`), their repetition ranges and filename
-templates. They retain their existing paths; flat-layout results are not
-migrated automatically. These definitions are loaded by `load_analysis_options()`.
-To analyze an existing historical dataset from a shell, select its definition
-explicitly through the Python API:
-
-```bash
-python3 - <<'PY'
-from tsp_pso.analysis.analysis import analyze, load_analysis_options
-
-historical = next(item for item in load_analysis_options() if item['id'] == '00')
-analyze(historical)
-PY
-```
-
-This requires the workbooks specified by that definition to exist. Both current
-historical definitions have `output: null`, so they print the table without
-writing a summary file. Relative input/output paths in analysis definitions are
-resolved from the project root, or from an explicit `root` passed to `analyze()`;
-absolute paths are preserved. Individual and historical analyses return a
-DataFrame, while a catalog selection passed to `analyze()` returns the same
-per-run mapping as `analyze_runs()`.
+**Explicit history groups.** `analyze(definition, groups=groups, root=None)`
+accepts ordered `(parameter_mapping, excel_paths)` pairs. The definition supplies
+`columns` and `output`; `output=None` returns and prints the DataFrame without
+writing a workbook. Relative paths resolve from `root`, or the project root
+when omitted. Absolute paths are preserved. Every group requires at least one
+usable history; read and calculation errors identify the affected files.
 
 ## Project Structure
 
@@ -350,16 +309,15 @@ validation rules, expansion order and imported aliases.
 | [`tsp_pso/algorithms/tspwr/`](tsp_pso/algorithms/tspwr/) | TSPWR specialization and `RefuelConfig`. |
 | [`tsp_pso/algorithms/solver_registry.py`](tsp_pso/algorithms/solver_registry.py) | Solver classes and argument builders. |
 | [`tsp_pso/application/runner.py`](tsp_pso/application/runner.py) | Coordinates solver selection, dataset reading, run storage and configuration execution. |
-| [`tsp_pso/experiments/experiment.py`](tsp_pso/experiments/experiment.py) | Traditional `Experiment` model and `build_experiments(options)`. |
 | [`tsp_pso/experiments/result_naming.py`](tsp_pso/experiments/result_naming.py) | Shared filename conventions for execution and analysis. |
 | [`tsp_pso/experiments/`](tsp_pso/experiments/) | `experiment_config.py`, `experiment_batch.py`, `batch_store.py`, `batch_executor.py` and `experiment_process.py`: validated configuration, presets, lazy expansion, persistence and batch coordination. |
 | [`tsp_pso/presentation/`](tsp_pso/presentation/) | Desktop Experiment GUI/editor and solver console presenter. |
-| [`tsp_pso/infrastructure/experiment_options.py`](tsp_pso/infrastructure/experiment_options.py) | JSON option loading and complementary configuration files. |
+| [`tsp_pso/infrastructure/experiment_options.py`](tsp_pso/infrastructure/experiment_options.py) | Dataset catalog and preset JSON loading. |
 | [`tsp_pso/infrastructure/dataset_reader.py`](tsp_pso/infrastructure/dataset_reader.py) | Dataset reading from an explicit descriptor and dataset root, reusing `tsplib/`. |
 | [`tsp_pso/infrastructure/run_storage.py`](tsp_pso/infrastructure/run_storage.py) | Atomic run-directory reservation and `run_config.json` snapshots. |
 | [`tsp_pso/infrastructure/`](tsp_pso/infrastructure/) | Also contains `tsplib/`, `executors/particle_executor.py` and `writers/excel_result_writer.py`. |
-| [`tsp_pso/analysis/`](tsp_pso/analysis/) | Result discovery, validation and summaries. |
-| [`config/`](config/) | Dataset catalog, experiment defaults/presets and historical analyses. |
+| [`tsp_pso/analysis/`](tsp_pso/analysis/) | Batch validation and Excel summaries. |
+| [`config/`](config/) | Dataset catalog and experiment defaults/presets. |
 | [`datasets/TSPLIB/`](datasets/TSPLIB/) and [`datasets/Ottoni/`](datasets/Ottoni/) | Input datasets with their original filenames. |
 | [`tools/dataset_generators/`](tools/dataset_generators/) | MITECO JSON dataset generation and its separate GUI. |
 | [`tests/`](tests/) | Unit and functional tests, including real multiprocessing. |
@@ -367,20 +325,15 @@ validation rules, expansion order and imported aliases.
 
 `application/runner.py` coordinates operations; experiment definitions and naming
 belong to `experiments/`, file access belongs to `infrastructure/`, and the desktop
-interface belongs to `presentation/`. Analysis uses the extracted experiment,
-naming and configuration modules directly.
+interface belongs to `presentation/`. Analysis uses the batch, naming and configuration modules directly.
 
 Importing runner does not read configuration JSON or build experiments. Its
 `execute()` function requires an explicit `dataset` descriptor and accepts an
 optional `datasets_root`. An omitted output directory comes from the concrete
 configuration, relative to the project root; explicit output paths retain their
-working-directory semantics. Execution does not load historical option catalogs. There are no `RUN_OPTIONS`,
-`DATASETS` or `EXPERIMENTS` globals in runner. Execution and compatibility helpers
-remain available through Python, but `execute(Experiment)` and the historical
-`runner.create_run_directory()` wrapper are no longer supported. `Experiment`,
-`build_experiments()` and the `runner.Experiment` pickle name remain for historical
-configuration and result reading. The scalar `result_filename()` is shared by
-execution and historical analysis; the latter alone reconstructs sweep suffixes.
+working-directory semantics. There are no `RUN_OPTIONS`, `DATASETS` or
+`EXPERIMENTS` globals in runner. Execution uses `ConcreteRunConfiguration`;
+`result_filename()` is shared by execution and batch analysis.
 
 ## Limitations
 
@@ -389,7 +342,7 @@ execution and historical analysis; the latter alone reconstructs sweep suffixes.
 - Execution is CPU-only, one batch run at a time. Each run reloads its dataset;
   dense matrices, swarm state, multiprocessing and buffered Excel histories can
   consume substantial memory.
-- There is no pause/resume, retry UI, parallel-batch support, GPU selector, or live
+- There is no immediate cancellation, failed-run retry UI, parallel-batch support, GPU selector, or live
   convergence graph. Abrupt termination may leave incomplete artifacts/statuses.
 - With Excel disabled, configuration/status are preserved, but the experiment
   runner does not persist a numerical result or best route. The solver's direct

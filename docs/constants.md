@@ -76,7 +76,6 @@ Definitions: [experiment_batch.py](../tsp_pso/experiments/experiment_batch.py).
 | --- | --- | --- |
 | `CONDITIONAL` | Immutable tuple | Ordered conditional axes consumed by `_branches()` and paired with generated values by `iterate_runs()`. Changing its order can change run ordinals. |
 | `DEFAULTS` | Mutable dictionary, treated as read-only | Safe scalar fallbacks for inactive parameters with multiple requested values. Used by `iterate_runs()` to populate `legacy_values`; not the editor's defaults and not a JSON merge source. |
-| `EXPANSION_VERSION` | Integer, currently `1` | Imported by `batch_store.create_batch()` to write `batch.json`, and by `batch_executor.execute_batch()` to check the saved version. A different version is rejected. |
 
 `CONDITIONAL` and `DEFAULTS` currently contain the same field names:
 
@@ -166,11 +165,9 @@ If the requested inactive `k` were instead `(1000,)`, it would forward `1000`.
 ### Persisted batches
 
 [batch_store.py](../tsp_pso/experiments/batch_store.py) saves configuration,
-descriptors, total count and `EXPANSION_VERSION` in `batch.json`.
-[batch_executor.py](../tsp_pso/experiments/batch_executor.py) checks the version and
-recomputed count before execution. A future change to expansion semantics or
-order requires reviewing this compatibility contract; a version bump is not a
-migration mechanism. No resume behavior is implied.
+descriptors and total count in `batch.json`, and the complete concrete queue in
+SQLite. Execution and analysis validate the saved queue. Resume consumes those
+persisted configurations without regenerating expansion or defaults.
 
 The current traditional presets total 1,209 configurations in 22 presets, with
 counts `[1 × 10, 270, 180, 80, 120, 50, 4, 5, 120, 120, 120, 120, 10]`. Their
@@ -210,27 +207,9 @@ values control execution count and labels, not RNG seeds. Changing `first_id`
 changes persisted IDs and filenames. Lists supplied to `ExperimentConfiguration`
 are copied to tuples; `to_dict()` returns detached JSON-compatible data.
 
-### Traditional experiment
+### Preset JSON defaults
 
-Definition: [Experiment](../tsp_pso/experiments/experiment.py).
-`dataset`, `label` and `steps` are required. Runner, analysis and batch adaptation
-consume instances. This model preserves a full Cartesian product, including axes
-that conditional batch expansion would collapse.
-
-| Fields | Defaults | Consumers and effects |
-| --- | --- | --- |
-| `particles`, `opts` | `(8,)`, `(10,)` | Particle count and operator sweep. |
-| `minimums`, `maximums` | `(0.2,)`, `(0.8,)` | Reset probability sweep. |
-| `rings`, `full_tanks` | `(True,)`, `(False,)` | Route closure and initial tank sweep. |
-| `repetitions` | `range(1, 2)` | Full-product repetition labels, varying fastest. |
-| `excel`, `verbose` | `False`, `True` | Output controls; intentionally different from batch configuration defaults. |
-| `refuel` | `False` | Runner's default TSP/TSPWR selection. |
-| `style`, `analysis_output` | `'standard'`, `None` | Result filename conventions and analysis output metadata. |
-| `max_capacity`, `consumption` | `150.0`, `7.0` | TSPWR arguments. |
-| `permut_reset`, `k` | `True`, `10` | Reset enablement and k-based search argument. |
-| `reset_threshold_divisor`, `primary_operator_share`, `progress_warmup_multiplier` | `1000`, `0.2`, `5` | Forwarded to `PSOConfig`. |
-
-`build_experiments(options)` and `build_presets(options)` merge each JSON entry
+`build_presets(options)` merges each JSON entry
 with `options['defaults']` shallowly. For example, an override of `repetitions`
 replaces the entire start/stop dictionary; it does not inherit missing nested
 keys. The JSON defaults in [experiments.json](../config/experiments.json) are
@@ -331,7 +310,7 @@ each other. A `Path` is immutable; its module binding can still be replaced.
 
 | Definition | Local consumers | Effect of changing it |
 | --- | --- | --- |
-| [infrastructure/experiment_options.py](../tsp_pso/infrastructure/experiment_options.py) | `load_run_options()`, `load_catalog_options()`, `load_preset_options()` | Changes default configuration locations. Also supplies the aliases below. |
+| [infrastructure/experiment_options.py](../tsp_pso/infrastructure/experiment_options.py) | `load_catalog_options()`, `load_preset_options()` | Changes default configuration locations. Also supplies the aliases below. |
 | [application/runner.py](../tsp_pso/application/runner.py) | `execute()` | Changes default dataset and configured output bases. Explicit output paths retain working-directory semantics. |
 | [analysis/analysis.py](../tsp_pso/analysis/analysis.py) | `analyze()` | Changes the default base for relative analysis paths; explicit `root` takes precedence. |
 
@@ -344,8 +323,7 @@ The infrastructure root is imported into:
 | [experiment_process.py](../tsp_pso/experiments/experiment_process.py) | `BatchProcess` launches its child with `cwd=ROOT`. |
 | [experiment_gui.py](../tsp_pso/presentation/experiment_gui.py) | `validated_review()` checks output paths against the batch storage base. |
 
-There are five other imported data bindings: `SOLVER_REGISTRY` in runner,
-`EXPANSION_VERSION` in both batch store and executor, and `NUMERIC_FIELDS` and
+Other imported data bindings include `SOLVER_REGISTRY` in runner and `NUMERIC_FIELDS` and
 `OPERATOR_LABELS` in the experiment GUI. They reference the defining objects,
 not independent copies.
 
@@ -359,10 +337,8 @@ leaves earlier imports pointing at the previous object. Similarly, replacing
 
 - `load_catalog_options()` reads only `config/datasets.json` by default.
 - `load_preset_options()` reads only `config/experiments.json` by default.
-- `load_run_options()` reads experiments and, unless the JSON already contains
-  `datasets`, adds sibling `datasets.json` and `historical_analyses.json` sections.
 
-All three infrastructure readers accept an optional path. Falsey paths select
+Both infrastructure readers accept an optional path. Falsey paths select
 the default; explicit relative paths use the working directory. The public
 `experiment_batch.load_catalog()` and `load_presets()` remain no-argument
 wrappers. Descriptor construction and `build_presets()` stay in `experiments/`.
@@ -474,8 +450,7 @@ Both objects are immutable and are not changed by production code. The
 needed. This differs from importing the individual values as local aliases.
 
 The saved metadata contains local literal `generator_version=2`. It describes
-the dataset generator, not experiment expansion, and is unrelated to
-`EXPANSION_VERSION`. Station selection uses a local `random.Random(seed)` object.
+the dataset generator. Station selection uses a local `random.Random(seed)` object.
 That seed is distinct from experiment repetition labels.
 
 ## Shared state and import behavior
@@ -520,13 +495,12 @@ Keep metadata near the responsibility that interprets it. A single project-wide
 | GUI activity and expansion activity | Both use `is_parameter_active()`. | Applicability must still reflect the scientific implementation. |
 | Operator validation, labels and solver dispatch | Each consumer explicitly interprets IDs. | Current ID sets agree, but none is generated from all the others. |
 | Numeric parsing and model validation | Parsed input passes through the model. | GUI metadata must use valid field names and compatible types. |
-| Version and persisted expansion | Executor checks the saved version and count. | Semantic/order changes require a compatibility decision. |
 | Result columns and analysis | Analysis validates required input columns. | Names, metric order and calculations must agree. |
 | Repeated defaults across models and JSON | Explicit configuration values take precedence. | Similar numbers do not prove interchangeable contracts; do not automatically unify them. |
 
 Existing globals outside these tables are ordinary imported modules/functions or
-classes, including compatibility reexports such as `runner.Experiment`.
+classes.
 `main.py`, storage helpers, TSPLIB readers and package initializers do
-not introduce additional module data constants. The default SQLite timeout and
-the interruption grace period remain local operational policy; the GUI polling
+not introduce additional module data constants. The default SQLite timeout
+remains local operational policy; the GUI polling
 timeout is the module-level constant documented above.

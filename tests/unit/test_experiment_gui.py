@@ -138,3 +138,100 @@ def test_simplified_controls_and_preset_edit_safety():
         assert tank == [(False, 'Empty'), (True, 'Full')]
     finally:
         app.destroy()
+
+
+def test_batch_filter_toggles_cached_results_without_writes(batch_artifacts, tmp_path, monkeypatch):
+    import sqlite3
+    from unittest.mock import Mock
+
+    from tsp_pso.presentation import experiment_gui as gui
+
+    root = tmp_path / 'Results'
+    directories = {}
+    for state in ('pending', 'paused', 'interrupted', 'running', 'failed', 'succeeded'):
+        directory, _ = batch_artifacts(completed=state == 'succeeded', name=state, output_dir=root)
+        if state != 'succeeded':
+            with sqlite3.connect(directory / 'manifest.sqlite3') as db:
+                db.execute('UPDATE batch SET status=?', (state,))
+        directories[state] = directory
+    before = {p: p.read_bytes() for p in root.rglob('*') if p.is_file()}
+    monkeypatch.setattr(gui, 'ROOT', tmp_path)
+    discover = Mock(wraps=gui.discover_batches)
+    monkeypatch.setattr(gui, 'discover_batches', discover)
+    try:
+        app = gui.ExperimentRunnerApp()
+    except tk.TclError as error:
+        pytest.skip(f'Desktop display unavailable: {error}')
+    try:
+        app.discovery.result(timeout=5)
+        app.finish_discovery()
+        assert not app.show_completed.get()
+        texts = [w.cget('text') for w in app.batch_entries.winfo_children()]
+        assert [text.split(' · ')[0] for text in texts] == list(reversed(list(directories)[:-1]))
+        app.completed_checkbox.toggle()
+        assert app.show_completed.get()
+        texts = [w.cget('text') for w in app.batch_entries.winfo_children()]
+        assert [text.split(' · ')[0] for text in texts] == list(reversed(directories))
+        app.completed_checkbox.toggle()
+        assert not app.show_completed.get()
+        texts = [w.cget('text') for w in app.batch_entries.winfo_children()]
+        assert [text.split(' · ')[0] for text in texts] == list(reversed(list(directories)[:-1]))
+        assert discover.call_count == 1  # Toggling does not scan folders or query SQLite.
+        assert set(before) == {p for p in root.rglob('*') if p.is_file()}
+        assert all(p.read_bytes() == content for p, content in before.items())
+
+        # The newly visible completed row retains the existing open callback.
+        app.completed_checkbox.toggle()
+        button = next(w for w in app.batch_entries.winfo_children()
+                      if w.cget('text').startswith('succeeded · '))
+        button.invoke()
+        assert app.batch_directory == directories['succeeded']
+        assert app.selected_batch['status'] == 'succeeded'
+        assert app.run_button.cget('state') == 'disabled'
+    finally:
+        app.destroy()
+
+
+@pytest.mark.parametrize('has_completed', [False, True])
+def test_empty_filtered_list_keeps_navigation(batch_artifacts, tmp_path, monkeypatch, has_completed):
+    from tsp_pso.presentation import experiment_gui as gui
+
+    monkeypatch.setattr(gui, 'ROOT', tmp_path)
+    if has_completed:
+        batch_artifacts(name='finished', output_dir=tmp_path / 'Results')
+    try:
+        app = gui.ExperimentRunnerApp()
+    except tk.TclError as error:
+        pytest.skip(f'Desktop display unavailable: {error}')
+    try:
+        app.discovery.result(timeout=5)
+        app.finish_discovery()
+        assert [w.cget('text') for w in app.batch_entries.winfo_children()] == ['No pending batches']
+        assert app.completed_checkbox.cget('text') == 'Show completed batches'
+        assert app.completed_checkbox.winfo_manager() == 'pack'
+        controls = {w.cget('text'): w for w in app.batch_list.winfo_children()
+                    if isinstance(w, gui.ctk.CTkButton)}
+        assert {'New batch', 'Choose results folder…', 'Refresh'} <= controls.keys()
+        app.completed_checkbox.toggle()
+        rows = [w.cget('text') for w in app.batch_entries.winfo_children()]
+        assert (rows[0].startswith('finished · ') if has_completed
+                else rows == ['No saved batches in this folder.'])
+        app.completed_checkbox.toggle()
+        assert app.batch_entries.winfo_children()[0].cget('text') == 'No pending batches'
+
+        other = tmp_path / 'other-results'
+        other.mkdir()
+        monkeypatch.setattr(gui.filedialog, 'askdirectory', lambda **kwargs: str(other))
+        controls['Choose results folder…'].invoke()
+        app.discovery.result(timeout=5)
+        app.finish_discovery()
+        assert app.discovery_root == other
+        new_button = next(w for w in app.batch_list.winfo_children()
+                          if isinstance(w, gui.ctk.CTkButton) and w.cget('text') == 'New batch')
+        new_button.invoke()
+        assert app.selected_batch is None and app.batch_directory is None
+        assert app.footer.winfo_manager() == 'grid'
+        assert app.configuration.name == 'Untitled batch'
+        assert app.run_button.cget('state') == 'normal'
+    finally:
+        app.destroy()

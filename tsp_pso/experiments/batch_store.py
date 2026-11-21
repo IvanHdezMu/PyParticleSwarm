@@ -1,15 +1,20 @@
-"""Small SQLite manifest. Unmaterialized plan ordinals are implicitly pending."""
+"""SQLite batches: persisted queues, lifecycle and read-only discovery."""
 from contextlib import closing, contextmanager
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timezone
 import json
+import re
 from pathlib import Path
 import sqlite3
+import shutil
 from uuid import uuid4
 from dataclasses import asdict, fields
 
 from ..infrastructure.experiment_options import ROOT
-from .experiment_batch import EXPANSION_VERSION, DatasetDescriptor, compile_plan, count_runs
+from .experiment_batch import DatasetDescriptor, compile_plan, count_runs, iterate_runs
 from .experiment_config import ExperimentConfiguration
+
+
+MAX_BATCH_RUNS = 10000
 
 
 def now():
@@ -36,44 +41,84 @@ def connect(directory, *, create=False, timeout=10):
 
 
 def create_batch(plan):
+    total = count_runs(plan)
+    if total > MAX_BATCH_RUNS:
+        raise ValueError(f'Resumable batches support at most {MAX_BATCH_RUNS:,} runs; requested {total}')
     root = plan.configuration.output_dir.expanduser()
     if not root.is_absolute():
         root = ROOT / root
     identifier = uuid4().hex
-    directory = root / 'batches' / identifier
-    directory.mkdir(parents=True, exist_ok=False)
-    snapshot = dict(batch_id=identifier, created_at=now(), expansion_version=EXPANSION_VERSION,
-                    configuration=plan.configuration.to_dict(),
-                    datasets=[asdict(item) for item in plan.datasets],
-                    total_runs=str(count_runs(plan)))
-    with (directory / 'batch.json').open('x', encoding='utf-8') as stream:
-        json.dump(snapshot, stream, indent=2)
-    with connect(directory, create=True) as db:
-        db.executescript('''
-            CREATE TABLE batch (id TEXT PRIMARY KEY, total TEXT NOT NULL,
-                status TEXT NOT NULL, created_at TEXT NOT NULL, started_at TEXT,
-                ended_at TEXT, error TEXT);
-            CREATE TABLE runs (ordinal TEXT PRIMARY KEY, run_id TEXT UNIQUE NOT NULL,
-                status TEXT NOT NULL, configuration TEXT NOT NULL,
-                started_at TEXT NOT NULL, ended_at TEXT, output TEXT, error TEXT);
-        ''')
-        db.execute('INSERT INTO batch(id,total,status,created_at) VALUES(?,?,?,?)',
-                   (identifier,snapshot['total_runs'],'pending',snapshot['created_at']))
+    created_at = now()
+    timestamp = datetime.fromisoformat(created_at).astimezone(UTC).strftime('%Y-%m-%d_%H-%M-%S')
+    datasets = re.sub(r'[<>:"/\\|?*\x00-\x1f]', '_', '+'.join(plan.configuration.datasets))
+    modes = '+'.join(plan.configuration.problem_modes).upper()
+    directory = root / 'batches' / f'{timestamp}_{datasets}_{modes}'
+    base = directory
+    suffix = 1
+    while True:
+        temporary = directory.with_name('.preparing-' + directory.name)
+        try:
+            temporary.mkdir(parents=True, exist_ok=False)
+        except FileExistsError:
+            pass
+        else:
+            if not directory.exists() and not directory.is_symlink():
+                break
+            temporary.rmdir()
+        suffix += 1
+        directory = base.with_name(f'{base.name}__{suffix}')
+    try:
+        snapshot = dict(batch_id=identifier, created_at=created_at,
+                        configuration=plan.configuration.to_dict(),
+                        datasets=[asdict(item) for item in plan.datasets], total_runs=str(total))
+        with (temporary / 'batch.json').open('x', encoding='utf-8') as stream:
+            json.dump(snapshot, stream, indent=2)
+        with connect(temporary, create=True) as db:
+            db.executescript("""
+                CREATE TABLE batch (id TEXT PRIMARY KEY, total TEXT NOT NULL,
+                    status TEXT NOT NULL, created_at TEXT NOT NULL, started_at TEXT,
+                    ended_at TEXT, error TEXT);
+                CREATE TABLE runs (ordinal TEXT PRIMARY KEY, run_id TEXT UNIQUE NOT NULL,
+                    status TEXT NOT NULL, configuration TEXT NOT NULL,
+                    started_at TEXT, ended_at TEXT, output TEXT, error TEXT);
+                CREATE TABLE control (id INTEGER PRIMARY KEY CHECK(id=1),
+                    pause_requested INTEGER NOT NULL DEFAULT 0, owner TEXT);
+                INSERT INTO control(id) VALUES(1);
+            """)
+            db.execute('INSERT INTO batch(id,total,status,created_at) VALUES(?,?,?,?)',
+                       (identifier,str(total),'pending',snapshot['created_at']))
+            db.executemany('INSERT INTO runs VALUES(?,?,?,?,NULL,NULL,NULL,NULL)',
+                           ((str(i), f'{identifier}-{i}', 'pending', json.dumps(run.to_dict()))
+                            for i, run in enumerate(iterate_runs(plan), 1)))
+            if db.execute('SELECT COUNT(*) FROM runs').fetchone()[0] != total:
+                raise ValueError('Incomplete queue preparation')
+        temporary.rename(directory)
+    except BaseException:
+        shutil.rmtree(temporary)
+        raise
     return directory
 
 
 def start_batch(directory):
     with connect(directory) as db:
-        cursor = db.execute("UPDATE batch SET status='running', started_at=? WHERE status='pending'", (now(),))
+        db.execute('BEGIN IMMEDIATE')
+        db.execute("UPDATE control SET pause_requested=0 WHERE EXISTS(SELECT 1 FROM batch WHERE status IN ('paused','interrupted'))")
+        cursor = db.execute("UPDATE batch SET status='running', started_at=COALESCE(started_at,?), ended_at=NULL, error=NULL WHERE status IN ('pending','paused','interrupted')", (now(),))
         if cursor.rowcount != 1:
             raise ValueError('Only a new pending batch may be started; resume is not implemented')
 
 
 def start_run(directory, ordinal, run):
     with connect(directory) as db:
-        identifier = db.execute('SELECT id FROM batch').fetchone()['id']
-        db.execute('INSERT INTO runs VALUES(?,?,?,?,?,?,?,?)',
-                   (str(ordinal),f'{identifier}-{ordinal}','running',json.dumps(run.to_dict()),now(),None,None,None))
+        db.execute('BEGIN IMMEDIATE')
+        if db.execute('SELECT pause_requested FROM control WHERE id=1').fetchone()[0]:
+            db.execute("UPDATE batch SET status='paused' WHERE status='running'")
+            return False
+        cursor = db.execute("UPDATE runs SET status='running',started_at=?,ended_at=NULL,output=NULL,error=NULL WHERE ordinal=? AND status IN ('pending','interrupted') AND configuration=?",
+                            (now(), str(ordinal), json.dumps(run.to_dict())))
+        if cursor.rowcount != 1:
+            raise ValueError('Run is not pending or configuration differs')
+        return True
 
 
 def finish_run(directory, ordinal, status, *, output=None, error=None):
@@ -103,9 +148,10 @@ def batch_status(directory, *, timeout=10):
         batch = dict(db.execute('SELECT * FROM batch').fetchone())
         counts = {row['status']: row['n'] for row in db.execute('SELECT status,COUNT(*) AS n FROM runs GROUP BY status')}
         active = db.execute("SELECT ordinal,configuration FROM runs WHERE status='running' LIMIT 1").fetchone()
+        batch['pause_requested'] = bool(db.execute('SELECT pause_requested FROM control WHERE id=1').fetchone()[0])
     batch['total'] = int(batch['total'])
     batch['counts'] = {state: counts.get(state, 0) for state in ('running','succeeded','failed','interrupted')}
-    batch['counts']['pending'] = batch['total'] - sum(counts.values())
+    batch['counts']['pending'] = batch['total'] - sum(value for state, value in counts.items() if state != 'pending')
     batch['current'] = json.loads(active['configuration']) if active else None
     batch['ordinal'] = int(active['ordinal']) if active else None
     return batch
@@ -122,13 +168,10 @@ def positive_decimal(value):
 
 
 def read_batch(directory):
-    """Read and validate shared version-one JSON/manifest structure without writes."""
+    """Read and validate the saved configuration and complete queue without writes."""
     directory = Path(directory).resolve()
     with (directory / 'batch.json').open(encoding='utf-8') as stream:
         snapshot = json.load(stream)
-    if (type(snapshot['expansion_version']) is not int
-            or snapshot['expansion_version'] != EXPANSION_VERSION):
-        raise ValueError('Unsupported expansion version')
     identifier = snapshot['batch_id']
     if not isinstance(identifier, str) or not identifier:
         raise ValueError('Invalid batch identifier')
@@ -148,13 +191,17 @@ def read_batch(directory):
         raise ValueError('Duplicate dataset descriptors')
     plan = compile_plan(configuration, catalog)
     total = positive_decimal(snapshot['total_runs'])
-    if count_runs(plan) != total:
-        raise ValueError('Declared total does not match the saved configuration')
-
     uri = (directory / 'manifest.sqlite3').as_uri() + '?mode=ro'
     with closing(sqlite3.connect(uri, uri=True)) as db:
         db.row_factory = sqlite3.Row
         db.execute('BEGIN')
+        controls = db.execute('SELECT id,pause_requested,owner FROM control').fetchall()
+        if len(controls) != 1 or controls[0]['id'] != 1 or controls[0]['pause_requested'] not in (0,1):
+            raise ValueError('Invalid batch control record')
+        if controls[0]['owner'] is not None:
+            owner = json.loads(controls[0]['owner'])
+            if not isinstance(owner, dict) or set(owner) != {'pid','pgid','boot'}:
+                raise ValueError('Invalid execution owner')
         batches = [dict(row) for row in db.execute('SELECT id,total,status,created_at,started_at,ended_at,error FROM batch')]
         runs = [dict(row) for row in db.execute('SELECT ordinal,run_id,status,configuration,started_at,ended_at,output,error FROM runs')]
     if len(batches) != 1 or batches[0]['id'] != identifier:
@@ -164,4 +211,67 @@ def read_batch(directory):
         raise ValueError('Creation timestamp differs between JSON and manifest')
     if positive_decimal(batch['total']) != total:
         raise ValueError('Declared totals disagree between JSON and manifest')
+    from .experiment_batch import validate_run_configuration
+    if len(runs) != total:
+        raise ValueError('Incomplete batch: persisted queue')
+    runs.sort(key=lambda row: positive_decimal(row['ordinal']))
+    for ordinal, row in enumerate(runs, 1):
+        if row['ordinal'] != str(ordinal) or row['run_id'] != f'{identifier}-{ordinal}':
+            raise ValueError('Inconsistent run ordinal or run_id')
+        try:
+            validate_run_configuration(json.loads(row['configuration']), configuration)
+        except (ValueError, KeyError, TypeError) as error:
+            raise ValueError(f'Run {ordinal}: {error}') from error
+        if row['status'] == 'succeeded':
+            if not row['output']:
+                raise ValueError('Missing output directory for succeeded run')
+            if not row['started_at'] or not row['ended_at'] or row['error'] is not None:
+                raise ValueError('Inconsistent run completion record')
+        if row['status'] not in ('pending','running','succeeded','failed','interrupted'):
+            raise ValueError('Invalid run status')
+        if row['status'] == 'pending' and any(row[k] is not None for k in ('started_at','ended_at','output','error')):
+            raise ValueError('Inconsistent pending run status')
+    if batch['status'] == 'pending' and (any(r['status'] != 'pending' for r in runs)
+            or any(batch[k] is not None for k in ('started_at','ended_at','error'))):
+        raise ValueError('Inconsistent pending batch status')
     return plan, batch, runs
+
+
+def request_pause(directory, *, timeout=0.05):
+    """Commit a cooperative request; never signal the solver."""
+    with connect(directory, timeout=timeout) as db:
+        cursor = db.execute("UPDATE control SET pause_requested=1 WHERE id=1 AND EXISTS(SELECT 1 FROM batch WHERE status IN ('pending','running'))")
+        return cursor.rowcount == 1
+
+
+def discover_batches(root):
+    """List saved batches using short read-only queries; never reconcile on discovery."""
+    found = []
+    for path in sorted(Path(root).expanduser().resolve().rglob('batch.json')):
+        if any(part.startswith('.preparing-') for part in path.parts):
+            continue
+        item = {'directory': path.parent}
+        try:
+            saved = json.loads(path.read_text(encoding='utf-8'))
+            c = ExperimentConfiguration.from_dict(saved['configuration'])
+            with closing(sqlite3.connect((path.parent/'manifest.sqlite3').as_uri()+'?mode=ro',
+                                         uri=True, timeout=0.05)) as db:
+                db.row_factory = sqlite3.Row
+                db.execute('BEGIN')
+                rows = db.execute('SELECT * FROM batch').fetchall()
+                if len(rows) != 1 or rows[0]['id'] != saved['batch_id']:
+                    raise ValueError('Batch identity mismatch')
+                batch = dict(rows[0])
+                created_at = datetime.fromisoformat(batch['created_at']).astimezone(UTC)
+                if positive_decimal(batch['total']) != positive_decimal(saved['total_runs']):
+                    raise ValueError('Batch totals disagree')
+                completed = db.execute("SELECT COUNT(*) FROM runs WHERE status='succeeded'").fetchone()[0]
+            item.update(name=c.name, dataset=', '.join(c.datasets), problem=', '.join(c.problem_modes),
+                        status=batch['status'], completed=completed, total=int(batch['total']),
+                        created_at=created_at, error=None)
+        except (OSError, ValueError, KeyError, TypeError, sqlite3.Error) as error:
+            item.update(name=path.parent.name, dataset='?', problem='?', status='unavailable',
+                        completed=0, total=0, error=str(error))
+        found.append(item)
+    return sorted(found, key=lambda item: item.get('created_at', datetime.min.replace(tzinfo=UTC)),
+                  reverse=True)

@@ -1,5 +1,4 @@
 """Per-call SQLite waits and real contention during GUI monitoring, without Tk."""
-from pathlib import Path
 from time import monotonic
 from types import SimpleNamespace
 from unittest.mock import Mock
@@ -37,7 +36,6 @@ def saved_rows(directory):
 def process(directory, code):
     result = process_module.BatchProcess.__new__(process_module.BatchProcess)
     result.directory = directory
-    result.interrupt_started = None
     result.process = Mock()
     result.process.poll.return_value = code
     return result
@@ -67,8 +65,8 @@ def test_status_and_reconciliation_forward_timeout(batch, monkeypatch, options, 
 
 
 @pytest.mark.parametrize('options, expected', [({}, 10), ({'sqlite_timeout': 0.05}, 0.05)])
-def test_process_forwards_timeout_to_read_and_reconciliation(monkeypatch, options, expected):
-    directory = Path('batch')
+def test_process_forwards_timeout_to_read_and_reconciliation(batch, monkeypatch, options, expected):
+    directory = batch
     child = process(directory, 7)
     status = Mock(return_value={'status': 'running'})
     mark = Mock()
@@ -92,7 +90,7 @@ def test_gui_contention_rolls_back_and_recovers_before_closing(batch, lock, exit
     child = process(batch, 0 if exited else None)
     app = SimpleNamespace(
         process=child, batch_directory=batch, interrupt_requested=False, closing=exited,
-        status=Mock(), refresh_review=Mock(), destroy=Mock(), after=Mock())
+        status=Mock(), refresh_review=Mock(), update_run_button=Mock(), back_button=Mock(), destroy=Mock(), after=Mock())
     app.poll_execution = lambda: gui.ExperimentRunnerApp.poll_execution(app)
     blocker = sqlite3.connect(batch / 'manifest.sqlite3', timeout=0)
     try:
@@ -126,7 +124,7 @@ def test_gui_contention_rolls_back_and_recovers_before_closing(batch, lock, exit
         assert state['status'] == 'interrupted'
         assert state['counts'] == dict(running=0, succeeded=1, failed=0, interrupted=1, pending=1)
         assert app.process is None
-        app.refresh_review.assert_called_once_with()
+        app.update_run_button.assert_called()
         app.destroy.assert_called_once_with()
         # The successful closing callback schedules no further query.
         assert app.after.call_count == 1

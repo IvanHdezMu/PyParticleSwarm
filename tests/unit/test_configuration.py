@@ -1,15 +1,17 @@
 """Configuration layout, inheritance, and compatibility checks."""
 
-import json
 
 import numpy as np
 import pytest
 
-from tsp_pso.infrastructure.experiment_options import load_run_options
-from tsp_pso.experiments.experiment import build_experiments
+from tsp_pso.experiments.experiment_batch import build_presets, load_presets
+from tsp_pso.experiments.experiment_config import RepetitionSpec
 from tsp_pso.infrastructure.dataset_reader import load_dataset
-from tsp_pso.infrastructure.experiment_options import ROOT
-from tsp_pso.analysis.analysis import load_analysis_options
+from tsp_pso.infrastructure.experiment_options import (
+    ROOT,
+    load_catalog_options,
+    load_preset_options,
+)
 
 pytestmark = pytest.mark.unit
 
@@ -21,7 +23,7 @@ pytestmark = pytest.mark.unit
     ('Minas30D', 30, True), ('Minas57D', 57, True),
 ])
 def test_configured_dataset_loads(name, size, has_prices):
-    dataset = load_run_options()['datasets'][name]
+    dataset = load_catalog_options()['datasets'][name]
     assert dataset['source'] == ('Ottoni et al. (2022)' if has_prices else 'TSPLIB')
     assert dataset['problem_types'] == (['tsp', 'tspwr'] if has_prices else ['tsp'])
     assert dataset['filename'].startswith('Ottoni/' if has_prices else 'TSPLIB/')
@@ -36,11 +38,11 @@ def test_configured_dataset_loads(name, size, has_prices):
 
 
 def test_experiment_count_and_order():
-    assert len(load_run_options()['datasets']) == 10
-    experiments = build_experiments(load_run_options())
+    assert len(load_catalog_options()['datasets']) == 10
+    experiments = load_presets()
     assert len(experiments) == 22
-    assert experiments == build_experiments(load_run_options())
-    assert [(e.dataset, e.label) for e in experiments] == [
+    assert experiments == load_presets()
+    assert [(e.datasets[0], e.legacy_label) for e in experiments] == [
         ('berlin52', 'individual'), ('bays29', 'individual'),
         ('st70', 'individual'), ('ch150', 'individual'),
         ('kroA100', 'individual'), ('rat195', 'individual'),
@@ -59,62 +61,21 @@ def test_experiment_count_and_order():
 
 
 def test_experiment_overrides_replace_defaults_shallowly():
-    options = load_run_options()
+    options = load_preset_options()
     options['defaults']['particles'] = [2, 4]
     options['defaults']['repetitions'] = {'start': 5, 'stop': 9}
     options['experiments'] = [{
         'dataset': 'Minas24D', 'label': 'override check', 'steps': [1200],
         'particles': [8], 'repetitions': {'start': 1, 'stop': 2},
     }]
-    experiment, = build_experiments(options)
+    experiment, = build_presets(options)
     assert experiment.particles == (8,)
-    assert experiment.repetitions == range(1, 2)
-    assert experiment.opts == (10,)
-    assert experiment.reset_threshold_divisor == 1000
-    assert experiment.primary_operator_share == 0.2
-    assert experiment.progress_warmup_multiplier == 5
+    assert experiment.repetitions == RepetitionSpec(1, 1)
+    assert experiment.operators == (10,)
+    assert experiment.reset_threshold_divisor[0] == 1000
+    assert experiment.primary_operator_share[0] == 0.2
+    assert experiment.progress_warmup_multiplier[0] == 5
     # A partial nested override must not inherit the missing key from defaults.
     options['experiments'][0]['repetitions'] = {'stop': 2}
     with pytest.raises(KeyError, match='start'):
-        build_experiments(options)
-
-
-def test_historical_analyses_preserved():
-    analyses = load_analysis_options()
-    historical = analyses[:2]
-    assert historical == load_run_options()['historical_analyses']
-    assert historical == [
-        {
-            'id': identifier, 'label': f'berlin52: {identifier} (historical)',
-            'parameters': {'optType': [1, 2, 3, 4, 5]},
-            'repetitions': {'start': 1, 'stop': 11},
-            'input_template': f'Results/berlin52/{identifier}/berlin52_{{optType}}_{{number}}.xlsx',
-            'columns': ['optType'], 'output': None,
-        }
-        for identifier in ('00', '02_08')
-    ]
-    assert len(analyses) == 24
-    assert [(a['experiment']['dataset'], a['experiment']['label'])
-            for a in analyses[2:]] == [(e.dataset, e.label) for e in build_experiments(load_run_options())]
-
-
-def test_split_config_uses_sibling_files(tmp_path):
-    expected = load_run_options()
-    expected['output_dir'] = 'alternate-results'
-    expected['defaults']['verbose'] = False
-    expected['historical_analyses'] = []
-    for filename, keys in [
-        ('datasets.json', ['datasets']),
-        ('experiments.json', ['output_dir', 'defaults', 'experiments']),
-        ('historical_analyses.json', ['historical_analyses']),
-    ]:
-        (tmp_path / filename).write_text(json.dumps({key: expected[key] for key in keys}))
-    assert load_run_options(tmp_path / 'experiments.json') == expected
-    assert len(load_analysis_options(tmp_path / 'experiments.json')) == 22
-
-
-def test_explicit_combined_config_remains_supported(tmp_path):
-    expected = load_run_options()
-    path = tmp_path / 'combined.json'
-    path.write_text(json.dumps(expected))
-    assert load_run_options(path) == expected
+        build_presets(options)

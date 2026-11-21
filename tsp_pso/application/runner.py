@@ -3,8 +3,6 @@ from pathlib import Path
 
 from ..algorithms.core.pso_config import PSOConfig
 from ..algorithms.solver_registry import SOLVER_REGISTRY
-# Experiment also preserves unpickling of instances saved under the runner module.
-from ..experiments.experiment import Experiment as Experiment
 from ..experiments.result_naming import result_filename
 from ..infrastructure.dataset_reader import load_dataset as _load_dataset
 from ..infrastructure.run_storage import create_run_directory as _create_run_directory

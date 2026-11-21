@@ -1,4 +1,4 @@
-"""Version-one persistence and validation before any scientific execution."""
+"""Persistence and validation before any scientific execution."""
 import json
 import sqlite3
 from unittest.mock import Mock
@@ -9,10 +9,9 @@ from tsp_pso.analysis.analysis import prepare_batch_groups
 from tsp_pso.experiments.batch_executor import execute_batch
 
 
-def test_current_version_one_artifacts_remain_readable(completed_batch):
+def test_persisted_batch_remains_readable(completed_batch):
     directory = completed_batch()
     snapshot = json.loads((directory / 'batch.json').read_text())
-    assert snapshot['expansion_version'] == 1
     assert snapshot['total_runs'] == '2'
     assert snapshot['configuration']['repetitions'] == {'count': 2, 'first_id': 17}
     assert set(snapshot['configuration']) == {
@@ -33,7 +32,7 @@ def test_current_version_one_artifacts_remain_readable(completed_batch):
     assert all(p.read_bytes() == content for p, content in before.items())
 
 
-def test_pending_version_one_batch_executes(batch_artifacts):
+def test_pending_batch_executes(batch_artifacts):
     directory, write = batch_artifacts(completed=False)
     snapshot = (directory / 'batch.json').read_bytes()
     execute_batch(directory, write)
@@ -43,7 +42,7 @@ def test_pending_version_one_batch_executes(batch_artifacts):
 
 
 @pytest.mark.parametrize('damage', [
-    'boolean_version', 'float_version', 'unknown_version', 'numeric_total', 'padded_total',
+    'numeric_total', 'padded_total',
     'wrong_total', 'missing_field', 'unknown_field', 'invalid_parameter', 'duplicate_dataset',
     'json_identity', 'sqlite_identity', 'sqlite_total', 'created_at', 'invalid_catalog',
     'pending_timestamp', 'pending_run', 'missing_manifest', 'missing_json', 'bad_schema',
@@ -52,10 +51,7 @@ def test_invalid_batch_rejected_before_any_run(batch_artifacts, damage):
     directory, _ = batch_artifacts(completed=False)
     path = directory / 'batch.json'
     data = json.loads(path.read_text())
-    if damage == 'boolean_version': data['expansion_version'] = True
-    elif damage == 'float_version': data['expansion_version'] = 1.0
-    elif damage == 'unknown_version': data['expansion_version'] = 2
-    elif damage == 'numeric_total': data['total_runs'] = 2
+    if damage == 'numeric_total': data['total_runs'] = 2
     elif damage == 'padded_total': data['total_runs'] = '02'
     elif damage == 'wrong_total': data['total_runs'] = '3'
     elif damage == 'missing_field': del data['configuration']['k']
@@ -70,7 +66,7 @@ def test_invalid_batch_rejected_before_any_run(batch_artifacts, damage):
         elif damage == 'sqlite_total': db.execute("UPDATE batch SET total='3'")
         elif damage == 'created_at': db.execute("UPDATE batch SET created_at='other'")
         elif damage == 'pending_timestamp': db.execute("UPDATE batch SET started_at='already started'")
-        elif damage == 'pending_run': db.execute("INSERT INTO runs VALUES('1','id-1','running','{}','now',NULL,NULL,NULL)")
+        elif damage == 'pending_run': db.execute("UPDATE runs SET status='running',started_at='now' WHERE ordinal='1'")
         elif damage == 'bad_schema': db.execute('DROP TABLE runs')
     if damage == 'missing_manifest': (directory / 'manifest.sqlite3').unlink()
     if damage == 'missing_json': path.unlink()

@@ -1,38 +1,36 @@
 """Regression for the Minas24D preset using its real configuration and workbook."""
-from conftest import concrete_run
-from tsp_pso.infrastructure.experiment_options import load_run_options
-from tsp_pso.experiments.experiment import build_experiments
-
 from functools import partial
 from multiprocessing import get_context
 
 import numpy as np
 import pytest
+from conftest import assert_permutation, concrete_run
 
-from tsp_pso.experiments.experiment import Experiment
-from tsp_pso.application import runner
 import tsp_pso.infrastructure.executors.particle_executor as executor_module
 from tsp_pso.algorithms.tsp.tsp_particle_swarm import TSPParticleSwarm
 from tsp_pso.algorithms.tspwr.tspwr_particle_swarm import TSPWRParticleSwarm
-
-from conftest import assert_permutation
-
-from tsp_pso.analysis.analysis import historical_result_filename as result_filename
+from tsp_pso.application import runner
+from tsp_pso.experiments.experiment_batch import load_presets
+from tsp_pso.experiments.experiment_config import (
+    ExperimentConfiguration,
+    RepetitionSpec,
+)
+from tsp_pso.infrastructure.experiment_options import load_catalog_options
 
 pytestmark = pytest.mark.functional
 
 
 def test_minas24d_preset_finds_known_optimum(monkeypatch, tmp_path):
-    experiment = build_experiments(load_run_options())[7]
+    experiment = load_presets()[7]
     # Pin the preset configuration so future edits cannot silently change this case.
-    assert experiment == Experiment(
-        dataset='Minas24D', label='individual', steps=(1200,), particles=(8,),
-        opts=(10,), minimums=(0.2,), maximums=(0.8,), rings=(False,),
-        full_tanks=(True,), repetitions=range(1, 2), excel=True, refuel=False,
-        style='standard', max_capacity=150.0, consumption=7.0,
-        permut_reset=True, k=10,
+    assert experiment == ExperimentConfiguration(
+        name='Minas24D: individual', datasets=('Minas24D',), legacy_label='individual', c1=(1200,),
+        particles=(8,), operators=(10,), minimum_reset_probability=(0.2,), maximum_reset_probability=(0.8,),
+        ring=(False,), full_initial_tank=(True,), repetitions=RepetitionSpec(1, 1), excel=True,
+        problem_modes=('tsp',), legacy_style='standard', fuel_capacity=(150.0,), consumption=(7.0,),
+        permutation_reset=(True,), k=(10,), verbose=True,
     )
-    assert load_run_options()['datasets']['Minas24D'] == {
+    assert load_catalog_options()['datasets']['Minas24D'] == {
         'filename': 'Ottoni/Minas24D.xlsx', 'format': 'excel',
         'source': 'Ottoni et al. (2022)', 'problem_types': ['tsp', 'tspwr'],
     }
@@ -58,7 +56,7 @@ def test_minas24d_preset_finds_known_optimum(monkeypatch, tmp_path):
 
     monkeypatch.setitem(runner.SOLVER_REGISTRY, 'tsp', (capture_solver, runner.SOLVER_REGISTRY['tsp'][1]))
     run_directory = runner.execute(concrete_run(experiment), output_dir=tmp_path,
-                                   dataset=load_run_options()['datasets'][experiment.dataset])
+                                   dataset=load_catalog_options()['datasets'][experiment.datasets[0]])
 
     assert len(created_solvers) == 1
     solver = created_solvers[0]
@@ -79,8 +77,7 @@ def test_minas24d_preset_finds_known_optimum(monkeypatch, tmp_path):
     assert solver.f_global_best[0] == pytest.approx(solver._objective(route))
 
     # Keep the original Excel behavior while avoiding writes to repository results.
-    configuration, = experiment.configurations()
-    workbook = run_directory / result_filename(experiment, configuration)
+    workbook = run_directory / 'Minas24D_True_8_1200_10_10_0.2_0.8_1.xlsx'
     assert workbook.is_file()
 
 
@@ -88,24 +85,24 @@ def test_minas24d_refuel_ring_finds_known_best_cost(monkeypatch, tmp_path):
     from dataclasses import replace
 
     fuel_experiment = next(
-        experiment for experiment in build_experiments(load_run_options())
-        if experiment.dataset == 'Minas24D'
-        and experiment.label == 'circuit and initial tank'
+        experiment for experiment in load_presets()
+        if experiment.datasets[0] == 'Minas24D'
+        and experiment.legacy_label == 'circuit and initial tank'
     )
     # Select one real fuel-sweep configuration and run it once with a fixed seed.
     experiment = replace(
-        fuel_experiment, rings=(True,), full_tanks=(False,),
-        repetitions=range(1, 2),
+        fuel_experiment, ring=(True,), full_initial_tank=(False,),
+        repetitions=RepetitionSpec(1, 1),
     )
-    assert experiment == Experiment(
-        dataset='Minas24D', label='circuit and initial tank', steps=(1200,),
-        particles=(8,), opts=(10,), minimums=(0.2,), maximums=(0.8,),
-        rings=(True,), full_tanks=(False,), repetitions=range(1, 2),
-        excel=True, refuel=True, style='fuel', max_capacity=150.0,
-        consumption=7.0, permut_reset=True, k=10,
+    assert experiment == ExperimentConfiguration(
+        name='Minas24D: circuit and initial tank', datasets=('Minas24D',),
+        legacy_label='circuit and initial tank', c1=(1200,), particles=(8,), operators=(10,),
+        minimum_reset_probability=(0.2,), maximum_reset_probability=(0.8,), ring=(True,),
+        full_initial_tank=(False,), repetitions=RepetitionSpec(1, 1), excel=True, problem_modes=('tspwr',),
+        legacy_style='fuel', fuel_capacity=(150.0,), consumption=(7.0,), permutation_reset=(True,), k=(10,),
         analysis_output='Analysis_Minas24D.xlsx', verbose=False,
     )
-    assert load_run_options()['datasets']['Minas24D'] == {
+    assert load_catalog_options()['datasets']['Minas24D'] == {
         'filename': 'Ottoni/Minas24D.xlsx', 'format': 'excel',
         'source': 'Ottoni et al. (2022)', 'problem_types': ['tsp', 'tspwr'],
     }
@@ -131,7 +128,7 @@ def test_minas24d_refuel_ring_finds_known_best_cost(monkeypatch, tmp_path):
     monkeypatch.setitem(runner.SOLVER_REGISTRY, 'tspwr', (capture_solver, runner.SOLVER_REGISTRY['tspwr'][1]))
     # execute() loads both coordinates and fuel prices from the repository workbook.
     run_directory = runner.execute(concrete_run(experiment), output_dir=tmp_path,
-                                   dataset=load_run_options()['datasets'][experiment.dataset])
+                                   dataset=load_catalog_options()['datasets'][experiment.datasets[0]])
 
     assert len(created_solvers) == 1
     solver = created_solvers[0]
@@ -151,6 +148,5 @@ def test_minas24d_refuel_ring_finds_known_best_cost(monkeypatch, tmp_path):
     assert cost == pytest.approx(1426.297870, rel=0, abs=1e-6)
     assert solver.f_global_best[0] == pytest.approx(solver._objective(route))
 
-    configuration, = experiment.configurations()
-    workbook = run_directory / result_filename(experiment, configuration)
+    workbook = run_directory / 'Minas24D_True_8_1200_10_True_False_1.xlsx'
     assert workbook.is_file()

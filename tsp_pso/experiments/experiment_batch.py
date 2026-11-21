@@ -1,5 +1,5 @@
 """Metadata validation, conditional lazy expansion and editable legacy presets."""
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, fields
 from itertools import product
 from math import prod
 from pathlib import Path
@@ -8,9 +8,6 @@ from pathlib import Path
 from ..infrastructure.experiment_options import ROOT, load_catalog_options, load_preset_options
 from .experiment_config import ExperimentConfiguration, RepetitionSpec, is_parameter_active
 
-# EXPANSION_VERSION: Identifies the expansion rules used to create saved batches.
-# Review this version whenever the expansion behavior changes.
-EXPANSION_VERSION = 1
 # CONDITIONAL: Parameters that generate additional runs only when applicable.
 # Their order determines the order of the generated runs.
 CONDITIONAL = (
@@ -69,6 +66,13 @@ class ConcreteRunConfiguration:
     legacy_label: str | None
     analysis_output: str | None
     legacy_values: tuple[tuple[str, object], ...]
+
+    @classmethod
+    def from_dict(cls, data):
+        values = dict(data)
+        values['output_dir'] = Path(values['output_dir'])
+        values['legacy_values'] = tuple(values['legacy_values'].items())
+        return cls(**values)
 
     def to_dict(self):
         data = asdict(self)
@@ -166,3 +170,55 @@ def build_presets(options):
             verbose=e['verbose'], excel=e['excel'], output_dir=options['output_dir'],
             legacy_style=e['style'], legacy_label=e['label'], analysis_output=e.get('analysis_output')))
     return tuple(presets)
+
+
+def validate_run_configuration(run, requested):
+    if set(run) != {f.name for f in fields(ConcreteRunConfiguration)}:
+        raise ValueError('Incomplete or incompatible concrete configuration')
+    effective = run['legacy_values']
+    if not isinstance(effective, dict) or set(effective) != set(CONDITIONAL):
+        raise ValueError('legacy_values must contain all nine effective scalars')
+    # Reuse scalar validation through singleton axes, without expanding any runs.
+    values = {axis: [run[name]] for name, axis in RUN_AXES.items()}
+    values.update({name: [effective[name]] for name in CONDITIONAL})
+    values.update({name: run[name] for name in (
+        'name', 'verbose', 'excel', 'output_dir', 'legacy_style',
+        'legacy_label', 'analysis_output')})
+    values['repetitions'] = {'count': 1, 'first_id': run['repetition_id']}
+    ExperimentConfiguration.from_dict(values)
+    for name, axis in RUN_AXES.items():
+        if run[name] not in getattr(requested, axis):
+            raise ValueError(f'{name} is not in the saved request')
+    for name in ('verbose', 'excel'):
+        if run[name] != getattr(requested, name):
+            raise ValueError(f'{name} differs from the saved request')
+    inactive = []
+    for name in CONDITIONAL:
+        active = is_parameter_active(name, problem_mode=run['problem_mode'],
+                                     operator=run['operator'],
+                                     permutation_reset=run['permutation_reset'],
+                                     verbose=run['verbose'], excel=run['excel'])
+        axis = getattr(requested, name)
+        if active:
+            if (run[name] is None or not (isinstance(run[name], bool) == isinstance(effective[name], bool) and run[name] == effective[name])
+                    or run[name] not in axis):
+                raise ValueError(f'Inconsistent active parameter: {name}')
+        else:
+            if run[name] is not None:
+                raise ValueError(f'Inactive expansion parameter must be null: {name}')
+            if len(axis) == 1 and effective[name] != axis[0]:
+                raise ValueError(f'Inactive singleton differs from saved request: {name}')
+            inactive.append(name)
+    # Inactive multi-value fallbacks are persisted evidence, not modern defaults.
+    return {name: run[name] for name in RUN_AXES} | effective | {
+        'verbose': run['verbose'], 'excel': run['excel'],
+        'inactive_parameters': ', '.join(inactive),
+    }
+
+
+
+RUN_AXES = {
+    'dataset': 'datasets', 'problem_mode': 'problem_modes', 'operator': 'operators',
+    'particles': 'particles', 'c1': 'c1', 'ring': 'ring',
+    'permutation_reset': 'permutation_reset',
+}

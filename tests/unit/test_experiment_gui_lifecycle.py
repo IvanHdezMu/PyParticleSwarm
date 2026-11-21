@@ -15,7 +15,7 @@ pytestmark = pytest.mark.unit
 def app():
     window = SimpleNamespace(
         process=Mock(), batch_directory=Path('/batch'), interrupt_requested=False,
-        closing=False, status=Mock(), refresh_review=Mock(), after=Mock(),
+        closing=False, status=Mock(), refresh_review=Mock(), update_run_button=Mock(), back_button=Mock(), after=Mock(),
         destroy=Mock())
     window.process.poll.return_value = None
     window.poll_execution = lambda: gui.ExperimentRunnerApp.poll_execution(window)
@@ -82,15 +82,16 @@ def test_process_poll_error(app, status, error):
 def test_close_during_status_failure_then_process_finishes(app, status):
     process = app.process
     app.closing = True
+    app.interrupt_requested = True
     status.side_effect = [sqlite3.OperationalError('locked'), status.return_value]
     process.poll.side_effect = [None, 0]
     app.poll_execution()
-    process.interrupt.assert_called_once_with()
+    process.pause.assert_called_once_with()
     app.destroy.assert_not_called()
     assert app.process is process
     app.after.assert_called_once_with(300, app.poll_execution)
     app.poll_execution()
-    assert process.interrupt.call_count == 2
+    assert process.pause.call_count == 1
     app.destroy.assert_called_once_with()
     assert app.process is None
     # The closing poll must not schedule any work after destruction.
@@ -105,19 +106,19 @@ def test_finished_process_kept_until_status_can_be_read(app, status):
     assert app.process is process
     app.poll_execution()
     assert app.process is None
-    app.refresh_review.assert_called_once_with()
+    app.update_run_button.assert_called()
     assert app.after.call_count == 2
 
 
-def test_interrupt_failure_is_retried(app, status):
+def test_pause_request_failure_is_retried(app, status):
     app.interrupt_requested = True
-    app.process.interrupt.side_effect = [OSError('signal failed'), None]
+    app.process.pause.side_effect = [OSError('signal failed'), None]
     app.poll_execution()
     assert app.interrupt_requested
     app.process.poll.assert_not_called()
     app.poll_execution()
     assert not app.interrupt_requested
-    assert app.process.interrupt.call_count == 2
+    assert app.process.pause.call_count == 2
     assert app.after.call_count == 2
 
 
