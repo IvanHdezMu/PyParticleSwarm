@@ -87,6 +87,9 @@ def create_batch(plan):
 
 def start_batch(directory):
     with connect(directory) as db:
+        db.execute('BEGIN IMMEDIATE')
+        if db.execute('PRAGMA user_version').fetchone()[0] == MANIFEST_VERSION:
+            db.execute("UPDATE control SET pause_requested=0 WHERE EXISTS(SELECT 1 FROM batch WHERE status IN ('paused','interrupted'))")
         cursor = db.execute("UPDATE batch SET status='running', started_at=COALESCE(started_at,?), ended_at=NULL, error=NULL WHERE status IN ('pending','paused','interrupted')", (now(),))
         if cursor.rowcount != 1:
             raise ValueError('Only a new pending batch may be started; resume is not implemented')
@@ -95,10 +98,15 @@ def start_batch(directory):
 def start_run(directory, ordinal, run):
     with connect(directory) as db:
         if db.execute('PRAGMA user_version').fetchone()[0] == MANIFEST_VERSION:
+            db.execute('BEGIN IMMEDIATE')
+            if db.execute('SELECT pause_requested FROM control WHERE id=1').fetchone()[0]:
+                db.execute("UPDATE batch SET status='paused' WHERE status='running'")
+                return False
             cursor = db.execute("UPDATE runs SET status='running',started_at=?,ended_at=NULL,output=NULL,error=NULL WHERE ordinal=? AND status IN ('pending','interrupted') AND configuration=?",
                                 (now(), str(ordinal), json.dumps(run.to_dict())))
             if cursor.rowcount != 1:
                 raise ValueError('Run is not pending or configuration differs')
+            return True
         else:
             identifier = db.execute('SELECT id FROM batch').fetchone()['id']
             db.execute('INSERT INTO runs VALUES(?,?,?,?,?,?,?,?)',
@@ -132,6 +140,9 @@ def batch_status(directory, *, timeout=10):
         batch = dict(db.execute('SELECT * FROM batch').fetchone())
         counts = {row['status']: row['n'] for row in db.execute('SELECT status,COUNT(*) AS n FROM runs GROUP BY status')}
         active = db.execute("SELECT ordinal,configuration FROM runs WHERE status='running' LIMIT 1").fetchone()
+        version = db.execute('PRAGMA user_version').fetchone()[0]
+        batch['manifest_version'] = version or 1
+        batch['pause_requested'] = bool(db.execute('SELECT pause_requested FROM control WHERE id=1').fetchone()[0]) if version == 2 else False
     batch['total'] = int(batch['total'])
     batch['counts'] = {state: counts.get(state, 0) for state in ('running','succeeded','failed','interrupted')}
     batch['counts']['pending'] = batch['total'] - sum(value for state, value in counts.items() if state != 'pending')
@@ -220,3 +231,13 @@ def read_batch(directory):
                 or any(batch[k] is not None for k in ('started_at','ended_at','error'))):
             raise ValueError('Inconsistent pending batch status')
     return plan, batch, runs
+
+
+def request_pause(directory, *, timeout=0.05):
+    """Commit a cooperative request; never signal the solver."""
+    with connect(directory, timeout=timeout) as db:
+        if db.execute('PRAGMA user_version').fetchone()[0] != MANIFEST_VERSION:
+            raise ValueError('Legacy batch does not support pause or resume')
+        cursor = db.execute("UPDATE control SET pause_requested=1 WHERE id=1 AND EXISTS(SELECT 1 FROM batch WHERE status IN ('pending','running'))")
+        if cursor.rowcount != 1:
+            raise ValueError('Batch is not running or starting')

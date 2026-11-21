@@ -7,7 +7,7 @@ import sys
 import time
 
 from ..infrastructure.experiment_options import ROOT
-from .batch_store import batch_status, mark_interrupted
+from .batch_store import batch_status, mark_interrupted, request_pause
 
 
 class BatchProcess:
@@ -20,6 +20,9 @@ class BatchProcess:
             self.process = subprocess.Popen(
                 [sys.executable, '-m', 'tsp_pso.experiments.batch_executor', str(self.directory)],
                 cwd=ROOT, stdout=stream, stderr=subprocess.STDOUT, **options)
+
+    def pause(self):
+        request_pause(self.directory)
 
     def interrupt(self):
         if self.process.poll() is None and self.interrupt_started is None:

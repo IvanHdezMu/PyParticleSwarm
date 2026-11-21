@@ -63,7 +63,8 @@ def _execute_saved(directory, plan, runs, run_function):
             ordinal = int(record['ordinal'])
             run = ConcreteRunConfiguration.from_dict(json.loads(record['configuration']))
             current = ordinal
-            start_run(directory, ordinal, run)
+            if not start_run(directory, ordinal, run):
+                return directory
             destination = directory / 'runs' / str(ordinal)
             # Known before execute() returns, so interrupted artifacts can be found.
             destination.mkdir(parents=True, exist_ok=True)

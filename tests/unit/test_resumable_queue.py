@@ -88,3 +88,40 @@ def test_live_previous_group_blocks_recovery(batch_artifacts):
     finally:
         child.terminate()
         child.wait(timeout=5)
+
+
+def test_pause_commits_current_run_before_stopping(batch_artifacts):
+    from tsp_pso.experiments.batch_executor import execute_batch
+    directory, write = batch_artifacts(completed=False)
+    calls = []
+    def run(config, path, descriptor):
+        calls.append(config.repetition_id)
+        store.request_pause(directory)
+        assert store.batch_status(directory)['status'] == 'running'
+        return write(config, path, descriptor)
+    execute_batch(directory, run)
+    state = store.batch_status(directory)
+    assert state['status'] == 'paused' and state['counts']['succeeded'] == 1
+    assert state['counts']['pending'] == 1
+    assert not (directory/'Analysis.xlsx').exists()
+    before = store.read_batch(directory)[2][0]
+    execute_batch(directory, write)
+    assert calls == [17]
+    assert store.read_batch(directory)[2][0] == before
+    assert store.batch_status(directory)['status'] == 'succeeded'
+    assert (directory/'Analysis.xlsx').is_file()
+
+
+def test_pause_before_first_run_and_last_run_completion(batch_artifacts):
+    from tsp_pso.experiments.batch_executor import execute_batch
+    directory, write = batch_artifacts(completed=False)
+    store.request_pause(directory)
+    execute_batch(directory, Mock(side_effect=AssertionError('run started')))
+    assert store.batch_status(directory)['status'] == 'paused'
+    def run(config,path,descriptor):
+        if config.repetition_id == 18:
+            store.request_pause(directory)
+        return write(config,path,descriptor)
+    execute_batch(directory, run)
+    assert store.batch_status(directory)['status'] == 'succeeded'
+    assert (directory/'Analysis.xlsx').exists()
