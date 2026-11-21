@@ -1,11 +1,12 @@
 """Asynchronous preparation and saved-batch launch, without Tk."""
+import sqlite3
 from concurrent.futures import Future
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
-import sqlite3
 
 import pytest
+
 from tsp_pso.presentation import experiment_gui as gui
 
 

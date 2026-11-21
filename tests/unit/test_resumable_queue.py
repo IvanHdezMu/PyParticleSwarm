@@ -6,7 +6,10 @@ import pytest
 
 from tsp_pso.experiments import batch_store as store
 from tsp_pso.experiments.experiment_batch import compile_plan, iterate_runs
-from tsp_pso.experiments.experiment_config import ExperimentConfiguration, RepetitionSpec
+from tsp_pso.experiments.experiment_config import (
+    ExperimentConfiguration,
+    RepetitionSpec,
+)
 
 
 def test_queue_has_original_order_and_effective_values(tmp_path, monkeypatch):
@@ -37,8 +40,8 @@ def test_preparation_failure_never_publishes_partial_batch(tmp_path, monkeypatch
 
 
 def test_recovery_uses_saved_runs_without_repeating_success(batch_artifacts, monkeypatch):
-    from tsp_pso.experiments.batch_executor import execute_batch
     from tsp_pso.experiments import experiment_batch
+    from tsp_pso.experiments.batch_executor import execute_batch
     directory, write = batch_artifacts(completed=False)
     calls = []
     def interrupt(run, output, descriptor):
@@ -64,27 +67,26 @@ def test_recovery_uses_saved_runs_without_repeating_success(batch_artifacts, mon
 def test_os_lock_rejects_second_owner(batch_artifacts):
     from tsp_pso.experiments.experiment_process import execution_lock
     directory, _ = batch_artifacts(completed=False)
-    with execution_lock(directory):
-        with pytest.raises(ValueError, match='active coordinator'):
-            with execution_lock(directory):
-                pytest.fail('Second coordinator acquired lock')
+    with (execution_lock(directory), pytest.raises(ValueError, match='active coordinator'),
+          execution_lock(directory)):
+        pytest.fail('Second coordinator acquired lock')
 
 
 def test_live_previous_group_blocks_recovery(batch_artifacts):
     import subprocess
     import sys
-    from tsp_pso.experiments.experiment_process import execution_lock
     from pathlib import Path
+
+    from tsp_pso.experiments.experiment_process import execution_lock
     directory, _ = batch_artifacts(completed=False)
     child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'], start_new_session=True)
     try:
-        owner = dict(pid=child.pid, pgid=child.pid,
-                     boot=Path('/proc/sys/kernel/random/boot_id').read_text().strip())
+        owner = {'pid': child.pid, 'pgid': child.pid,
+                 'boot': Path('/proc/sys/kernel/random/boot_id').read_text().strip()}
         with store.connect(directory) as db:
             db.execute('UPDATE control SET owner=?', (json.dumps(owner),))
-        with pytest.raises(ValueError, match='still alive'):
-            with execution_lock(directory):
-                pytest.fail('Recovered while previous process group was alive')
+        with pytest.raises(ValueError, match='still alive'), execution_lock(directory):
+            pytest.fail('Recovered while previous process group was alive')
     finally:
         child.terminate()
         child.wait(timeout=5)

@@ -1,4 +1,5 @@
 import sqlite3
+
 from tsp_pso.experiments.batch_store import discover_batches
 
 
