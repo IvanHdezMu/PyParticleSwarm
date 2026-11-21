@@ -241,3 +241,37 @@ def request_pause(directory, *, timeout=0.05):
         cursor = db.execute("UPDATE control SET pause_requested=1 WHERE id=1 AND EXISTS(SELECT 1 FROM batch WHERE status IN ('pending','running'))")
         if cursor.rowcount != 1:
             raise ValueError('Batch is not running or starting')
+
+
+def discover_batches(root):
+    """List saved batches using short read-only queries; never reconcile on discovery."""
+    found = []
+    for path in sorted(Path(root).expanduser().resolve().rglob('batch.json')):
+        if any(part.startswith('.preparing-') for part in path.parts):
+            continue
+        item = {'directory': path.parent}
+        try:
+            saved = json.loads(path.read_text(encoding='utf-8'))
+            c = ExperimentConfiguration.from_dict(saved['configuration'])
+            with closing(sqlite3.connect((path.parent/'manifest.sqlite3').as_uri()+'?mode=ro',
+                                         uri=True, timeout=0.05)) as db:
+                db.row_factory = sqlite3.Row
+                db.execute('BEGIN')
+                rows = db.execute('SELECT * FROM batch').fetchall()
+                if len(rows) != 1 or rows[0]['id'] != saved['batch_id']:
+                    raise ValueError('Batch identity mismatch')
+                batch = dict(rows[0])
+                version = db.execute('PRAGMA user_version').fetchone()[0] or 1
+                if version != saved.get('manifest_version',1) or version not in (1,2):
+                    raise ValueError('Incompatible manifest version')
+                if positive_decimal(batch['total']) != positive_decimal(saved['total_runs']):
+                    raise ValueError('Batch totals disagree')
+                completed = db.execute("SELECT COUNT(*) FROM runs WHERE status='succeeded'").fetchone()[0]
+            item.update(name=c.name, dataset=', '.join(c.datasets), problem=', '.join(c.problem_modes),
+                        status=batch['status'], completed=completed, total=int(batch['total']),
+                        manifest_version=version, error=None)
+        except (OSError, ValueError, KeyError, TypeError, sqlite3.Error) as error:
+            item.update(name=path.parent.name, dataset='?', problem='?', status='unavailable',
+                        completed=0, total=0, manifest_version=None, error=str(error))
+        found.append(item)
+    return found
