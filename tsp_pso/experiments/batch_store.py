@@ -1,4 +1,4 @@
-"""Small SQLite manifest. Unmaterialized plan ordinals are implicitly pending."""
+"""Versioned SQLite batches: persisted queues, lifecycle and read-only discovery."""
 from contextlib import closing, contextmanager
 from datetime import datetime, timezone
 import json

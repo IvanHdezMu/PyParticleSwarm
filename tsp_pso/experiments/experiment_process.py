@@ -1,13 +1,15 @@
 """Process lifecycle for the desktop runner. No Tk calls or solver changes."""
+import json
 import os
-from pathlib import Path
 import signal
 import subprocess
 import sys
 import time
+from contextlib import contextmanager
+from pathlib import Path
 
 from ..infrastructure.experiment_options import ROOT
-from .batch_store import batch_status, mark_interrupted, request_pause
+from .batch_store import batch_status, connect, mark_interrupted, request_pause
 
 
 class BatchProcess:
@@ -83,15 +85,10 @@ def _owner_alive(owner):
         except FileNotFoundError:
             continue
         # Zombie processes cannot write results. Include spawned/forkserver workers.
-        if fields[0] != 'Z' and int(fields[2]) == owner['pgid']:
-            if int(path.parent.name) != os.getpid():
-                return True
+        if (fields[0] != 'Z' and int(fields[2]) == owner['pgid']
+                and int(path.parent.name) != os.getpid()):
+            return True
     return False
-
-
-from contextlib import contextmanager
-import json
-from .batch_store import connect
 
 
 @contextmanager
@@ -118,9 +115,9 @@ def execution_lock(directory, *, claim=True, retain_owner=False):
             owner = db.execute('SELECT owner FROM control WHERE id=1').fetchone()[0]
             if owner and _owner_alive(json.loads(owner)):
                 raise ValueError('Previous batch process group is still alive; recovery refused')
-            owner = dict(pid=os.getpid(), pgid=os.getpgrp() if os.name == 'posix' else os.getpid(),
-                         boot=Path('/proc/sys/kernel/random/boot_id').read_text().strip()
-                         if sys.platform == 'linux' else None)
+            owner = {'pid': os.getpid(), 'pgid': os.getpgrp() if os.name == 'posix' else os.getpid(),
+                     'boot': Path('/proc/sys/kernel/random/boot_id').read_text().strip()
+                     if sys.platform == 'linux' else None}
             if claim:
                 db.execute('UPDATE control SET owner=? WHERE id=1', (json.dumps(owner),))
         try:

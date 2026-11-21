@@ -2,6 +2,7 @@
 from pathlib import Path
 import sys
 import json
+import os
 
 from ..application import runner
 from .batch_store import (
@@ -26,10 +27,10 @@ def execute_one(run, output_dir, descriptor):
 def execute_batch(directory, run_function=None, *, _process_group=False):
     """Execute a saved batch sequentially and return its directory as a Path.
 
-    Validate the snapshot version and expanded count before starting. An optional
+    Validate the snapshot and persisted queue before starting. An optional
     run_function(run, output_dir, descriptor) must return the execution directory.
     Record the first execution failure or interruption and stop; setup errors
-    propagate. Re-entrant/resume execution is intentionally rejected. After success,
+    propagate. Resume skips confirmed runs and retries interrupted runs. After success,
     generate the summary; analysis errors are logged separately from run status.
     """
     directory = Path(directory).resolve()
@@ -101,6 +102,8 @@ def main():
     """Execute the batch directory supplied as the sole command-line argument."""
     if len(sys.argv) != 2:
         raise SystemExit('Usage: python -m tsp_pso.experiments.batch_executor BATCH_DIRECTORY')
+    if os.name == 'posix' and os.getpgrp() != os.getpid():
+        os.setsid()
     execute_batch(sys.argv[1], _process_group=True)
 
 
