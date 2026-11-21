@@ -36,7 +36,6 @@ def saved_rows(directory):
 def process(directory, code):
     result = process_module.BatchProcess.__new__(process_module.BatchProcess)
     result.directory = directory
-    result.interrupt_started = None
     result.process = Mock()
     result.process.poll.return_value = code
     return result

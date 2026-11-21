@@ -10,7 +10,7 @@ from uuid import uuid4
 from dataclasses import asdict, fields
 
 from ..infrastructure.experiment_options import ROOT
-from .experiment_batch import EXPANSION_VERSION, DatasetDescriptor, compile_plan, count_runs, iterate_runs
+from .experiment_batch import DatasetDescriptor, compile_plan, count_runs, iterate_runs
 from .experiment_config import ExperimentConfiguration
 
 
@@ -68,7 +68,7 @@ def create_batch(plan):
         suffix += 1
         directory = base.with_name(f'{base.name}__{suffix}')
     try:
-        snapshot = dict(batch_id=identifier, created_at=created_at, expansion_version=EXPANSION_VERSION,
+        snapshot = dict(batch_id=identifier, created_at=created_at,
                         configuration=plan.configuration.to_dict(),
                         datasets=[asdict(item) for item in plan.datasets], total_runs=str(total))
         with (temporary / 'batch.json').open('x', encoding='utf-8') as stream:
@@ -172,9 +172,6 @@ def read_batch(directory):
     directory = Path(directory).resolve()
     with (directory / 'batch.json').open(encoding='utf-8') as stream:
         snapshot = json.load(stream)
-    if (type(snapshot['expansion_version']) is not int
-            or snapshot['expansion_version'] != EXPANSION_VERSION):
-        raise ValueError('Unsupported expansion version')
     identifier = snapshot['batch_id']
     if not isinstance(identifier, str) or not identifier:
         raise ValueError('Invalid batch identifier')

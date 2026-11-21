@@ -91,7 +91,6 @@ def test_active_button_requests_pause_without_signal(app, services):
     app.process=Mock()
     app.launch()
     app.process.pause.assert_called_once_with()
-    app.process.interrupt.assert_not_called()
     app.worker.submit.assert_not_called()
     assert app.run_button.configure.call_args.kwargs['text']=='Pausing…'
 

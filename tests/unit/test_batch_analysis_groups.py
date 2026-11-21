@@ -102,8 +102,6 @@ def test_missing_or_invalid_batch_files(completed_batch, target, damage):
 
 @pytest.mark.parametrize('change, message', [
     (lambda s: s.update(batch_id='different'), 'identifier mismatch'),
-    (lambda s: s.update(expansion_version=2), 'Unsupported expansion'),
-    (lambda s: s.update(expansion_version=True), 'Unsupported expansion'),
     (lambda s: s.update(total_runs='3'), 'Declared total'),
     (lambda s: s['configuration'].pop('repetitions'), 'configuration'),
     (lambda s: s['configuration']['repetitions'].update(first_id=18), 'repetition_id'),

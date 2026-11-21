@@ -8,9 +8,6 @@ from pathlib import Path
 from ..infrastructure.experiment_options import ROOT, load_catalog_options, load_preset_options
 from .experiment_config import ExperimentConfiguration, RepetitionSpec, is_parameter_active
 
-# EXPANSION_VERSION: Identifies the expansion rules used to create saved batches.
-# Review this version whenever the expansion behavior changes.
-EXPANSION_VERSION = 1
 # CONDITIONAL: Parameters that generate additional runs only when applicable.
 # Their order determines the order of the generated runs.
 CONDITIONAL = (

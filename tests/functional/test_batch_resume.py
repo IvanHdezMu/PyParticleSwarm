@@ -1,6 +1,8 @@
 """Real solver histories, OS locks and cooperative restart across processes."""
 import hashlib
 import json
+import os
+import signal
 import subprocess
 import sys
 import time
@@ -41,11 +43,14 @@ def wait_for(child, condition):
 
 
 def stop_owned(child):
-    child.interrupt()
-    deadline = time.monotonic() + 12
-    while child.poll(sqlite_timeout=.05) is None and time.monotonic() < deadline:
-        time.sleep(.05)
+    if child.process.poll() is None:
+        try:
+            os.killpg(child.process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+    child.process.wait(timeout=12)
     assert child.process.poll() is not None
+
 
 
 @pytest.mark.parametrize('method', [m for m in ('spawn','forkserver') if m in get_all_start_methods()])
@@ -68,7 +73,6 @@ execute_batch(sys.argv[1], _process_group=True)
     def launch():
         child = BatchProcess.__new__(BatchProcess)
         child.directory = directory
-        child.interrupt_started = None
         with (directory/'execution.log').open('a') as log:
             child.process = subprocess.Popen([sys.executable,'-c',code,str(directory),method],
                 cwd=Path(__file__).resolve().parents[2], start_new_session=True,

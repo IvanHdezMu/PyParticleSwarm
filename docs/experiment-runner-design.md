@@ -21,8 +21,8 @@ Import shallowly merged legacy defaults, preserve all numerical/Boolean settings
 Each batch receives an internal UUID and immutable JSON snapshot. Its folder uses
 `YYYY-MM-DD_HH-MM-SS_dataset_TSP` or `TSPWR` from the UTC creation time, with
 numbered suffixes on collisions. Discovery orders batches by creation time, newest first. The single SQLite schema
-stores the complete queue and pause/resume control data. `EXPANSION_VERSION=1`
-describes the scientific expansion rules. Queues contain every concrete run with status pending
+stores the complete queue and pause/resume control data. Queues contain every
+concrete run with status pending
 and null start/end timestamps, including all nine effective scalars. Preparation
 uses a temporary sibling directory and a transaction; the directory is renamed
 only after the complete queue is committed. Failed preparation is not published.
@@ -54,8 +54,8 @@ The GUI writes a pause request into SQLite. `start_run()` checks that request an
 claims the next run under `BEGIN IMMEDIATE`, eliminating the check/dispatch race.
 No SQL transaction spans solver work. After the last successful run, completion
 wins over a pending pause request. Only completion triggers automatic analysis.
-The existing signal interruption path remains available for unexpected shutdown
-handling and tests; it is not used by the Pause button or normal window close.
+Unexpected process death is reconciled after verifying ownership and acquiring
+the execution lock. The GUI does not signal the solver to pause or close.
 
 The runner reads `legacy_values` once and uses those exact scalars for PSOConfig,
 run arguments, scalar registry arguments and storage. Result naming has one
