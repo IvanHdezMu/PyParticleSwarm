@@ -1,4 +1,5 @@
-"""Regression for menu option 8 using its real configuration and workbook."""
+"""Regression for the Minas24D preset using its real configuration and workbook."""
+from conftest import concrete_run
 from tsp_pso.infrastructure.experiment_options import load_run_options
 from tsp_pso.experiments.experiment import build_experiments
 
@@ -16,14 +17,14 @@ from tsp_pso.algorithms.tspwr.tspwr_particle_swarm import TSPWRParticleSwarm
 
 from conftest import assert_permutation
 
-from tsp_pso.experiments.result_naming import result_filename
+from tsp_pso.analysis.analysis import historical_result_filename as result_filename
 
 pytestmark = pytest.mark.functional
 
 
-def test_option_8_minas24d_finds_known_optimum(monkeypatch, tmp_path):
+def test_minas24d_preset_finds_known_optimum(monkeypatch, tmp_path):
     experiment = build_experiments(load_run_options())[7]
-    # Pin the menu configuration so future edits cannot silently change this case.
+    # Pin the preset configuration so future edits cannot silently change this case.
     assert experiment == Experiment(
         dataset='Minas24D', label='individual', steps=(1200,), particles=(8,),
         opts=(10,), minimums=(0.2,), maximums=(0.8,), rings=(False,),
@@ -36,7 +37,7 @@ def test_option_8_minas24d_finds_known_optimum(monkeypatch, tmp_path):
         'source': 'Ottoni et al. (2022)', 'problem_types': ['tsp', 'tspwr'],
     }
 
-    # The original runner has no seed and uses the default Pool size. One real
+    # The runner has no seed and uses the default Pool size. One real
     # spawned worker with an explicit seed removes task scheduling and inherited
     # RNG state as sources of variation. Seed 7 also controls swarm initialization.
     seed = 7
@@ -56,7 +57,8 @@ def test_option_8_minas24d_finds_known_optimum(monkeypatch, tmp_path):
         return solver
 
     monkeypatch.setitem(runner.SOLVER_REGISTRY, 'tsp', (capture_solver, runner.SOLVER_REGISTRY['tsp'][1]))
-    run_directory = runner.execute(experiment, output_dir=tmp_path)
+    run_directory = runner.execute(concrete_run(experiment), output_dir=tmp_path,
+                                   dataset=load_run_options()['datasets'][experiment.dataset])
 
     assert len(created_solvers) == 1
     solver = created_solvers[0]
@@ -128,7 +130,8 @@ def test_minas24d_refuel_ring_finds_known_best_cost(monkeypatch, tmp_path):
 
     monkeypatch.setitem(runner.SOLVER_REGISTRY, 'tspwr', (capture_solver, runner.SOLVER_REGISTRY['tspwr'][1]))
     # execute() loads both coordinates and fuel prices from the repository workbook.
-    run_directory = runner.execute(experiment, output_dir=tmp_path)
+    run_directory = runner.execute(concrete_run(experiment), output_dir=tmp_path,
+                                   dataset=load_run_options()['datasets'][experiment.dataset])
 
     assert len(created_solvers) == 1
     solver = created_solvers[0]

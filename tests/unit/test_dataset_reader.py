@@ -71,7 +71,7 @@ def test_reader_errors(tmp_path, descriptor, error, message):
         load_dataset(descriptor, tmp_path)
 
 
-def test_runner_wrapper_and_batch_catalog(tmp_path, monkeypatch):
+def test_batch_catalog(tmp_path, monkeypatch):
     from tsp_pso.application import runner
     from tsp_pso.experiments import batch_executor
 
@@ -82,11 +82,8 @@ def test_runner_wrapper_and_batch_catalog(tmp_path, monkeypatch):
     original = {'filename': 'missing', 'format': 'json'}
     monkeypatch.setattr(runner, 'ROOT', tmp_path)
     catalog = {'sample': original}
-    with pytest.raises(KeyError, match='absent'):
-        runner.load_dataset('absent', datasets=catalog)
     descriptor = SimpleNamespace(id='sample', filename='sample.json', format='json',
                                  source='test', problem_types=('tspwr',))
-    monkeypatch.setattr(batch_executor, 'to_legacy_experiment', lambda run: run)
     def execute(run, output_dir, *, dataset):
         matrix, prices = load_dataset(dataset, root)
         np.testing.assert_array_equal(matrix, [[0.]])

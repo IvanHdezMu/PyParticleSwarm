@@ -57,3 +57,77 @@ def assert_permutation(route, size):
     assert route.shape == (size,)
     assert np.issubdtype(route.dtype, np.integer)
     np.testing.assert_array_equal(np.sort(route), np.arange(size))
+
+
+@pytest.fixture
+def batch_artifacts(tmp_path):
+    """Small saved batches and a workbook-producing run stub; no solver calls."""
+    import pandas as pd
+    from tsp_pso.experiments.batch_store import (
+        create_batch, start_batch, start_run, finish_run, finish_batch,
+    )
+    from tsp_pso.experiments.experiment_batch import DatasetDescriptor, compile_plan, iterate_runs
+    from tsp_pso.experiments.experiment_config import ExperimentConfiguration, RepetitionSpec
+    from tsp_pso.experiments.result_naming import result_filename
+    from tsp_pso.infrastructure.run_storage import create_run_directory
+
+    def make(*, completed=True, history=None, **overrides):
+        options = dict(datasets=('sample',), particles=(2,), c1=(2,), operators=(3,),
+                       repetitions=RepetitionSpec(2, 17), output_dir=tmp_path)
+        options.update(overrides)
+        configuration = ExperimentConfiguration(**options)
+        catalog = tuple(DatasetDescriptor(name, 'not-needed.json', 'json', 'test',
+                                         ('tsp', 'tspwr')) for name in configuration.datasets)
+        plan = compile_plan(configuration, catalog)
+        directory = create_batch(plan)
+
+        def write(run, output, descriptor):
+            values = dict(run.legacy_values)
+            destination = create_run_directory(run, output, values)
+            if run.excel:
+                samples = (history(run) if history is not None else
+                           [[9, 20 + run.repetition_id], [7, 10 + run.repetition_id],
+                            [3, 10 + run.repetition_id]])
+                pd.DataFrame(samples, columns=['Step', 'Result']).to_excel(
+                    destination / result_filename(run.dataset, run.legacy_style, values['k'], concrete_tuple(run)),
+                    index=False)
+            return destination
+
+        if completed:
+            start_batch(directory)
+            for ordinal, run in enumerate(iterate_runs(plan), 1):
+                start_run(directory, ordinal, run)
+                output = write(run, directory / 'runs' / str(ordinal), None)
+                finish_run(directory, ordinal, 'succeeded', output=output)
+            finish_batch(directory, 'succeeded')
+        return directory, write
+    return make
+
+
+@pytest.fixture
+def completed_batch(batch_artifacts):
+    return lambda **kwargs: batch_artifacts(**kwargs)[0]
+
+
+def concrete_run(experiment, configuration=None):
+    """Test input for a historical parameter case; never execute a sweep adapter."""
+    from dataclasses import asdict, replace
+    from tsp_pso.experiments.experiment_batch import build_presets, compile_plan, iterate_runs, DatasetDescriptor
+    if configuration is None:
+        configuration, = experiment.configurations()
+    n, c1, operator, minimum, maximum, ring, full, number = configuration
+    selected = replace(experiment, particles=(n,), steps=(c1,), opts=(operator,),
+                       minimums=(minimum,), maximums=(maximum,), rings=(ring,),
+                       full_tanks=(full,), repetitions=range(number, number + 1))
+    data = asdict(selected)
+    data['repetitions'] = dict(start=number, stop=number + 1)
+    preset, = build_presets(dict(defaults={}, experiments=[data], output_dir='Results'))
+    catalog = (DatasetDescriptor(experiment.dataset, 'unused', 'json', 'test', ('tsp', 'tspwr')),)
+    return next(iterate_runs(compile_plan(preset, catalog)))
+
+
+def concrete_tuple(run):
+    """Expected persisted values in the historical tuple order (tests only)."""
+    e = dict(run.legacy_values)
+    return (run.particles, run.c1, run.operator, e['minimum_reset_probability'],
+            e['maximum_reset_probability'], run.ring, e['full_initial_tank'], run.repetition_id)

@@ -6,13 +6,23 @@ import main
 pytestmark = pytest.mark.unit
 
 
-def test_terminal_remains_accessible(monkeypatch):
-    from tsp_pso.presentation import terminal
-    start=Mock()
-    monkeypatch.setattr(terminal,'main',start)
-    monkeypatch.setattr(sys,'argv',['main.py','--terminal'])
-    main.main()
-    start.assert_called_once_with()
+def test_removed_terminal_option_is_rejected(monkeypatch, capsys):
+    monkeypatch.setattr(sys, 'argv', ['main.py', '--terminal'])
+    with pytest.raises(SystemExit) as error:
+        main.main()
+    assert error.value.code == 2
+    assert 'unrecognized arguments: --terminal' in capsys.readouterr().err
+
+
+def test_help_does_not_import_desktop(monkeypatch, capsys):
+    monkeypatch.setitem(sys.modules, 'tsp_pso.presentation.experiment_gui', None)
+    monkeypatch.setattr(sys, 'argv', ['main.py', '--help'])
+    with pytest.raises(SystemExit) as error:
+        main.main()
+    assert error.value.code == 0
+    output = capsys.readouterr().out
+    assert 'Desktop Experiment Runner' in output
+    assert '--terminal' not in output
 
 
 def test_default_launches_desktop(monkeypatch):

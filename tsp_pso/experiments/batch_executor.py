@@ -1,40 +1,14 @@
 """Sequential CPU adapter and process entry point; no solver semantics live here."""
-import json
 from pathlib import Path
-import re
 import sys
 
 from ..application import runner
 from .batch_store import (
-    finish_batch, finish_run, mark_interrupted, start_batch, start_run,
+    finish_batch, finish_run, mark_interrupted, start_batch, start_run, read_batch,
 )
-from .experiment import Experiment
 from .experiment_batch import (
-    DatasetDescriptor, EXPANSION_VERSION, compile_plan, count_runs, iterate_runs,
+    iterate_runs,
 )
-from .experiment_config import ExperimentConfiguration
-
-
-def to_legacy_experiment(run):
-    """Convert an expanded run to a single-configuration traditional Experiment.
-
-    Preserve the repetition ID and saved inactive fields; sanitize only the label
-    used for storage. Required legacy values must be present or KeyError propagates.
-    """
-    e = dict(run.legacy_values)
-    return Experiment(
-        dataset=run.dataset, label=re.sub(r'[<>:"/\\|?*\x00-\x1f]', '-', run.legacy_label or run.name), particles=(run.particles,), steps=(run.c1,),
-        opts=(run.operator,), minimums=(e['minimum_reset_probability'],),
-        maximums=(e['maximum_reset_probability'],), rings=(run.ring,),
-        full_tanks=(e['full_initial_tank'],),
-        repetitions=range(run.repetition_id, run.repetition_id + 1),
-        excel=run.excel, verbose=run.verbose, refuel=run.problem_mode=='tspwr',
-        style=run.legacy_style, analysis_output=run.analysis_output,
-        max_capacity=e['fuel_capacity'], consumption=e['consumption'],
-        permut_reset=run.permutation_reset, k=e['k'],
-        reset_threshold_divisor=e['reset_threshold_divisor'],
-        primary_operator_share=e['primary_operator_share'],
-        progress_warmup_multiplier=e['progress_warmup_multiplier'])
 
 
 def execute_one(run, output_dir, descriptor):
@@ -45,7 +19,7 @@ def execute_one(run, output_dir, descriptor):
     """
     dataset = dict(filename=descriptor.filename, format=descriptor.format,
                    source=descriptor.source, problem_types=descriptor.problem_types)
-    return runner.execute(to_legacy_experiment(run), output_dir=output_dir, dataset=dataset)
+    return runner.execute(run, output_dir=output_dir, dataset=dataset)
 
 
 def execute_batch(directory, run_function=None):
@@ -54,19 +28,16 @@ def execute_batch(directory, run_function=None):
     Validate the snapshot version and expanded count before starting. An optional
     run_function(run, output_dir, descriptor) must return the execution directory.
     Record the first execution failure or interruption and stop; setup errors
-    propagate. Re-entrant/resume execution is intentionally rejected.
+    propagate. Re-entrant/resume execution is intentionally rejected. After success,
+    generate the summary; analysis errors are logged separately from run status.
     """
     directory = Path(directory)
-    with (directory / 'batch.json').open(encoding='utf-8') as stream:
-        snapshot = json.load(stream)
-    if snapshot['expansion_version'] != EXPANSION_VERSION:
-        raise ValueError('Unsupported expansion version')
-    config = ExperimentConfiguration.from_dict(snapshot['configuration'])
-    catalog = tuple(DatasetDescriptor(**{**d, 'problem_types': tuple(d['problem_types'])}) for d in snapshot['datasets'])
-    plan = compile_plan(config, catalog)
-    if count_runs(plan) != int(snapshot['total_runs']):
-        raise ValueError('Saved run count does not match the configuration')
-    descriptors = {d.id: d for d in catalog}
+    plan, batch, runs = read_batch(directory)
+    if batch['status'] != 'pending':
+        raise ValueError('Only a new pending batch may be started; resume is not implemented')
+    if runs or any(batch[name] is not None for name in ('started_at', 'ended_at', 'error')):
+        raise ValueError('Inconsistent pending batch: existing runs or execution metadata')
+    descriptors = {d.id: d for d in plan.datasets}
     run_function = execute_one if run_function is None else run_function
     start_batch(directory)
     current = None
@@ -88,6 +59,21 @@ def execute_batch(directory, run_function=None):
         if current is not None:
             finish_run(directory, current, 'failed', error=message)
         finish_batch(directory, 'failed', error=message)
+    else:
+        try:
+            from ..analysis.analysis import analyze_batch
+            analyze_batch(directory)
+        except (Exception, KeyboardInterrupt) as error:
+            message = f'Batch succeeded; analysis failed: {type(error).__name__}: {error}'
+            # The coordinator may already redirect these streams to execution.log.
+            # Flush before appending so buffered execution output is not overwritten.
+            sys.stdout.flush()
+            sys.stderr.flush()
+            try:
+                with (directory / 'execution.log').open('a', encoding='utf-8') as log:
+                    log.write(message + '\n')
+            except OSError as log_error:
+                print(f'{message}; cannot write execution.log: {log_error}', file=sys.stderr)
     return directory
 
 

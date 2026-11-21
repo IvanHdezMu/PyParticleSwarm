@@ -8,9 +8,8 @@ import pytest
 
 from tsp_pso.experiments.experiment_config import ExperimentConfiguration, RepetitionSpec
 from tsp_pso.experiments.experiment_batch import (
-    DatasetDescriptor, compile_plan, count_runs, iterate_runs, load_presets, preview_runs,
+    DatasetDescriptor, compile_plan, count_runs, iterate_runs, load_presets,
 )
-from tsp_pso.application import runner
 
 pytestmark = pytest.mark.unit
 CATALOG = tuple(DatasetDescriptor(n, n+'.json', 'json', 'test', ('tsp', 'tspwr')) for n in ('a', 'b'))
@@ -51,7 +50,6 @@ def test_huge_repetitions_and_values_are_lazy():
     p = plan(particles=(huge,), c1=(huge,), operators=(15,), k=(10,1000,1000000),
              repetitions=RepetitionSpec(huge, 17))
     assert count_runs(p) == 3 * huge
-    assert len(preview_runs(p, 3)) == 3
     assert [r.repetition_id for r in islice(iterate_runs(p), 3)] == [17,18,19]
     for k in (10, 1000, 1000000):
         assert next(iterate_runs(plan(operators=(15,), k=(k,)))).k == k

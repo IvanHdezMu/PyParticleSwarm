@@ -112,9 +112,9 @@ For each inactive field, `iterate_runs()` supplies an effective legacy scalar:
 
 For active fields, use the value selected by the Cartesian product. Scientific
 fields can therefore contain `None` while `legacy_values` contains a concrete
-number or boolean. [to_legacy_experiment()](../tsp_pso/experiments/batch_executor.py)
-uses those effective values to construct the singleton traditional `Experiment`
-passed to the runner. Changing a fallback can change saved effective arguments
+number or boolean. [runner.execute()](../tsp_pso/application/runner.py) reads those
+persisted effective values once and passes them directly to solver arguments and
+storage, without constructing an Experiment. Changing a fallback can change saved effective arguments
 even when it does not change the run count.
 
 ### Small worked example
@@ -203,7 +203,7 @@ expansion; changing output defaults affects presentation and persistence.
 | `repetitions` | `RepetitionSpec()` | Count and starting ID; immutable shared default object. |
 | `verbose`, `excel` | `False`, `True` | Console output and Excel history; together determine warmup applicability. |
 | `output_dir` | `Path('Results')` | Requested output base; batch storage resolves relative paths from its project root. |
-| `legacy_style`, `legacy_label`, `analysis_output` | `'standard'`, `None`, `None` | Compatibility naming and analysis metadata forwarded to the traditional model. |
+| `legacy_style`, `legacy_label`, `analysis_output` | `'standard'`, `None`, `None` | Compatibility metadata retained in result names and the persisted snapshot. |
 
 `RepetitionSpec`, in the same file, defaults to `count=1`, `first_id=1`. These
 values control execution count and labels, not RNG seeds. Changing `first_id`
@@ -332,8 +332,8 @@ each other. A `Path` is immutable; its module binding can still be replaced.
 | Definition | Local consumers | Effect of changing it |
 | --- | --- | --- |
 | [infrastructure/experiment_options.py](../tsp_pso/infrastructure/experiment_options.py) | `load_run_options()`, `load_catalog_options()`, `load_preset_options()` | Changes default configuration locations. Also supplies the aliases below. |
-| [application/runner.py](../tsp_pso/application/runner.py) | `load_dataset()`, `execute()`, `create_run_directory()` | Changes default dataset and configured output bases. Explicit output paths retain working-directory semantics. |
-| [analysis/analysis.py](../tsp_pso/analysis/analysis.py) | `first_missing_result()`, `analyze()` | Changes the default base for relative analysis paths; explicit `root` takes precedence. |
+| [application/runner.py](../tsp_pso/application/runner.py) | `execute()` | Changes default dataset and configured output bases. Explicit output paths retain working-directory semantics. |
+| [analysis/analysis.py](../tsp_pso/analysis/analysis.py) | `analyze()` | Changes the default base for relative analysis paths; explicit `root` takes precedence. |
 
 The infrastructure root is imported into:
 
@@ -391,7 +391,9 @@ SOLVER_REGISTRY = {
 `runner.execute()` indexes this dictionary with the requested problem type. The
 entry provides a solver class and an argument builder. `tsp_arguments()` returns
 an empty dictionary; `tspwr_arguments()` adds dataset prices and `RefuelConfig`
-constructed from experiment capacity, consumption and initial tank state.
+constructed from explicit capacity, consumption and initial tank scalars. Builders
+receive `(prices, full, capacity, consumption)` and do not depend on either
+configuration model.
 
 The dictionary is mutable, but normal production execution does not modify it.
 Tests replace entries through the shared `runner.SOLVER_REGISTRY` reference and
@@ -524,7 +526,7 @@ Keep metadata near the responsibility that interprets it. A single project-wide
 
 Existing globals outside these tables are ordinary imported modules/functions or
 classes, including compatibility reexports such as `runner.Experiment`.
-`main.py`, terminal, storage helpers, TSPLIB readers and package initializers do
+`main.py`, storage helpers, TSPLIB readers and package initializers do
 not introduce additional module data constants. The default SQLite timeout and
 the interruption grace period remain local operational policy; the GUI polling
 timeout is the module-level constant documented above.

@@ -15,21 +15,25 @@ from tsp_pso.experiments.experiment_config import ExperimentConfiguration, Repet
 pytestmark = pytest.mark.functional
 
 
-def test_offline_batch_writes_real_excel_and_manifest(tmp_path, monkeypatch):
+@pytest.mark.parametrize('modes', [('tsp',), ('tspwr',), ('tsp', 'tspwr')])
+def test_offline_batch_writes_real_excel_and_manifest(tmp_path, monkeypatch, modes):
     monkeypatch.setattr(executor_module, 'Pool', partial(Pool, processes=1))
     dataset = tmp_path / 'tiny.json'
     dataset.write_text(json.dumps({'nodes': [
         {'latitude':40+i*.01,'longitude':-3+i*.01,'price':1.5+i*.01} for i in range(4)]}))
     descriptor = DatasetDescriptor('tiny', str(dataset), 'json', 'offline test', ('tsp','tspwr'))
     configuration = ExperimentConfiguration(
-        datasets=('tiny',), problem_modes=('tsp','tspwr'), particles=(2,), c1=(1,),
+        datasets=('tiny',), problem_modes=modes, particles=(2,), c1=(1,),
         operators=(3,), permutation_reset=(False,), progress_warmup_multiplier=(0,),
         repetitions=RepetitionSpec(1,17), output_dir=tmp_path/'results')
     directory = create_batch(compile_plan(configuration,(descriptor,)))
     execute_batch(directory)
     status = batch_status(directory)
     assert status['status'] == 'succeeded', status
-    assert status['counts']['succeeded'] == 2
+    assert status['counts']['succeeded'] == len(modes)
+    assert (directory / 'Analysis.xlsx').exists() == (len(modes) == 1)
+    if len(modes) > 1:
+        assert 'analysis failed' in (directory / 'execution.log').read_text()
     with connect(directory) as db:
         rows = db.execute('SELECT * FROM runs').fetchall()
     for row in rows:

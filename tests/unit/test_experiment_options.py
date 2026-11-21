@@ -34,14 +34,12 @@ def test_explicit_configuration_paths(tmp_path, monkeypatch, combined, relative)
     assert load_run_options(str(path)) == expected
 
 
-def test_default_path_and_runner_reexport(tmp_path, monkeypatch):
+def test_default_path_independent_of_working_directory(tmp_path, monkeypatch):
     from tsp_pso.application import runner
 
     expected = load_run_options()
     monkeypatch.chdir(tmp_path)
-    assert runner.load_run_options is load_run_options
     assert load_run_options() == load_run_options(None) == load_run_options('') == expected
-    assert runner.load_run_options() == expected
     assert not {'RUN_OPTIONS', 'DATASETS', 'EXPERIMENTS'} & vars(runner).keys()
 
 

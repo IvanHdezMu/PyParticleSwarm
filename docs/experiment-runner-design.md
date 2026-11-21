@@ -4,7 +4,7 @@ The runner edits user-defined batches; the 22 historical experiments are editabl
 
 ## Data flow
 
-Desktop editor → immutable ExperimentConfiguration → validated ExpansionPlan → exact count / lazy ConcreteRunConfiguration iterator → persistent sequential coordinator → legacy Experiment/execute adapter → existing CPU solver.
+Desktop editor → immutable ExperimentConfiguration → validated ExpansionPlan → exact count / lazy ConcreteRunConfiguration iterator → persistent sequential coordinator → runner.execute(ConcreteRunConfiguration) → existing CPU solver.
 
 Scientific settings use ordered tuples of ordinary Python numbers. Integers have no arbitrary maximum; requested k is never clamped or replaced by dataset-dependent effective k. Repetition IDs are labels, not RNG seeds. Output settings and repetition count/first ID are scalar. Dataset selection uses registry metadata, not matrices.
 
@@ -22,20 +22,49 @@ Each batch receives a UUID and immutable JSON snapshot of configuration, expansi
 
 ## Execution and interruption
 
-Run one concrete configuration at a time through a singleton legacy Experiment and execute(). Each run gets an isolated directory, preserving existing result filenames and run_config.json. This initially reloads the dataset for each run. A separate coordinator process keeps the GUI responsive and owns manifest writes; the solver retains its Pool behavior.
+Run one ConcreteRunConfiguration directly through execute(); repetition belongs to the coordinator, not a second sweep engine. Each run gets an isolated directory, preserving existing result filenames and run_config.json. This initially reloads the dataset for each run. A separate coordinator process keeps the GUI responsive and owns manifest writes; the solver retains its Pool behavior.
 
 Commit running status before execution and terminal status before dispatching the next run. On Ctrl+C stop dispatch, unwind the current solver Pool, mark an unconfirmed active run interrupted, and leave completed runs and future implicit pending runs intact. Abrupt process termination may leave running status until inspection; recovery must distinguish this from confirmed success. No automatic resume/retry is implemented.
 
+The runner reads `legacy_values` once and uses those exact scalars for PSOConfig,
+run arguments, scalar registry arguments and storage. Result naming has one
+formatter accepting scalar metadata and the established parameter tuple.
+Storage writes the historical JSON schema directly, with no intermediate model.
+Only analysis reconstructs historical Experiment snapshots and sweep suffixes;
+the runner reexports Experiment solely to preserve old pickle names. No modern
+module branches between historical and concrete input types.
+
+## Automatic analysis
+
+After recording successful completion, the coordinator calls `analyze_batch()`
+in the existing `analysis/analysis.py`. `prepare_batch_groups()` validates the
+saved batch, manifest and run snapshots, then supplies parameters and ordered
+Excel paths to the original `analyze()`; no statistical formula is duplicated.
+Groups use all saved effective scalars and ascending repetition IDs, rather than
+reconstructing a Cartesian product of inactive axes. Numeric ordinal order
+preserves the first appearance of each configuration. Paths are rebased below
+the selected batch directory, supporting moved batches.
+
+The entry point requires one dataset and one problem mode, matching the GUI.
+API batches with multiple selections still execute but cannot use this summary.
+A valid complete batch produces `Analysis.xlsx`, with one `Analysis` sheet, a
+row per configuration, the 18 parameter columns documented in README and the
+three original metrics, an autofilter and frozen headers. Temporary writing and
+final replacement preserve any earlier summary if validation or writing fails.
+Analysis errors (including disabled Excel or empty histories) are recorded in
+`execution.log` without changing `succeeded` or rerunning solvers. This work runs
+in the existing coordinator, with no new GUI control or multiprocessing policy.
+
 ## Scaling and limitations
 
-Lazy expansion does not remove solver memory costs: dense matrices require approximately 8*n*n bytes, swarm arrays scale with particles*n, multiprocessing adds overhead, and Excel history is buffered. Do not cache every matrix or result. Current singleton execution bounds legacy filename enumeration. Batch numerical summaries and historical cross-repetition analysis require a later manifest-aware adapter; raw Excel artifacts remain usable, and legacy analysis stays accessible.
+Lazy expansion does not remove solver memory costs: dense matrices require approximately 8*n*n bytes, swarm arrays scale with particles*n, multiprocessing adds overhead, and Excel history is buffered. Do not cache every matrix or result. Each concrete execution formats one result filename. Batch analysis reads one history at a time but retains manifest records, grouped paths and the summary table in memory. Legacy analysis remains accessible.
 
-No fake GPU selection, fixed numeric dropdowns, live convergence graphs, pause/resume, retry UI, or parallel batches. Backend policy is separate from scientific configuration. Future work includes bounded matrix reuse, dataset discovery/import, structured final results, reproducible solver RNG policy, batch aggregation and real GPU adapters.
+No fake GPU selection, fixed numeric dropdowns, live convergence graphs, pause/resume, retry UI, or parallel batches. Backend policy is separate from scientific configuration. Future work includes bounded matrix reuse, dataset discovery/import, structured final results, reproducible solver RNG policy, aggregation across multiple batches and real GPU adapters.
 
 ## Implementation stages
 
 1. Configuration model and validation (already implemented).
 2. Shared branch expansion/counting and legacy preset regression.
-3. SQLite batch lifecycle and thin legacy adapter with offline failure/interruption tests.
+3. SQLite batch lifecycle and concrete execution with offline failure/interruption tests.
 4. CustomTkinter editor with free numeric chips, Boolean sets, editable presets and exact count.
-5. GUI startup, legacy terminal access, offline end-to-end tests and documentation.
+5. GUI startup, offline end-to-end tests and documentation.

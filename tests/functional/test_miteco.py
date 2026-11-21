@@ -1,5 +1,5 @@
 """End-to-end compatibility of the saved MITECO JSON with real refuel execution."""
-
+from conftest import concrete_run
 from functools import partial
 from multiprocessing import get_context
 
@@ -9,6 +9,7 @@ import pytest
 from conftest import assert_permutation
 from tsp_pso.experiments.experiment import Experiment
 from tsp_pso.application import runner
+from tsp_pso.infrastructure.dataset_reader import load_dataset
 import tsp_pso.infrastructure.executors.particle_executor as executor_module
 from tsp_pso.algorithms.tspwr.tspwr_particle_swarm import TSPWRParticleSwarm
 
@@ -21,7 +22,7 @@ def test_miteco_json_runs_in_refuel_mode(monkeypatch, tmp_path):
         'filename': 'MITECO_Spain/Comunidad de Madrid_20_seed42.json',
         'format': 'json',
     }
-    matrix, prices = runner.load_dataset('MITECO_Madrid20', datasets={'MITECO_Madrid20': dataset})
+    matrix, prices = load_dataset(dataset, runner.ROOT / 'datasets')
     assert matrix.shape == (20, 20)
     assert prices.shape == (20,)
     assert np.all(np.isfinite(matrix))
@@ -48,7 +49,7 @@ def test_miteco_json_runs_in_refuel_mode(monkeypatch, tmp_path):
         repetitions=range(1, 2), refuel=True, max_capacity=150.0, consumption=7.0,
         permut_reset=False, k=3, excel=False, verbose=False,
     )
-    runner.execute(experiment, output_dir=tmp_path, dataset=dataset)
+    runner.execute(concrete_run(experiment), output_dir=tmp_path, dataset=dataset)
 
     assert len(created_solvers) == 1
     solver = created_solvers[0]

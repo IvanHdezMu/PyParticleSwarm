@@ -1,5 +1,7 @@
 """Explicit execution inputs and absence of import-time configuration state."""
+from conftest import concrete_run, concrete_tuple
 from copy import deepcopy
+from dataclasses import replace
 from pathlib import Path
 import json
 import subprocess
@@ -10,6 +12,7 @@ import numpy as np
 import pytest
 
 from tsp_pso.application import runner
+from tsp_pso.infrastructure import experiment_options
 from tsp_pso.experiments.experiment import Experiment, build_experiments
 from tsp_pso.experiments.experiment_batch import compile_plan, iterate_runs, load_presets
 from tsp_pso.experiments import batch_executor
@@ -36,7 +39,7 @@ assert not {'RUN_OPTIONS', 'DATASETS', 'EXPERIMENTS'} & vars(runner).keys()
 
 
 def test_explicit_datasets_are_independent(tmp_path, monkeypatch):
-    monkeypatch.setattr(runner, 'load_run_options', Mock(side_effect=AssertionError('implicit options')))
+    monkeypatch.setattr(experiment_options, 'load_run_options', Mock(side_effect=AssertionError('implicit options')))
     factory = Mock()
     monkeypatch.setitem(runner.SOLVER_REGISTRY, 'tspwr', (factory, runner.SOLVER_REGISTRY['tspwr'][1]))
     experiment = Experiment(dataset='same-id', label='independent', steps=(2,), excel=False, refuel=True)
@@ -48,7 +51,7 @@ def test_explicit_datasets_are_independent(tmp_path, monkeypatch):
             {'latitude': 0, 'longitude': i, 'price': i + 1}]}))
         descriptors.append({'filename': path.name, 'format': 'json'})
     original = deepcopy(descriptors)
-    destinations = [runner.execute(experiment, tmp_path / 'output', dataset=d, datasets_root=tmp_path)
+    destinations = [runner.execute(concrete_run(experiment), tmp_path / 'output', dataset=d, datasets_root=tmp_path)
                     for d in descriptors]
     assert descriptors == original
     first, second = [call.kwargs for call in factory.call_args_list]
@@ -60,20 +63,33 @@ def test_explicit_datasets_are_independent(tmp_path, monkeypatch):
     assert not {'RUN_OPTIONS', 'DATASETS', 'EXPERIMENTS'} & vars(runner).keys()
 
 
-def test_execute_uses_supplied_options_and_default_output(tmp_path, monkeypatch):
-    options = {'datasets': {'sample': {'filename': 'supplied', 'format': 'matrix'}}, 'output_dir': 'Results'}
-    original = deepcopy(options)
+@pytest.mark.parametrize('output', ['saved-results', Path('other-results')])
+def test_execute_uses_concrete_output_without_historical_options(tmp_path, monkeypatch, output):
+    descriptor = {'filename': 'supplied', 'format': 'matrix'}
+    original = deepcopy(descriptor)
     monkeypatch.setattr(runner, 'ROOT', tmp_path)
-    monkeypatch.setattr(runner, 'load_run_options', Mock(side_effect=AssertionError('implicit options')))
+    monkeypatch.setattr(experiment_options, 'load_run_options', Mock(side_effect=AssertionError('implicit options')))
+    monkeypatch.setattr(experiment_options, 'load_catalog_options', Mock(side_effect=AssertionError('live catalog')))
     reader = Mock(return_value=(np.array([[0., 1.], [1., 0.]]), None))
     monkeypatch.setattr(runner, '_load_dataset', reader)
     factory = Mock()
     monkeypatch.setitem(runner.SOLVER_REGISTRY, 'tsp', (factory, runner.SOLVER_REGISTRY['tsp'][1]))
     experiment = Experiment(dataset='sample', label='options', steps=(2,), excel=False)
-    destination = runner.execute(experiment, run_options=options)
-    reader.assert_called_once_with(options['datasets']['sample'], tmp_path / 'datasets')
-    assert destination.parent == tmp_path / 'Results' / 'sample'
-    assert options == original
+    run = replace(concrete_run(experiment), output_dir=Path(output))
+    destination = runner.execute(run, dataset=descriptor)
+    reader.assert_called_once_with(descriptor, tmp_path / 'datasets')
+    assert destination.parent == tmp_path / output / 'sample'
+    assert descriptor == original
+
+
+def test_direct_execution_requires_dataset_before_any_io(tmp_path, monkeypatch):
+    run = concrete_run(Experiment(dataset='sample', label='explicit', steps=(2,)))
+    reader = Mock(side_effect=AssertionError('dataset read'))
+    monkeypatch.setattr(runner, '_load_dataset', reader)
+    with pytest.raises(TypeError, match='dataset'):
+        runner.execute(run, tmp_path)
+    reader.assert_not_called()
+    assert not list(tmp_path.iterdir())
 
 
 @pytest.mark.parametrize('fails', [False, True])
@@ -85,14 +101,14 @@ def test_batch_passes_snapshot_descriptor_without_catalog_mutation(tmp_path, mon
                                    source='snapshot', problem_types=('tsp', 'tspwr'))
     execute = Mock(side_effect=RuntimeError('execution failed') if fails else None, return_value=tmp_path)
     monkeypatch.setattr(runner, 'execute', execute)
-    monkeypatch.setattr(runner, 'load_run_options', Mock(side_effect=AssertionError('catalog access')))
+    monkeypatch.setattr(experiment_options, 'load_run_options', Mock(side_effect=AssertionError('catalog access')))
     before = dict(vars(runner))
     if fails:
         with pytest.raises(RuntimeError, match='execution failed'):
             batch_executor.execute_one(run, tmp_path, descriptor)
     else:
         assert batch_executor.execute_one(run, tmp_path, descriptor) == tmp_path
-    execute.assert_called_once_with(batch_executor.to_legacy_experiment(run), output_dir=tmp_path,
+    execute.assert_called_once_with(run, output_dir=tmp_path,
         dataset={'filename': descriptor.filename, 'format': descriptor.format,
                  'source': descriptor.source, 'problem_types': descriptor.problem_types})
     assert vars(runner) == before
@@ -103,9 +119,8 @@ def test_traditional_presets_and_configuration_order():
     experiments = build_experiments(options)
     assert len(experiments) == 22
     assert sum(e.count for e in experiments) == 1209
-    assert experiments == runner.build_experiments()
     for experiment, preset in zip(experiments, load_presets()):
         old = list(experiment.configurations())
-        new = [next(batch_executor.to_legacy_experiment(run).configurations())
+        new = [concrete_tuple(run)
                for run in iterate_runs(compile_plan(preset))]
         assert new == old
