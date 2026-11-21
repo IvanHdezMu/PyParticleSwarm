@@ -4,3 +4,6 @@
 __pycache__/
 *.py[cod]
 .idea/
+
+# Generated experiment outputs (scientific datasets remain tracked)
+/Results/
