@@ -21,11 +21,10 @@ def batch(tmp_path, count=3):
         datasets=('berlin52',), repetitions=RepetitionSpec(count, 17), output_dir=tmp_path)))
 
 
-def test_pending_is_implicit_even_for_huge_batch(tmp_path):
-    directory = batch(tmp_path, 10**100)
-    assert batch_status(directory)['counts']['pending'] == 10**100
-    with connect(directory) as db:
-        assert db.execute('SELECT COUNT(*) FROM runs').fetchone()[0] == 0
+def test_huge_batch_rejected_before_materialization(tmp_path):
+    with pytest.raises(ValueError, match='at most 10,000'):
+        batch(tmp_path, 10**100)
+    assert not list(tmp_path.iterdir())
 
 
 def test_success_persists_configuration_and_artifacts(tmp_path):

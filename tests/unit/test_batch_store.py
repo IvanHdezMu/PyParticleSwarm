@@ -172,7 +172,7 @@ def test_create_and_reopen_manifest_preserves_data_and_paths(tmp_path, monkeypat
     with batch_store.connect(path) as db:
         row = dict(db.execute('SELECT * FROM batch').fetchone())
         assert row['status'] == 'pending' and row['total'] == '1'
-        assert db.execute('SELECT COUNT(*) FROM runs').fetchone()[0] == 0
+        assert db.execute('SELECT COUNT(*) FROM runs').fetchone()[0] == 1
     state = batch_store.batch_status(path)
     assert state['id'] == row['id']
     assert state['counts']['pending'] == state['total'] == 1

@@ -9,9 +9,16 @@ from tsp_pso.analysis.analysis import prepare_batch_groups
 from tsp_pso.experiments.batch_executor import execute_batch
 
 
-def test_current_version_one_artifacts_remain_readable(completed_batch):
+@pytest.mark.parametrize('version', [1, 2])
+def test_persisted_formats_remain_readable(completed_batch, version):
     directory = completed_batch()
     snapshot = json.loads((directory / 'batch.json').read_text())
+    if version == 1:
+        snapshot.pop('manifest_version')
+        (directory / 'batch.json').write_text(json.dumps(snapshot))
+        with sqlite3.connect(directory / 'manifest.sqlite3') as db:
+            db.execute('PRAGMA user_version=0')
+            db.execute('DROP TABLE control')
     assert snapshot['expansion_version'] == 1
     assert snapshot['total_runs'] == '2'
     assert snapshot['configuration']['repetitions'] == {'count': 2, 'first_id': 17}
@@ -33,7 +40,7 @@ def test_current_version_one_artifacts_remain_readable(completed_batch):
     assert all(p.read_bytes() == content for p, content in before.items())
 
 
-def test_pending_version_one_batch_executes(batch_artifacts):
+def test_pending_version_two_batch_executes(batch_artifacts):
     directory, write = batch_artifacts(completed=False)
     snapshot = (directory / 'batch.json').read_bytes()
     execute_batch(directory, write)
@@ -70,7 +77,7 @@ def test_invalid_batch_rejected_before_any_run(batch_artifacts, damage):
         elif damage == 'sqlite_total': db.execute("UPDATE batch SET total='3'")
         elif damage == 'created_at': db.execute("UPDATE batch SET created_at='other'")
         elif damage == 'pending_timestamp': db.execute("UPDATE batch SET started_at='already started'")
-        elif damage == 'pending_run': db.execute("INSERT INTO runs VALUES('1','id-1','running','{}','now',NULL,NULL,NULL)")
+        elif damage == 'pending_run': db.execute("UPDATE runs SET status='running',started_at='now' WHERE ordinal='1'")
         elif damage == 'bad_schema': db.execute('DROP TABLE runs')
     if damage == 'missing_manifest': (directory / 'manifest.sqlite3').unlink()
     if damage == 'missing_json': path.unlink()

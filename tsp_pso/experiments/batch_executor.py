@@ -35,7 +35,7 @@ def execute_batch(directory, run_function=None):
     plan, batch, runs = read_batch(directory)
     if batch['status'] != 'pending':
         raise ValueError('Only a new pending batch may be started; resume is not implemented')
-    if runs or any(batch[name] is not None for name in ('started_at', 'ended_at', 'error')):
+    if (batch['manifest_version'] == 1 and runs) or any(batch[name] is not None for name in ('started_at', 'ended_at', 'error')):
         raise ValueError('Inconsistent pending batch: existing runs or execution metadata')
     descriptors = {d.id: d for d in plan.datasets}
     run_function = execute_one if run_function is None else run_function

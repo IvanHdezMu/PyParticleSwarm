@@ -12,10 +12,9 @@ import pandas as pd
 
 from ..experiments.experiment import Experiment, build_experiments
 from ..experiments.experiment_batch import (
-    CONDITIONAL, ConcreteRunConfiguration,
+    CONDITIONAL, validate_run_configuration, RUN_AXES as _BATCH_AXES,
 )
 from ..experiments.batch_store import read_batch, positive_decimal
-from ..experiments.experiment_config import ExperimentConfiguration, is_parameter_active
 from ..experiments.result_naming import result_filename
 from ..infrastructure.experiment_options import load_run_options
 
@@ -258,11 +257,6 @@ def analyze(analysis, root=None, *, groups=None, announce=True):
     return table
 
 
-_BATCH_AXES = {
-    'dataset': 'datasets', 'problem_mode': 'problem_modes', 'operator': 'operators',
-    'particles': 'particles', 'c1': 'c1', 'ring': 'ring',
-    'permutation_reset': 'permutation_reset',
-}
 _BATCH_KEY_FIELDS = (*_BATCH_AXES, *CONDITIONAL, 'verbose', 'excel')
 # Parameter columns only; analyze() appends the unchanged METRICS.
 BATCH_COLUMNS = [
@@ -316,49 +310,10 @@ def _batch_load_batch(directory):
 
 
 def _batch_configuration(run, requested):
-    if set(run) != {f.name for f in fields(ConcreteRunConfiguration)}:
-        raise ValueError('Incomplete or incompatible concrete configuration')
-    effective = run['legacy_values']
-    if not isinstance(effective, dict) or set(effective) != set(CONDITIONAL):
-        raise ValueError('legacy_values must contain all nine effective scalars')
-    # Reuse scalar validation through singleton axes, without expanding any runs.
-    values = {axis: [run[name]] for name, axis in _BATCH_AXES.items()}
-    values.update({name: [effective[name]] for name in CONDITIONAL})
-    values.update({name: run[name] for name in (
-        'name', 'verbose', 'excel', 'output_dir', 'legacy_style',
-        'legacy_label', 'analysis_output')})
-    values['repetitions'] = {'count': 1, 'first_id': run['repetition_id']}
-    ExperimentConfiguration.from_dict(values)
-    for name, axis in _BATCH_AXES.items():
-        if run[name] not in getattr(requested, axis):
-            raise ValueError(f'{name} is not in the saved request')
-    for name in ('verbose', 'excel'):
-        if run[name] != getattr(requested, name):
-            raise ValueError(f'{name} differs from the saved request')
+    values = validate_run_configuration(run, requested)
     if not run['excel']:
         raise ValueError('Run has excel=False')
-    inactive = []
-    for name in CONDITIONAL:
-        active = is_parameter_active(name, problem_mode=run['problem_mode'],
-                                     operator=run['operator'],
-                                     permutation_reset=run['permutation_reset'],
-                                     verbose=run['verbose'], excel=run['excel'])
-        axis = getattr(requested, name)
-        if active:
-            if (run[name] is None or not _batch_same_value(run[name], effective[name])
-                    or run[name] not in axis):
-                raise ValueError(f'Inconsistent active parameter: {name}')
-        else:
-            if run[name] is not None:
-                raise ValueError(f'Inactive expansion parameter must be null: {name}')
-            if len(axis) == 1 and effective[name] != axis[0]:
-                raise ValueError(f'Inactive singleton differs from saved request: {name}')
-            inactive.append(name)
-    # Inactive multi-value fallbacks are persisted evidence, not modern defaults.
-    return {name: run[name] for name in _BATCH_AXES} | effective | {
-        'verbose': run['verbose'], 'excel': run['excel'],
-        'inactive_parameters': ', '.join(inactive),
-    }
+    return values
 
 
 def _batch_result_path(directory, record, run):
