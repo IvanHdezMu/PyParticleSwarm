@@ -111,6 +111,8 @@ class ExperimentRunnerApp(ctk.CTk):
         self.preparing = None
         self.worker = ThreadPoolExecutor(max_workers=1, thread_name_prefix='batch-files')
         self.discovery = None
+        self.discovered_batches = []
+        self.show_completed = tk.BooleanVar(value=False)
         self.discovery_root = ROOT / 'Results'
         self.batch_directory = None
         self.closing = False
@@ -213,6 +215,13 @@ class ExperimentRunnerApp(ctk.CTk):
         ctk.CTkButton(self.batch_list, text='Choose results folder…', command=self.choose_batch_root).pack(pady=8)
         ctk.CTkButton(self.batch_list, text='Refresh', command=self.show_batches).pack(pady=8)
         ctk.CTkLabel(self.batch_list, text=str(self.discovery_root)).pack()
+        self.completed_checkbox = ctk.CTkCheckBox(
+            self.batch_list, text='Show completed batches',
+            variable=self.show_completed, command=self.render_batches)
+        self.completed_checkbox.pack(pady=8)
+        self.batch_entries = ctk.CTkFrame(self.batch_list, fg_color='transparent')
+        self.batch_entries.pack(fill='both', expand=True)
+        self.discovered_batches = []
         self.discovery = self.worker.submit(discover_batches, self.discovery_root)
         self.after(100, self.finish_discovery)
 
@@ -223,12 +232,19 @@ class ExperimentRunnerApp(ctk.CTk):
             self.after(100, self.finish_discovery)
             return
         try:
-            items = self.discovery.result()
+            self.discovered_batches = self.discovery.result()
         except OSError as error:
             ctk.CTkLabel(self.batch_list, text=str(error)).pack()
             self.discovery = None
             return
         self.discovery = None
+        self.render_batches()
+
+    def render_batches(self):
+        for child in self.batch_entries.winfo_children():
+            child.destroy()
+        items = [item for item in self.discovered_batches
+                 if self.show_completed.get() or item['status'] != 'succeeded']
         for item in items:
             total = item['total']
             progress = f"{100*item['completed']/total:.1f}%" if total else '—'
@@ -236,11 +252,12 @@ class ExperimentRunnerApp(ctk.CTk):
                     f"{item['status']} · {item['completed']}/{total} · {progress}")
             if item['error']:
                 text += '\n' + item['error']
-            ctk.CTkButton(self.batch_list, text=text, height=65,
+            ctk.CTkButton(self.batch_entries, text=text, height=65,
                           state='disabled' if item['error'] else 'normal',
                           command=lambda i=item: self.open_batch(i['directory'])).pack(fill='x', pady=5)
         if not items:
-            ctk.CTkLabel(self.batch_list, text='No saved batches in this folder.').pack()
+            message = 'No saved batches in this folder.' if self.show_completed.get() else 'No pending batches'
+            ctk.CTkLabel(self.batch_entries, text=message).pack()
 
     def choose_batch_root(self):
         path = filedialog.askdirectory(parent=self, title='Locate saved batches')
