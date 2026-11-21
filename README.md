@@ -162,34 +162,49 @@ Batch output is stored under:
 ```text
 Results/batches/<batch-id>/
   batch.json                 # original configuration and dataset metadata
-  manifest.sqlite3           # durable status of dispatched runs
+  manifest.sqlite3           # complete persisted queue and durable run status
   execution.log              # solver output and process diagnostics
   runs/<ordinal>/<dataset>/<timestamp>_<parameters>/
     run_config.json
     <result-name>.xlsx        # when Excel output is enabled
 ```
 
-An alternative output directory replaces `Results`; relative paths are resolved
-from the project root. Pending runs are implicit, so a huge batch does not create
-a database row for every possible execution. Completed runs are committed
-individually. A failed run stops the batch; later runs remain pending.
+The initial screen discovers batches under `Results`, including nested result
+folders. Use **Choose results folder…** to locate batches saved elsewhere.
+**New batch** opens the existing editor; opening a saved batch shows its immutable
+configuration, status and progress. Only one batch runs at a time in this window.
 
-**Ctrl+C in the launching terminal**, or closing the window and confirming the
-interruption, stops the active batch. Completed files/statuses remain saved; the
-unconfirmed active run is marked interrupted and later runs stay pending. Partial
-active-run artifacts may remain. Abrupt OS termination or power loss can leave
-stale running status; there is no automatic recovery/resume UI. After confirming
-window closure, wait for interruption and final status handling to complete; the
-window can remain open if status access keeps failing. Ctrl+C during a batch
-interrupts execution but leaves the GUI open; Ctrl+C while idle closes it.
+New batches persist their complete concrete queue before starting, with a limit
+of **10,000 runs**. Preparation occurs outside the Tk thread and is published only
+when complete. Relative output directories are resolved from the project root.
 
-An already-created, new pending batch can also be started headlessly:
+**Pause** requests a cooperative stop: the current run finishes and is committed
+before the batch becomes paused. **Resume** reads the saved queue, preserving
+repetition IDs and effective values; successful runs are never repeated. Pause A
+before opening B. Closing the window asks to finish the current run and pause;
+the window remains open until that completes. There is no immediate Cancel.
+Ctrl+C in the GUI requests pause during execution and closes an idle window.
+
+Unexpected interruption is recoverable on Linux after verifying that the previous
+process group has stopped. An OS lock prevents concurrent coordinators. If previous
+workers survive, recovery is refused until they exit; a PID alone is not proof of
+ownership. No PSO checkpoint or RNG state is restored: an interrupted run starts
+again, preserving earlier attempt files. `execution.log` is appended on restart.
+Unsuccessful solver runs remain failed and are not retried automatically.
+
+Legacy manifests remain readable, but cannot resume: their pending configurations
+were not persisted. They are never automatically migrated. Completed legacy Excel
+files and analyses remain usable. Manifest version 2 is independent of scientific
+expansion version 1. Cross-platform orphan-process recovery beyond Linux is not
+implemented; the backend refuses recovery when it cannot verify safety.
+
+The existing internal coordinator entry point accepts a version-2 batch directory:
 
 ```bash
 python3 -m tsp_pso.experiments.batch_executor PATH_TO_BATCH
 ```
 
-This is not a resume command. The coordinator passes each
+The coordinator passes each
 `ConcreteRunConfiguration` directly to `runner.execute()`. The runner converts
 persisted `legacy_values` once and forwards the effective values to the solver
 and storage. The saved dataset descriptor is passed explicitly; no shared catalog
@@ -389,7 +404,7 @@ execution and historical analysis; the latter alone reconstructs sweep suffixes.
 - Execution is CPU-only, one batch run at a time. Each run reloads its dataset;
   dense matrices, swarm state, multiprocessing and buffered Excel histories can
   consume substantial memory.
-- There is no pause/resume, retry UI, parallel-batch support, GPU selector, or live
+- There is no immediate cancellation, failed-run retry UI, parallel-batch support, GPU selector, or live
   convergence graph. Abrupt termination may leave incomplete artifacts/statuses.
 - With Excel disabled, configuration/status are preserved, but the experiment
   runner does not persist a numerical result or best route. The solver's direct
