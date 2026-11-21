@@ -1,15 +1,22 @@
 """Pure expansion and preset compatibility; no dataset payloads are read."""
-from tsp_pso.infrastructure.experiment_options import load_run_options
-from tsp_pso.experiments.experiment import build_experiments
-from collections import Counter
-from dataclasses import fields, replace
+from dataclasses import fields
 from itertools import islice
+
 import pytest
 
-from tsp_pso.experiments.experiment_config import ExperimentConfiguration, RepetitionSpec
 from tsp_pso.experiments.experiment_batch import (
-    CONDITIONAL, DEFAULTS, ConcreteRunConfiguration,
-    DatasetDescriptor, compile_plan, count_runs, iterate_runs, load_presets,
+    CONDITIONAL,
+    DEFAULTS,
+    ConcreteRunConfiguration,
+    DatasetDescriptor,
+    compile_plan,
+    count_runs,
+    iterate_runs,
+    load_presets,
+)
+from tsp_pso.experiments.experiment_config import (
+    ExperimentConfiguration,
+    RepetitionSpec,
 )
 
 pytestmark = pytest.mark.unit
@@ -83,23 +90,6 @@ def test_all_legacy_presets_preserve_every_argument():
     counts = [count_runs(compile_plan(p)) for p in presets]
     assert counts == [1]*10 + [270,180,80,120,50,4,5,120,120,120,120,10]
     assert sum(counts) == 1209
-    for old, new in zip(build_experiments(load_run_options()), presets):
-        expected, actual = Counter(), Counter()
-        for n,c1,opt,minimum,maximum,ring,full,number in old.configurations():
-            expected[(old.dataset,old.refuel,n,c1,opt,minimum,maximum,ring,full,number,
-                      old.k,old.permut_reset,old.max_capacity,old.consumption,
-                      old.reset_threshold_divisor,old.primary_operator_share,
-                      old.progress_warmup_multiplier,old.verbose,old.excel)] += 1
-        for r in iterate_runs(compile_plan(new)):
-            e = dict(r.legacy_values)
-            actual[(r.dataset,r.problem_mode=='tspwr',r.particles,r.c1,r.operator,
-                    e['minimum_reset_probability'],e['maximum_reset_probability'],r.ring,
-                    e['full_initial_tank'],r.repetition_id,e['k'],r.permutation_reset,
-                    e['fuel_capacity'],e['consumption'],e['reset_threshold_divisor'],
-                    e['primary_operator_share'],e['progress_warmup_multiplier'],r.verbose,r.excel)] += 1
-        assert actual == expected
-        assert new.legacy_style == old.style and new.analysis_output == old.analysis_output
-        assert replace(new, k=(123456,)).k == (123456,)
 
 
 @pytest.mark.parametrize('name,requested,fallback,inactive_context', [

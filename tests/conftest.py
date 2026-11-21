@@ -4,8 +4,8 @@ import numpy as np
 import pytest
 
 from tsp_pso.algorithms.core.pso_config import PSOConfig
-from tsp_pso.algorithms.tspwr.refuel_config import RefuelConfig
 from tsp_pso.algorithms.tsp.tsp_particle_swarm import TSPParticleSwarm
+from tsp_pso.algorithms.tspwr.refuel_config import RefuelConfig
 from tsp_pso.algorithms.tspwr.tspwr_particle_swarm import TSPWRParticleSwarm
 
 
@@ -63,11 +63,23 @@ def assert_permutation(route, size):
 def batch_artifacts(tmp_path):
     """Small saved batches and a workbook-producing run stub; no solver calls."""
     import pandas as pd
+
     from tsp_pso.experiments.batch_store import (
-        create_batch, start_batch, start_run, finish_run, finish_batch,
+        create_batch,
+        finish_batch,
+        finish_run,
+        start_batch,
+        start_run,
     )
-    from tsp_pso.experiments.experiment_batch import DatasetDescriptor, compile_plan, iterate_runs
-    from tsp_pso.experiments.experiment_config import ExperimentConfiguration, RepetitionSpec
+    from tsp_pso.experiments.experiment_batch import (
+        DatasetDescriptor,
+        compile_plan,
+        iterate_runs,
+    )
+    from tsp_pso.experiments.experiment_config import (
+        ExperimentConfiguration,
+        RepetitionSpec,
+    )
     from tsp_pso.experiments.result_naming import result_filename
     from tsp_pso.infrastructure.run_storage import create_run_directory
 
@@ -109,21 +121,16 @@ def completed_batch(batch_artifacts):
     return lambda **kwargs: batch_artifacts(**kwargs)[0]
 
 
-def concrete_run(experiment, configuration=None):
-    """Test input for a historical parameter case; never execute a sweep adapter."""
-    from dataclasses import asdict, replace
-    from tsp_pso.experiments.experiment_batch import build_presets, compile_plan, iterate_runs, DatasetDescriptor
-    if configuration is None:
-        configuration, = experiment.configurations()
-    n, c1, operator, minimum, maximum, ring, full, number = configuration
-    selected = replace(experiment, particles=(n,), steps=(c1,), opts=(operator,),
-                       minimums=(minimum,), maximums=(maximum,), rings=(ring,),
-                       full_tanks=(full,), repetitions=range(number, number + 1))
-    data = asdict(selected)
-    data['repetitions'] = dict(start=number, stop=number + 1)
-    preset, = build_presets(dict(defaults={}, experiments=[data], output_dir='Results'))
-    catalog = (DatasetDescriptor(experiment.dataset, 'unused', 'json', 'test', ('tsp', 'tspwr')),)
-    return next(iterate_runs(compile_plan(preset, catalog)))
+def concrete_run(configuration):
+    """Select one concrete run from a test configuration, including unregistered datasets."""
+    from tsp_pso.experiments.experiment_batch import (
+        DatasetDescriptor,
+        compile_plan,
+        iterate_runs,
+    )
+    catalog = tuple(DatasetDescriptor(name, 'unused', 'json', 'test', ('tsp', 'tspwr'))
+                    for name in configuration.datasets)
+    return next(iterate_runs(compile_plan(configuration, catalog)))
 
 
 def concrete_tuple(run):

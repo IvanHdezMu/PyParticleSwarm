@@ -1,19 +1,24 @@
 """Batch execution must preserve scientific arguments and historical artifacts."""
-from dataclasses import asdict, replace
-from datetime import datetime, timezone
 import json
+from dataclasses import replace
+from datetime import datetime, timezone
 from unittest.mock import Mock
 
 import numpy as np
 import pytest
 
 from tsp_pso.application import runner
-from tsp_pso.infrastructure import experiment_options
 from tsp_pso.experiments.batch_executor import execute_one
-from tsp_pso.experiments.experiment import Experiment
-from tsp_pso.experiments.experiment_batch import DatasetDescriptor, compile_plan, iterate_runs
-from tsp_pso.experiments.experiment_config import ExperimentConfiguration, RepetitionSpec
-from tsp_pso.infrastructure import run_storage
+from tsp_pso.experiments.experiment_batch import (
+    DatasetDescriptor,
+    compile_plan,
+    iterate_runs,
+)
+from tsp_pso.experiments.experiment_config import (
+    ExperimentConfiguration,
+    RepetitionSpec,
+)
+from tsp_pso.infrastructure import experiment_options, run_storage
 
 
 @pytest.mark.parametrize('mode', ['tsp', 'tspwr'])
@@ -42,17 +47,11 @@ def test_batch_matches_historical_solver_and_artifacts(tmp_path, monkeypatch, mo
     values = dict(run.legacy_values)
     values['reset_threshold_divisor'] = 654
     run = replace(run, legacy_values=tuple(values.items()))
-    old = Experiment(dataset='sample', label='saved-label', steps=(7,), particles=(4,),
-        opts=(operator,), minimums=(.13,), maximums=(.71,), rings=(ring,), full_tanks=(True,),
-        repetitions=range(17, 18), excel=excel, refuel=mode == 'tspwr', style=style,
-        max_capacity=123.5, consumption=4.25, permut_reset=reset, k=9,
-        analysis_output='historic.xlsx', reset_threshold_divisor=654,
-        primary_operator_share=.37, progress_warmup_multiplier=2.5, verbose=verbose)
     matrix = np.array([[0., 2.], [2., 0.]])
     prices = np.array([3., 5.])
     reader = Mock(return_value=(matrix, prices))
     monkeypatch.setattr(runner, '_load_dataset', reader)
-    monkeypatch.setattr(experiment_options, 'load_run_options', Mock(side_effect=AssertionError('live catalog')))
+    monkeypatch.setattr(experiment_options, 'load_catalog_options', Mock(side_effect=AssertionError('live catalog')))
     selected, other = Mock(), Mock()
     for key, factory in ((mode, selected), ('tspwr' if mode == 'tsp' else 'tsp', other)):
         monkeypatch.setitem(runner.SOLVER_REGISTRY, key, (factory, runner.SOLVER_REGISTRY[key][1]))
@@ -66,13 +65,17 @@ def test_batch_matches_historical_solver_and_artifacts(tmp_path, monkeypatch, mo
     filename = f'sample_True_4_7_{operator}_{suffix}.xlsx'
     expected_run = dict(verbose=verbose, optType=operator, excel=excel,
                         permutReset=reset, minPermut=.13, maxPermut=.71, k=9)
-    monkeypatch.setattr(Experiment, '__init__', Mock(side_effect=AssertionError('traditional execution')))
     actual = execute_one(run, tmp_path / 'runs' / '1', descriptor)
     assert actual.parent == tmp_path / 'runs' / '1' / 'sample'
     assert actual.name == f'2026-01-02_03-04-05_N4_c17_opt{operator}_ring{ring}_fullTrue_k9_min0.13_max0.71'
-    expected_snapshot = asdict(old)
-    expected_snapshot['repetitions'] = dict(start=17, stop=18, step=1)
-    expected_snapshot['created_at'] = '2026-01-02T03:04:05+00:00'
+    expected_snapshot = {
+        'dataset': 'sample', 'label': 'saved-label', 'steps': [7], 'particles': [4],
+        'opts': [operator], 'minimums': [.13], 'maximums': [.71], 'rings': [ring], 'full_tanks': [True],
+        'repetitions': {'start': 17, 'stop': 18, 'step': 1}, 'excel': excel, 'refuel': mode == 'tspwr',
+        'style': style, 'max_capacity': 123.5, 'consumption': 4.25, 'permut_reset': reset, 'k': 9,
+        'analysis_output': 'historic.xlsx', 'reset_threshold_divisor': 654,
+        'primary_operator_share': .37, 'progress_warmup_multiplier': 2.5, 'verbose': verbose,
+        'created_at': '2026-01-02T03:04:05+00:00'}
     assert (actual / 'run_config.json').read_bytes() == (
         json.dumps(expected_snapshot, indent=2, ensure_ascii=False) + '\n').encode('utf-8')
     saved = json.loads((actual / 'run_config.json').read_text())
@@ -99,9 +102,12 @@ def test_batch_matches_historical_solver_and_artifacts(tmp_path, monkeypatch, mo
 
 
 def test_repeated_concrete_execution_preserves_previous_artifacts(tmp_path, monkeypatch):
-    from conftest import concrete_run
     from pathlib import Path
-    run = concrete_run(Experiment(dataset='sample', label='repeat', steps=(2,), excel=True))
+
+    from conftest import concrete_run
+    run = concrete_run(ExperimentConfiguration(
+        datasets=('sample',), legacy_label='repeat', c1=(2,), excel=True, verbose=True,
+    ))
     descriptor = DatasetDescriptor('sample', 'unused', 'json', 'test', ('tsp',))
     monkeypatch.setattr(runner, '_load_dataset', Mock(return_value=(None, None)))
     clock = Mock()
@@ -118,12 +124,3 @@ def test_repeated_concrete_execution_preserves_previous_artifacts(tmp_path, monk
     assert {p.name: p.read_bytes() for p in first.iterdir()} == before
     assert {p.name: p.read_bytes() for p in second.iterdir()} == before
     assert solver.call_count == 2
-
-
-def test_historical_model_is_not_an_execution_input(tmp_path, monkeypatch):
-    reader = Mock(side_effect=AssertionError('dataset read'))
-    monkeypatch.setattr(runner, '_load_dataset', reader)
-    with pytest.raises(AttributeError, match='problem_mode'):
-        runner.execute(Experiment(dataset='sample', label='read only', steps=(2,)), tmp_path, dataset={})
-    reader.assert_not_called()
-    assert not list(tmp_path.iterdir())

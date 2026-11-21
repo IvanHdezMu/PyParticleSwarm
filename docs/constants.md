@@ -210,27 +210,9 @@ values control execution count and labels, not RNG seeds. Changing `first_id`
 changes persisted IDs and filenames. Lists supplied to `ExperimentConfiguration`
 are copied to tuples; `to_dict()` returns detached JSON-compatible data.
 
-### Traditional experiment
+### Preset JSON defaults
 
-Definition: [Experiment](../tsp_pso/experiments/experiment.py).
-`dataset`, `label` and `steps` are required. Runner, analysis and batch adaptation
-consume instances. This model preserves a full Cartesian product, including axes
-that conditional batch expansion would collapse.
-
-| Fields | Defaults | Consumers and effects |
-| --- | --- | --- |
-| `particles`, `opts` | `(8,)`, `(10,)` | Particle count and operator sweep. |
-| `minimums`, `maximums` | `(0.2,)`, `(0.8,)` | Reset probability sweep. |
-| `rings`, `full_tanks` | `(True,)`, `(False,)` | Route closure and initial tank sweep. |
-| `repetitions` | `range(1, 2)` | Full-product repetition labels, varying fastest. |
-| `excel`, `verbose` | `False`, `True` | Output controls; intentionally different from batch configuration defaults. |
-| `refuel` | `False` | Runner's default TSP/TSPWR selection. |
-| `style`, `analysis_output` | `'standard'`, `None` | Result filename conventions and analysis output metadata. |
-| `max_capacity`, `consumption` | `150.0`, `7.0` | TSPWR arguments. |
-| `permut_reset`, `k` | `True`, `10` | Reset enablement and k-based search argument. |
-| `reset_threshold_divisor`, `primary_operator_share`, `progress_warmup_multiplier` | `1000`, `0.2`, `5` | Forwarded to `PSOConfig`. |
-
-`build_experiments(options)` and `build_presets(options)` merge each JSON entry
+`build_presets(options)` merges each JSON entry
 with `options['defaults']` shallowly. For example, an override of `repetitions`
 replaces the entire start/stop dictionary; it does not inherit missing nested
 keys. The JSON defaults in [experiments.json](../config/experiments.json) are
@@ -331,7 +313,7 @@ each other. A `Path` is immutable; its module binding can still be replaced.
 
 | Definition | Local consumers | Effect of changing it |
 | --- | --- | --- |
-| [infrastructure/experiment_options.py](../tsp_pso/infrastructure/experiment_options.py) | `load_run_options()`, `load_catalog_options()`, `load_preset_options()` | Changes default configuration locations. Also supplies the aliases below. |
+| [infrastructure/experiment_options.py](../tsp_pso/infrastructure/experiment_options.py) | `load_catalog_options()`, `load_preset_options()` | Changes default configuration locations. Also supplies the aliases below. |
 | [application/runner.py](../tsp_pso/application/runner.py) | `execute()` | Changes default dataset and configured output bases. Explicit output paths retain working-directory semantics. |
 | [analysis/analysis.py](../tsp_pso/analysis/analysis.py) | `analyze()` | Changes the default base for relative analysis paths; explicit `root` takes precedence. |
 
@@ -359,10 +341,8 @@ leaves earlier imports pointing at the previous object. Similarly, replacing
 
 - `load_catalog_options()` reads only `config/datasets.json` by default.
 - `load_preset_options()` reads only `config/experiments.json` by default.
-- `load_run_options()` reads experiments and, unless the JSON already contains
-  `datasets`, adds sibling `datasets.json` and `historical_analyses.json` sections.
 
-All three infrastructure readers accept an optional path. Falsey paths select
+Both infrastructure readers accept an optional path. Falsey paths select
 the default; explicit relative paths use the working directory. The public
 `experiment_batch.load_catalog()` and `load_presets()` remain no-argument
 wrappers. Descriptor construction and `build_presets()` stay in `experiments/`.
@@ -525,7 +505,7 @@ Keep metadata near the responsibility that interprets it. A single project-wide
 | Repeated defaults across models and JSON | Explicit configuration values take precedence. | Similar numbers do not prove interchangeable contracts; do not automatically unify them. |
 
 Existing globals outside these tables are ordinary imported modules/functions or
-classes, including compatibility reexports such as `runner.Experiment`.
+classes.
 `main.py`, storage helpers, TSPLIB readers and package initializers do
 not introduce additional module data constants. The default SQLite timeout and
 the interruption grace period remain local operational policy; the GUI polling

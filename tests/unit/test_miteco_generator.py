@@ -9,7 +9,7 @@ import pytest
 
 from tools.dataset_generators import generate_miteco as generator
 from tsp_pso.infrastructure.dataset_reader import load_dataset
-from tsp_pso.infrastructure.experiment_options import load_run_options
+from tsp_pso.infrastructure.experiment_options import load_catalog_options
 
 DATASETS_ROOT = Path(__file__).resolve().parents[2] / 'datasets'
 
@@ -143,7 +143,7 @@ def test_json_loader_preserves_order_and_geographic_distances(tmp_path):
 def test_json_and_existing_ottoni_excel_have_identical_values(tmp_path):
     import pandas as pd
 
-    descriptor = load_run_options()['datasets']['Minas24D']
+    descriptor = load_catalog_options()['datasets']['Minas24D']
     expected_matrix, expected_prices = load_dataset(descriptor, DATASETS_ROOT)
     frame = pd.read_excel(DATASETS_ROOT / descriptor['filename'])
     path = tmp_path / 'ottoni.json'

@@ -1,17 +1,19 @@
 """End-to-end compatibility of the saved MITECO JSON with real refuel execution."""
-from conftest import concrete_run
 from functools import partial
 from multiprocessing import get_context
 
 import numpy as np
 import pytest
+from conftest import assert_permutation, concrete_run
 
-from conftest import assert_permutation
-from tsp_pso.experiments.experiment import Experiment
-from tsp_pso.application import runner
-from tsp_pso.infrastructure.dataset_reader import load_dataset
 import tsp_pso.infrastructure.executors.particle_executor as executor_module
 from tsp_pso.algorithms.tspwr.tspwr_particle_swarm import TSPWRParticleSwarm
+from tsp_pso.application import runner
+from tsp_pso.experiments.experiment_config import (
+    ExperimentConfiguration,
+    RepetitionSpec,
+)
+from tsp_pso.infrastructure.dataset_reader import load_dataset
 
 pytestmark = pytest.mark.functional
 
@@ -43,11 +45,11 @@ def test_miteco_json_runs_in_refuel_mode(monkeypatch, tmp_path):
         return solver
 
     monkeypatch.setitem(runner.SOLVER_REGISTRY, 'tspwr', (capture_solver, runner.SOLVER_REGISTRY['tspwr'][1]))
-    experiment = Experiment(
-        dataset='MITECO_Madrid20', label='JSON refuel compatibility',
-        particles=(4,), steps=(2,), opts=(3,), rings=(True,), full_tanks=(False,),
-        repetitions=range(1, 2), refuel=True, max_capacity=150.0, consumption=7.0,
-        permut_reset=False, k=3, excel=False, verbose=False,
+    experiment = ExperimentConfiguration(
+        datasets=('MITECO_Madrid20',), legacy_label='JSON refuel compatibility', particles=(4,), c1=(2,),
+        operators=(3,), ring=(True,), full_initial_tank=(False,), repetitions=RepetitionSpec(1, 1),
+        problem_modes=('tspwr',), fuel_capacity=(150.0,), consumption=(7.0,), permutation_reset=(False,),
+        k=(3,), excel=False, verbose=False,
     )
     runner.execute(concrete_run(experiment), output_dir=tmp_path, dataset=dataset)
 

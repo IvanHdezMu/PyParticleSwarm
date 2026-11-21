@@ -1,22 +1,25 @@
 """Explicit execution inputs and absence of import-time configuration state."""
-from conftest import concrete_run, concrete_tuple
-from copy import deepcopy
-from dataclasses import replace
-from pathlib import Path
 import json
 import subprocess
 import sys
+from copy import deepcopy
+from dataclasses import replace
+from pathlib import Path
 from unittest.mock import Mock
 
 import numpy as np
 import pytest
+from conftest import concrete_run
 
 from tsp_pso.application import runner
-from tsp_pso.infrastructure import experiment_options
-from tsp_pso.experiments.experiment import Experiment, build_experiments
-from tsp_pso.experiments.experiment_batch import compile_plan, iterate_runs, load_presets
 from tsp_pso.experiments import batch_executor
-from tsp_pso.infrastructure.experiment_options import load_run_options
+from tsp_pso.experiments.experiment_batch import (
+    compile_plan,
+    iterate_runs,
+    load_presets,
+)
+from tsp_pso.experiments.experiment_config import ExperimentConfiguration
+from tsp_pso.infrastructure import experiment_options
 
 pytestmark = pytest.mark.unit
 
@@ -25,11 +28,7 @@ def test_runner_import_has_no_configuration_side_effects():
     code = '''
 import json
 from unittest.mock import patch
-from tsp_pso.experiments import experiment
-from tsp_pso.infrastructure import experiment_options
-with patch.object(json, 'load', side_effect=AssertionError('JSON read')), \\
-     patch.object(experiment_options, 'load_run_options', side_effect=AssertionError('options loaded')), \\
-     patch.object(experiment, 'build_experiments', side_effect=AssertionError('experiments built')):
+with patch.object(json, 'load', side_effect=AssertionError('JSON read')):
     from tsp_pso.application import runner
 assert not {'RUN_OPTIONS', 'DATASETS', 'EXPERIMENTS'} & vars(runner).keys()
 '''
@@ -39,10 +38,13 @@ assert not {'RUN_OPTIONS', 'DATASETS', 'EXPERIMENTS'} & vars(runner).keys()
 
 
 def test_explicit_datasets_are_independent(tmp_path, monkeypatch):
-    monkeypatch.setattr(experiment_options, 'load_run_options', Mock(side_effect=AssertionError('implicit options')))
+    monkeypatch.setattr(experiment_options, 'load_catalog_options', Mock(side_effect=AssertionError('implicit options')))
     factory = Mock()
     monkeypatch.setitem(runner.SOLVER_REGISTRY, 'tspwr', (factory, runner.SOLVER_REGISTRY['tspwr'][1]))
-    experiment = Experiment(dataset='same-id', label='independent', steps=(2,), excel=False, refuel=True)
+    experiment = ExperimentConfiguration(
+        datasets=('same-id',), legacy_label='independent', c1=(2,), excel=False, problem_modes=('tspwr',),
+        verbose=True,
+    )
     descriptors = []
     for i in (1, 2):
         path = tmp_path / f'{i}.json'
@@ -68,13 +70,14 @@ def test_execute_uses_concrete_output_without_historical_options(tmp_path, monke
     descriptor = {'filename': 'supplied', 'format': 'matrix'}
     original = deepcopy(descriptor)
     monkeypatch.setattr(runner, 'ROOT', tmp_path)
-    monkeypatch.setattr(experiment_options, 'load_run_options', Mock(side_effect=AssertionError('implicit options')))
     monkeypatch.setattr(experiment_options, 'load_catalog_options', Mock(side_effect=AssertionError('live catalog')))
     reader = Mock(return_value=(np.array([[0., 1.], [1., 0.]]), None))
     monkeypatch.setattr(runner, '_load_dataset', reader)
     factory = Mock()
     monkeypatch.setitem(runner.SOLVER_REGISTRY, 'tsp', (factory, runner.SOLVER_REGISTRY['tsp'][1]))
-    experiment = Experiment(dataset='sample', label='options', steps=(2,), excel=False)
+    experiment = ExperimentConfiguration(
+        datasets=('sample',), legacy_label='options', c1=(2,), excel=False, verbose=True,
+    )
     run = replace(concrete_run(experiment), output_dir=Path(output))
     destination = runner.execute(run, dataset=descriptor)
     reader.assert_called_once_with(descriptor, tmp_path / 'datasets')
@@ -83,7 +86,9 @@ def test_execute_uses_concrete_output_without_historical_options(tmp_path, monke
 
 
 def test_direct_execution_requires_dataset_before_any_io(tmp_path, monkeypatch):
-    run = concrete_run(Experiment(dataset='sample', label='explicit', steps=(2,)))
+    run = concrete_run(ExperimentConfiguration(
+        datasets=('sample',), legacy_label='explicit', c1=(2,), excel=False, verbose=True,
+    ))
     reader = Mock(side_effect=AssertionError('dataset read'))
     monkeypatch.setattr(runner, '_load_dataset', reader)
     with pytest.raises(TypeError, match='dataset'):
@@ -101,7 +106,7 @@ def test_batch_passes_snapshot_descriptor_without_catalog_mutation(tmp_path, mon
                                    source='snapshot', problem_types=('tsp', 'tspwr'))
     execute = Mock(side_effect=RuntimeError('execution failed') if fails else None, return_value=tmp_path)
     monkeypatch.setattr(runner, 'execute', execute)
-    monkeypatch.setattr(experiment_options, 'load_run_options', Mock(side_effect=AssertionError('catalog access')))
+    monkeypatch.setattr(experiment_options, 'load_catalog_options', Mock(side_effect=AssertionError('catalog access')))
     before = dict(vars(runner))
     if fails:
         with pytest.raises(RuntimeError, match='execution failed'):
@@ -112,15 +117,3 @@ def test_batch_passes_snapshot_descriptor_without_catalog_mutation(tmp_path, mon
         dataset={'filename': descriptor.filename, 'format': descriptor.format,
                  'source': descriptor.source, 'problem_types': descriptor.problem_types})
     assert vars(runner) == before
-
-
-def test_traditional_presets_and_configuration_order():
-    options = load_run_options()
-    experiments = build_experiments(options)
-    assert len(experiments) == 22
-    assert sum(e.count for e in experiments) == 1209
-    for experiment, preset in zip(experiments, load_presets()):
-        old = list(experiment.configurations())
-        new = [concrete_tuple(run)
-               for run in iterate_runs(compile_plan(preset))]
-        assert new == old

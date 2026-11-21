@@ -1,16 +1,19 @@
 """Path, reservation and failure contracts of execution storage."""
-from conftest import concrete_run
-from dataclasses import asdict, replace
-from datetime import datetime, timezone
 import json
-from pathlib import Path
 import subprocess
 import sys
+from dataclasses import replace
+from datetime import datetime, timezone
+from pathlib import Path
 from unittest.mock import Mock
 
 import pytest
+from conftest import concrete_run
 
-from tsp_pso.experiments.experiment import Experiment
+from tsp_pso.experiments.experiment_config import (
+    ExperimentConfiguration,
+    RepetitionSpec,
+)
 from tsp_pso.infrastructure import run_storage
 
 pytestmark = pytest.mark.unit
@@ -18,9 +21,10 @@ pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def experiment():
-    return Experiment(dataset='sample', label='configuración', particles=(2,),
-                      steps=(100,), repetitions=range(2, 3), excel=False)
-
+    return ExperimentConfiguration(
+        datasets=('sample',), legacy_label='configuración', particles=(2,), c1=(100,),
+        repetitions=RepetitionSpec(1, 2), excel=False, verbose=True,
+    )
 
 @pytest.fixture
 def clock(monkeypatch):
@@ -37,9 +41,13 @@ def test_reservation_collisions_and_exact_snapshot(tmp_path, experiment, clock):
                                            directories[0].name + '__3']
     assert directories[0].name.startswith('2026-10-03_21-45-32_N2_c1100_')
     assert all(call.args == (timezone.utc,) for call in clock.now.call_args_list)
-    expected = asdict(experiment)
-    expected['repetitions'] = {'start': 2, 'stop': 3, 'step': 1}
-    expected['created_at'] = '2026-10-03T21:45:32+00:00'
+    expected = {
+        'dataset': 'sample', 'label': 'configuración', 'steps': [100], 'particles': [2], 'opts': [10],
+        'minimums': [.2], 'maximums': [.8], 'rings': [True], 'full_tanks': [False],
+        'repetitions': {'start': 2, 'stop': 3, 'step': 1}, 'excel': False, 'refuel': False,
+        'style': 'standard', 'max_capacity': 150.0, 'consumption': 7.0, 'permut_reset': True, 'k': 10,
+        'analysis_output': None, 'reset_threshold_divisor': 1000, 'primary_operator_share': .2,
+        'progress_warmup_multiplier': 5, 'verbose': True, 'created_at': '2026-10-03T21:45:32+00:00'}
     for directory in directories:
         assert (directory / 'run_config.json').read_bytes() == (
             json.dumps(expected, indent=2, ensure_ascii=False) + '\n').encode('utf-8')
@@ -63,7 +71,7 @@ def test_runner_path_contract(tmp_path, monkeypatch, experiment, mode):
     monkeypatch.setitem(runner.SOLVER_REGISTRY, 'tsp', (Mock(), runner.SOLVER_REGISTRY['tsp'][1]))
     run = replace(concrete_run(experiment), output_dir=Path(configured))
     directory = runner.execute(run, output, dataset={})
-    assert directory.parent == expected / experiment.dataset
+    assert directory.parent == expected / experiment.datasets[0]
     assert (directory / 'run_config.json').is_file()
 
 

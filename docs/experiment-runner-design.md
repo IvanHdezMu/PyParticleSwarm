@@ -86,7 +86,7 @@ in the existing coordinator, with no new GUI control or multiprocessing policy.
 
 ## Scaling and limitations
 
-Lazy expansion does not remove solver memory costs: dense matrices require approximately 8*n*n bytes, swarm arrays scale with particles*n, multiprocessing adds overhead, and Excel history is buffered. Do not cache every matrix or result. Each concrete execution formats one result filename. Batch analysis reads one history at a time but retains manifest records, grouped paths and the summary table in memory. Legacy analysis remains accessible.
+Lazy expansion does not remove solver memory costs: dense matrices require approximately 8*n*n bytes, swarm arrays scale with particles*n, multiprocessing adds overhead, and Excel history is buffered. Do not cache every matrix or result. Each concrete execution formats one result filename. Batch analysis reads one history at a time but retains manifest records, grouped paths and the summary table in memory.
 
 No fake GPU selection, fixed numeric dropdowns, live convergence graphs, immediate cancellation, failed-run retry UI, or parallel batches. Backend policy is separate from scientific configuration. Future work includes bounded matrix reuse, dataset discovery/import, structured final results, reproducible solver RNG policy, aggregation across multiple batches and real GPU adapters.
 
