@@ -167,15 +167,15 @@ def test_batch_filter_toggles_cached_results_without_writes(batch_artifacts, tmp
         app.finish_discovery()
         assert not app.show_completed.get()
         texts = [w.cget('text') for w in app.batch_entries.winfo_children()]
-        assert {text.split(' · ')[0] for text in texts} == set(directories) - {'succeeded'}
+        assert [text.split(' · ')[0] for text in texts] == list(reversed(list(directories)[:-1]))
         app.completed_checkbox.toggle()
         assert app.show_completed.get()
         texts = [w.cget('text') for w in app.batch_entries.winfo_children()]
-        assert {text.split(' · ')[0] for text in texts} == set(directories)
+        assert [text.split(' · ')[0] for text in texts] == list(reversed(directories))
         app.completed_checkbox.toggle()
         assert not app.show_completed.get()
         texts = [w.cget('text') for w in app.batch_entries.winfo_children()]
-        assert {text.split(' · ')[0] for text in texts} == set(directories) - {'succeeded'}
+        assert [text.split(' · ')[0] for text in texts] == list(reversed(list(directories)[:-1]))
         assert discover.call_count == 1  # Toggling does not scan folders or query SQLite.
         assert set(before) == {p for p in root.rglob('*') if p.is_file()}
         assert all(p.read_bytes() == content for p, content in before.items())

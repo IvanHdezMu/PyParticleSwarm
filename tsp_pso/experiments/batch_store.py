@@ -1,7 +1,8 @@
 """SQLite batches: persisted queues, lifecycle and read-only discovery."""
 from contextlib import closing, contextmanager
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timezone
 import json
+import re
 from pathlib import Path
 import sqlite3
 import shutil
@@ -47,11 +48,27 @@ def create_batch(plan):
     if not root.is_absolute():
         root = ROOT / root
     identifier = uuid4().hex
-    directory = root / 'batches' / identifier
-    temporary = directory.with_name('.preparing-' + identifier)
-    temporary.mkdir(parents=True, exist_ok=False)
+    created_at = now()
+    timestamp = datetime.fromisoformat(created_at).astimezone(UTC).strftime('%Y-%m-%d_%H-%M-%S')
+    datasets = re.sub(r'[<>:"/\\|?*\x00-\x1f]', '_', '+'.join(plan.configuration.datasets))
+    modes = '+'.join(plan.configuration.problem_modes).upper()
+    directory = root / 'batches' / f'{timestamp}_{datasets}_{modes}'
+    base = directory
+    suffix = 1
+    while True:
+        temporary = directory.with_name('.preparing-' + directory.name)
+        try:
+            temporary.mkdir(parents=True, exist_ok=False)
+        except FileExistsError:
+            pass
+        else:
+            if not directory.exists() and not directory.is_symlink():
+                break
+            temporary.rmdir()
+        suffix += 1
+        directory = base.with_name(f'{base.name}__{suffix}')
     try:
-        snapshot = dict(batch_id=identifier, created_at=now(), expansion_version=EXPANSION_VERSION,
+        snapshot = dict(batch_id=identifier, created_at=created_at, expansion_version=EXPANSION_VERSION,
                         configuration=plan.configuration.to_dict(),
                         datasets=[asdict(item) for item in plan.datasets], total_runs=str(total))
         with (temporary / 'batch.json').open('x', encoding='utf-8') as stream:
@@ -248,14 +265,16 @@ def discover_batches(root):
                 if len(rows) != 1 or rows[0]['id'] != saved['batch_id']:
                     raise ValueError('Batch identity mismatch')
                 batch = dict(rows[0])
+                created_at = datetime.fromisoformat(batch['created_at']).astimezone(UTC)
                 if positive_decimal(batch['total']) != positive_decimal(saved['total_runs']):
                     raise ValueError('Batch totals disagree')
                 completed = db.execute("SELECT COUNT(*) FROM runs WHERE status='succeeded'").fetchone()[0]
             item.update(name=c.name, dataset=', '.join(c.datasets), problem=', '.join(c.problem_modes),
                         status=batch['status'], completed=completed, total=int(batch['total']),
-                        error=None)
+                        created_at=created_at, error=None)
         except (OSError, ValueError, KeyError, TypeError, sqlite3.Error) as error:
             item.update(name=path.parent.name, dataset='?', problem='?', status='unavailable',
                         completed=0, total=0, error=str(error))
         found.append(item)
-    return found
+    return sorted(found, key=lambda item: item.get('created_at', datetime.min.replace(tzinfo=UTC)),
+                  reverse=True)

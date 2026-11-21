@@ -18,7 +18,9 @@ Compatibility is strict: every selected dataset must support every selected mode
 
 Import shallowly merged legacy defaults, preserve all numerical/Boolean settings, repetition starting IDs, verbosity, Excel and naming metadata. Regression counts are [1,1,1,1,1,1,1,1,1,1,270,180,80,120,50,4,5,120,120,120,120,10], totaling 1209. Preserve forwarded configurations rather than stochastic iteration order.
 
-Each batch receives a UUID and immutable JSON snapshot. The single SQLite schema
+Each batch receives an internal UUID and immutable JSON snapshot. Its folder uses
+`YYYY-MM-DD_HH-MM-SS_dataset_TSP` or `TSPWR` from the UTC creation time, with
+numbered suffixes on collisions. Discovery orders batches by creation time, newest first. The single SQLite schema
 stores the complete queue and pause/resume control data. `EXPANSION_VERSION=1`
 describes the scientific expansion rules. Queues contain every concrete run with status pending
 and null start/end timestamps, including all nine effective scalars. Preparation

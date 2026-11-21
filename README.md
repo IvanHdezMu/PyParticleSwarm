@@ -154,7 +154,7 @@ left in place.
 Batch output is stored under:
 
 ```text
-Results/batches/<batch-id>/
+Results/batches/2026-11-21_10-35-12_bays29_TSP/
   batch.json                 # original configuration and dataset metadata
   manifest.sqlite3           # complete persisted queue and durable run status
   execution.log              # solver output and process diagnostics
@@ -163,8 +163,15 @@ Results/batches/<batch-id>/
     <result-name>.xlsx        # when Excel output is enabled
 ```
 
+Batch folders use the UTC creation time, dataset and uppercase problem type:
+`YYYY-MM-DD_HH-MM-SS_dataset_TSP` (or `TSPWR`). Name collisions receive `__2`,
+`__3`, etc.; existing directories are never replaced. API batches with multiple
+selections join dataset IDs and problem types with `+`; unsafe filename characters
+in dataset IDs become underscores. The internal batch ID remains independent.
+
 The initial screen discovers batches under `Results`, including nested result
-folders. Use **Choose results folder…** to locate batches saved elsewhere.
+folders, and lists the most recently created first. `Show completed batches`
+retains this order when toggled. Use **Choose results folder…** to locate batches saved elsewhere.
 **New batch** opens the existing editor; opening a saved batch shows its immutable
 configuration, status and progress. Only one batch runs at a time in this window.
 
