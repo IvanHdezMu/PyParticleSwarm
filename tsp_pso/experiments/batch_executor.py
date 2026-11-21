@@ -23,7 +23,7 @@ def execute_one(run, output_dir, descriptor):
     return runner.execute(run, output_dir=output_dir, dataset=dataset)
 
 
-def execute_batch(directory, run_function=None):
+def execute_batch(directory, run_function=None, *, _process_group=False):
     """Execute a saved batch sequentially and return its directory as a Path.
 
     Validate the snapshot version and expanded count before starting. An optional
@@ -37,7 +37,7 @@ def execute_batch(directory, run_function=None):
     if batch['manifest_version'] != 2:
         raise ValueError('Legacy batch is read-only: its pending queue was not persisted; resume unavailable')
     from .experiment_process import execution_lock
-    with execution_lock(directory):
+    with execution_lock(directory, retain_owner=_process_group):
         # Re-read after acquiring ownership: another coordinator may have finished.
         plan, batch, runs = read_batch(directory)
         if batch['status'] == 'succeeded':
@@ -101,7 +101,7 @@ def main():
     """Execute the batch directory supplied as the sole command-line argument."""
     if len(sys.argv) != 2:
         raise SystemExit('Usage: python -m tsp_pso.experiments.batch_executor BATCH_DIRECTORY')
-    execute_batch(sys.argv[1])
+    execute_batch(sys.argv[1], _process_group=True)
 
 
 if __name__ == '__main__':

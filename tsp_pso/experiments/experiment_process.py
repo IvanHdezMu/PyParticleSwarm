@@ -95,7 +95,7 @@ from .batch_store import connect
 
 
 @contextmanager
-def execution_lock(directory, *, claim=True):
+def execution_lock(directory, *, claim=True, retain_owner=False):
     """OS exclusion for the coordinator lifetime, without a long SQL transaction."""
     directory = Path(directory)
     with (directory / '.execution.lock').open('a+b') as lock:
@@ -128,6 +128,6 @@ def execution_lock(directory, *, claim=True):
         finally:
             # Normal direct API calls may share the caller's process group. A
             # subprocess owns its own group; retain its evidence until it exits.
-            if claim and owner['pid'] != owner['pgid']:
+            if claim and not retain_owner:
                 with connect(directory) as db:
                     db.execute('UPDATE control SET owner=NULL WHERE id=1')

@@ -201,6 +201,14 @@ def read_batch(directory):
         stored_version = db.execute('PRAGMA user_version').fetchone()[0]
         if stored_version != (0 if version == 1 else MANIFEST_VERSION):
             raise ValueError('Manifest version differs between JSON and SQLite')
+        if version == MANIFEST_VERSION:
+            controls = db.execute('SELECT id,pause_requested,owner FROM control').fetchall()
+            if len(controls) != 1 or controls[0]['id'] != 1 or controls[0]['pause_requested'] not in (0,1):
+                raise ValueError('Invalid batch control record')
+            if controls[0]['owner'] is not None:
+                owner = json.loads(controls[0]['owner'])
+                if not isinstance(owner, dict) or set(owner) != {'pid','pgid','boot'}:
+                    raise ValueError('Invalid execution owner')
         batches = [dict(row) for row in db.execute('SELECT id,total,status,created_at,started_at,ended_at,error FROM batch')]
         runs = [dict(row) for row in db.execute('SELECT ordinal,run_id,status,configuration,started_at,ended_at,output,error FROM runs')]
     if len(batches) != 1 or batches[0]['id'] != identifier:
@@ -223,6 +231,11 @@ def read_batch(directory):
                 validate_run_configuration(json.loads(row['configuration']), configuration)
             except (ValueError, KeyError, TypeError) as error:
                 raise ValueError(f'Run {ordinal}: {error}') from error
+            if row['status'] == 'succeeded':
+                if not row['output']:
+                    raise ValueError('Missing output directory for succeeded run')
+                if not row['started_at'] or not row['ended_at'] or row['error'] is not None:
+                    raise ValueError('Inconsistent run completion record')
             if row['status'] not in ('pending','running','succeeded','failed','interrupted'):
                 raise ValueError('Invalid run status')
             if row['status'] == 'pending' and any(row[k] is not None for k in ('started_at','ended_at','output','error')):
