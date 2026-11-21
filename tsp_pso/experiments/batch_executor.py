@@ -1,13 +1,14 @@
 """Sequential CPU adapter and process entry point; no solver semantics live here."""
 from pathlib import Path
 import sys
+import json
 
 from ..application import runner
 from .batch_store import (
     finish_batch, finish_run, mark_interrupted, start_batch, start_run, read_batch,
 )
 from .experiment_batch import (
-    iterate_runs,
+    ConcreteRunConfiguration,
 )
 
 
@@ -31,23 +32,41 @@ def execute_batch(directory, run_function=None):
     propagate. Re-entrant/resume execution is intentionally rejected. After success,
     generate the summary; analysis errors are logged separately from run status.
     """
-    directory = Path(directory)
+    directory = Path(directory).resolve()
     plan, batch, runs = read_batch(directory)
-    if batch['status'] != 'pending':
-        raise ValueError('Only a new pending batch may be started; resume is not implemented')
-    if (batch['manifest_version'] == 1 and runs) or any(batch[name] is not None for name in ('started_at', 'ended_at', 'error')):
-        raise ValueError('Inconsistent pending batch: existing runs or execution metadata')
+    if batch['manifest_version'] != 2:
+        raise ValueError('Legacy batch is read-only: its pending queue was not persisted; resume unavailable')
+    from .experiment_process import execution_lock
+    with execution_lock(directory):
+        # Re-read after acquiring ownership: another coordinator may have finished.
+        plan, batch, runs = read_batch(directory)
+        if batch['status'] == 'succeeded':
+            raise ValueError('Completed batch cannot resume; results are preserved')
+        if batch['status'] == 'running':
+            mark_interrupted(directory, 'Previous coordinator exited; restarting unfinished run')
+            plan, batch, runs = read_batch(directory)
+        if batch['status'] not in ('pending','paused','interrupted'):
+            raise ValueError(f"Batch cannot resume from {batch['status']}")
+        return _execute_saved(directory, plan, runs, execute_one if run_function is None else run_function)
+
+
+def _execute_saved(directory, plan, runs, run_function):
     descriptors = {d.id: d for d in plan.datasets}
-    run_function = execute_one if run_function is None else run_function
     start_batch(directory)
     current = None
     try:
-        for ordinal, run in enumerate(iterate_runs(plan), 1):
+        for record in runs:
+            if record['status'] == 'succeeded':
+                continue
+            if record['status'] not in ('pending','interrupted'):
+                raise ValueError(f"Cannot execute run in state {record['status']}")
+            ordinal = int(record['ordinal'])
+            run = ConcreteRunConfiguration.from_dict(json.loads(record['configuration']))
             current = ordinal
             start_run(directory, ordinal, run)
             destination = directory / 'runs' / str(ordinal)
             # Known before execute() returns, so interrupted artifacts can be found.
-            destination.mkdir(parents=True, exist_ok=False)
+            destination.mkdir(parents=True, exist_ok=True)
             output = run_function(run, destination, descriptors[run.dataset])
             finish_run(directory, ordinal, 'succeeded', output=output)
             current = None

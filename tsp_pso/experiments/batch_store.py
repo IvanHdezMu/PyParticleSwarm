@@ -87,7 +87,7 @@ def create_batch(plan):
 
 def start_batch(directory):
     with connect(directory) as db:
-        cursor = db.execute("UPDATE batch SET status='running', started_at=? WHERE status='pending'", (now(),))
+        cursor = db.execute("UPDATE batch SET status='running', started_at=COALESCE(started_at,?), ended_at=NULL, error=NULL WHERE status IN ('pending','paused','interrupted')", (now(),))
         if cursor.rowcount != 1:
             raise ValueError('Only a new pending batch may be started; resume is not implemented')
 
@@ -95,7 +95,7 @@ def start_batch(directory):
 def start_run(directory, ordinal, run):
     with connect(directory) as db:
         if db.execute('PRAGMA user_version').fetchone()[0] == MANIFEST_VERSION:
-            cursor = db.execute("UPDATE runs SET status='running',started_at=? WHERE ordinal=? AND status='pending' AND configuration=?",
+            cursor = db.execute("UPDATE runs SET status='running',started_at=?,ended_at=NULL,output=NULL,error=NULL WHERE ordinal=? AND status IN ('pending','interrupted') AND configuration=?",
                                 (now(), str(ordinal), json.dumps(run.to_dict())))
             if cursor.rowcount != 1:
                 raise ValueError('Run is not pending or configuration differs')

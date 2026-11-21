@@ -70,6 +70,13 @@ class ConcreteRunConfiguration:
     analysis_output: str | None
     legacy_values: tuple[tuple[str, object], ...]
 
+    @classmethod
+    def from_dict(cls, data):
+        values = dict(data)
+        values['output_dir'] = Path(values['output_dir'])
+        values['legacy_values'] = tuple(values['legacy_values'].items())
+        return cls(**values)
+
     def to_dict(self):
         data = asdict(self)
         data['output_dir'] = str(self.output_dir)
