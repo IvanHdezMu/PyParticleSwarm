@@ -290,8 +290,7 @@ class ExperimentRunnerApp(ctk.CTk):
             self.populate_configuration(plan.configuration)
             self.set_form_enabled(False)
             self.count_label.configure(text=f"Saved batch: {state['status']}")
-            self.status.configure(text=str(directory) + ('\nLegacy format: viewing only; resume unavailable.'
-                                  if state['manifest_version']==1 else ''))
+            self.status.configure(text=str(directory))
             self.update_run_button(state)
         except (OSError, ValueError, KeyError, TypeError, sqlite3.Error) as error:
             messagebox.showerror('Cannot open batch', str(error), parent=self)
@@ -491,7 +490,7 @@ class ExperimentRunnerApp(ctk.CTk):
             requested = state.get('pause_requested', False) or self.closing
             self.run_button.configure(text='Pausing…' if requested else 'Pause',
                                       state='disabled' if requested else 'normal')
-        elif state['manifest_version'] == 2 and state['status'] in ('pending','paused','interrupted','running'):
+        elif state['status'] in ('pending','paused','interrupted','running'):
             self.run_button.configure(text='Resume' if state['status'] != 'pending' else 'Run batch', state='normal')
         else:
             self.run_button.configure(text='Completed' if state['status']=='succeeded' else 'Viewing only', state='disabled')
@@ -546,8 +545,6 @@ class ExperimentRunnerApp(ctk.CTk):
         if self.process is not None:
             return
         state = batch_status(self.batch_directory)
-        if state['manifest_version'] != 2:
-            raise ValueError('Legacy batch is viewing only; resume unavailable')
         if state['status'] not in ('pending','paused','interrupted','running'):
             raise ValueError(f"Cannot resume batch in state {state['status']}")
         self.process = BatchProcess(self.batch_directory)

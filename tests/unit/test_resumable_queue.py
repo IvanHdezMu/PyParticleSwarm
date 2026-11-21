@@ -20,8 +20,7 @@ def test_queue_has_original_order_and_effective_values(tmp_path, monkeypatch):
     directory = store.create_batch(plan)
     monkeypatch.setattr(store, 'iterate_runs', Mock(side_effect=AssertionError('expansion')))
     monkeypatch.setattr(store, 'count_runs', Mock(side_effect=AssertionError('count expansion')))
-    _, batch, rows = store.read_batch(directory)
-    assert batch['manifest_version'] == 2
+    _, _, rows = store.read_batch(directory)
     assert [json.loads(r['configuration']) for r in rows] == expected
     assert all(r['status']=='pending' and r['started_at'] is None for r in rows)
     assert [r['repetition_id'] for r in expected] == [23,24,23,24,23,24]

@@ -4,7 +4,7 @@ The runner edits user-defined batches; the 22 historical experiments are editabl
 
 ## Data flow
 
-Batch selection screen → existing editor or saved configuration → versioned persisted concrete queue → existing sequential coordinator → runner.execute(ConcreteRunConfiguration) → existing CPU solver. Expansion occurs only when preparing a new queue, never when resuming it.
+Batch selection screen → existing editor or saved configuration → persisted concrete queue → existing sequential coordinator → runner.execute(ConcreteRunConfiguration) → existing CPU solver. Expansion occurs only when preparing a new queue, never when resuming it.
 
 Scientific settings use ordered tuples of ordinary Python numbers. Integers have no arbitrary maximum; requested k is never clamped or replaced by dataset-dependent effective k. Repetition IDs are labels, not RNG seeds. Output settings and repetition count/first ID are scalar. Dataset selection uses registry metadata, not matrices.
 
@@ -18,15 +18,13 @@ Compatibility is strict: every selected dataset must support every selected mode
 
 Import shallowly merged legacy defaults, preserve all numerical/Boolean settings, repetition starting IDs, verbosity, Excel and naming metadata. Regression counts are [1,1,1,1,1,1,1,1,1,1,270,180,80,120,50,4,5,120,120,120,120,10], totaling 1209. Preserve forwarded configurations rather than stochastic iteration order.
 
-Each batch receives a UUID and immutable JSON snapshot. `manifest_version=2`
-and SQLite `PRAGMA user_version=2` version persistence independently of
-`EXPANSION_VERSION=1`. New queues contain every concrete run with status pending
+Each batch receives a UUID and immutable JSON snapshot. The single SQLite schema
+stores the complete queue and pause/resume control data. `EXPANSION_VERSION=1`
+describes the scientific expansion rules. Queues contain every concrete run with status pending
 and null start/end timestamps, including all nine effective scalars. Preparation
 uses a temporary sibling directory and a transaction; the directory is renamed
 only after the complete queue is committed. Failed preparation is not published.
-Run identity remains batch ID plus decimal ordinal. Legacy version-one manifests
-(with SQLite user_version zero) are read without migration; incomplete legacy
-queues cannot resume safely.
+Run identity remains batch ID plus decimal ordinal.
 
 The batch/runs columns retain their previous names. `runs.started_at` now permits
 NULL. The new one-row `control` table has `id=1`, `pause_requested` (0/1), and

@@ -1,4 +1,4 @@
-"""Version-one persistence and validation before any scientific execution."""
+"""Persistence and validation before any scientific execution."""
 import json
 import sqlite3
 from unittest.mock import Mock
@@ -9,16 +9,9 @@ from tsp_pso.analysis.analysis import prepare_batch_groups
 from tsp_pso.experiments.batch_executor import execute_batch
 
 
-@pytest.mark.parametrize('version', [1, 2])
-def test_persisted_formats_remain_readable(completed_batch, version):
+def test_persisted_batch_remains_readable(completed_batch):
     directory = completed_batch()
     snapshot = json.loads((directory / 'batch.json').read_text())
-    if version == 1:
-        snapshot.pop('manifest_version')
-        (directory / 'batch.json').write_text(json.dumps(snapshot))
-        with sqlite3.connect(directory / 'manifest.sqlite3') as db:
-            db.execute('PRAGMA user_version=0')
-            db.execute('DROP TABLE control')
     assert snapshot['expansion_version'] == 1
     assert snapshot['total_runs'] == '2'
     assert snapshot['configuration']['repetitions'] == {'count': 2, 'first_id': 17}
@@ -40,7 +33,7 @@ def test_persisted_formats_remain_readable(completed_batch, version):
     assert all(p.read_bytes() == content for p, content in before.items())
 
 
-def test_pending_version_two_batch_executes(batch_artifacts):
+def test_pending_batch_executes(batch_artifacts):
     directory, write = batch_artifacts(completed=False)
     snapshot = (directory / 'batch.json').read_bytes()
     execute_batch(directory, write)

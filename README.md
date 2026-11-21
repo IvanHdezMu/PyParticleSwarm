@@ -192,13 +192,10 @@ ownership. No PSO checkpoint or RNG state is restored: an interrupted run starts
 again, preserving earlier attempt files. `execution.log` is appended on restart.
 Unsuccessful solver runs remain failed and are not retried automatically.
 
-Legacy manifests remain readable, but cannot resume: their pending configurations
-were not persisted. They are never automatically migrated. Completed legacy Excel
-files and analyses remain usable. Manifest version 2 is independent of scientific
-expansion version 1. Cross-platform orphan-process recovery beyond Linux is not
+Cross-platform orphan-process recovery beyond Linux is not
 implemented; the backend refuses recovery when it cannot verify safety.
 
-The existing internal coordinator entry point accepts a version-2 batch directory:
+The existing internal coordinator entry point accepts a saved batch directory:
 
 ```bash
 python3 -m tsp_pso.experiments.batch_executor PATH_TO_BATCH

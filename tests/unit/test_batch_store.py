@@ -44,7 +44,7 @@ def test_status_contract_and_implicit_pending(batch, status):
             batch_store.finish_batch(directory, status)
     state = batch_store.batch_status(directory)
     assert set(state) == {'id', 'total', 'status', 'created_at', 'started_at',
-                          'ended_at', 'error', 'counts', 'current', 'ordinal', 'manifest_version', 'pause_requested'}
+                          'ended_at', 'error', 'counts', 'current', 'ordinal', 'pause_requested'}
     assert state['status'] == status
     assert type(state['total']) is int and state['total'] == 3
     assert state['counts'] == expected

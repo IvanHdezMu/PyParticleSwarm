@@ -53,20 +53,12 @@ class BatchProcess:
             state = batch_status(self.directory, timeout=sqlite_timeout)
             if state['status'] in ('pending', 'running'):
                 message = f'Execution process exited ({code}) without a completion record; see execution.log'
-                if (self.directory / 'manifest.sqlite3').exists():
-                    with connect(self.directory, timeout=sqlite_timeout) as db:
-                        modern = db.execute('PRAGMA user_version').fetchone()[0] == 2
-                else:
-                    modern = False
-                if modern:
-                    try:
-                        with execution_lock(self.directory, claim=False):
-                            mark_interrupted(self.directory, message, timeout=sqlite_timeout)
-                    except ValueError:
-                        # A surviving owner/group is authoritative, not this child's exit.
-                        pass
-                else:
-                    mark_interrupted(self.directory, message, timeout=sqlite_timeout)
+                try:
+                    with execution_lock(self.directory, claim=False):
+                        mark_interrupted(self.directory, message, timeout=sqlite_timeout)
+                except ValueError:
+                    # A surviving owner/group is authoritative, not this child's exit.
+                    pass
         return code
 
 

@@ -35,8 +35,6 @@ def execute_batch(directory, run_function=None, *, _process_group=False):
     """
     directory = Path(directory).resolve()
     plan, batch, runs = read_batch(directory)
-    if batch['manifest_version'] != 2:
-        raise ValueError('Legacy batch is read-only: its pending queue was not persisted; resume unavailable')
     from .experiment_process import execution_lock
     with execution_lock(directory, retain_owner=_process_group):
         # Re-read after acquiring ownership: another coordinator may have finished.

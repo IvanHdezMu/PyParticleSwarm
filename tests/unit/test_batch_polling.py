@@ -1,5 +1,4 @@
 """Per-call SQLite waits and real contention during GUI monitoring, without Tk."""
-from pathlib import Path
 from time import monotonic
 from types import SimpleNamespace
 from unittest.mock import Mock
@@ -67,8 +66,8 @@ def test_status_and_reconciliation_forward_timeout(batch, monkeypatch, options, 
 
 
 @pytest.mark.parametrize('options, expected', [({}, 10), ({'sqlite_timeout': 0.05}, 0.05)])
-def test_process_forwards_timeout_to_read_and_reconciliation(monkeypatch, options, expected):
-    directory = Path('batch')
+def test_process_forwards_timeout_to_read_and_reconciliation(batch, monkeypatch, options, expected):
+    directory = batch
     child = process(directory, 7)
     status = Mock(return_value={'status': 'running'})
     mark = Mock()

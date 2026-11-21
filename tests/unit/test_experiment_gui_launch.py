@@ -26,7 +26,7 @@ def app():
 def services(monkeypatch):
     confirm=Mock(return_value=True)
     start=Mock()
-    read=Mock(return_value={'manifest_version':2,'status':'pending'})
+    read=Mock(return_value={'status':'pending'})
     monkeypatch.setattr(gui.messagebox,'askyesno',confirm)
     monkeypatch.setattr(gui,'BatchProcess',start)
     monkeypatch.setattr(gui,'batch_status',read)
@@ -104,11 +104,11 @@ def test_close_during_preparation_keeps_pending_queue(app, services):
     app.destroy.assert_called_once_with()
 
 
-@pytest.mark.parametrize('version,status',[(1,'pending'),(2,'succeeded'),(2,'failed')])
-def test_read_only_batches_cannot_launch(app, services, version, status):
+@pytest.mark.parametrize('status',['succeeded','failed'])
+def test_read_only_batches_cannot_launch(app, services, status):
     _,start,read=services
     app.selected_batch={};app.batch_directory=Path('/batch')
-    read.return_value={'manifest_version':version,'status':status}
+    read.return_value={'status':status}
     app.launch()
     start.assert_not_called()
     assert 'Could not launch' in app.status.configure.call_args.kwargs['text']
