@@ -92,7 +92,7 @@ def test_gui_contention_rolls_back_and_recovers_before_closing(batch, lock, exit
     child = process(batch, 0 if exited else None)
     app = SimpleNamespace(
         process=child, batch_directory=batch, interrupt_requested=False, closing=exited,
-        status=Mock(), refresh_review=Mock(), destroy=Mock(), after=Mock())
+        status=Mock(), refresh_review=Mock(), update_run_button=Mock(), back_button=Mock(), destroy=Mock(), after=Mock())
     app.poll_execution = lambda: gui.ExperimentRunnerApp.poll_execution(app)
     blocker = sqlite3.connect(batch / 'manifest.sqlite3', timeout=0)
     try:
@@ -126,7 +126,7 @@ def test_gui_contention_rolls_back_and_recovers_before_closing(batch, lock, exit
         assert state['status'] == 'interrupted'
         assert state['counts'] == dict(running=0, succeeded=1, failed=0, interrupted=1, pending=1)
         assert app.process is None
-        app.refresh_review.assert_called_once_with()
+        app.update_run_button.assert_called()
         app.destroy.assert_called_once_with()
         # The successful closing callback schedules no further query.
         assert app.after.call_count == 1

@@ -239,8 +239,7 @@ def request_pause(directory, *, timeout=0.05):
         if db.execute('PRAGMA user_version').fetchone()[0] != MANIFEST_VERSION:
             raise ValueError('Legacy batch does not support pause or resume')
         cursor = db.execute("UPDATE control SET pause_requested=1 WHERE id=1 AND EXISTS(SELECT 1 FROM batch WHERE status IN ('pending','running'))")
-        if cursor.rowcount != 1:
-            raise ValueError('Batch is not running or starting')
+        return cursor.rowcount == 1
 
 
 def discover_batches(root):

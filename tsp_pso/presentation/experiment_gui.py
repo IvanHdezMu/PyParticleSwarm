@@ -15,7 +15,7 @@ from ..experiments.experiment_config import ExperimentConfiguration, RepetitionS
 from ..infrastructure.experiment_options import ROOT
 from ..experiments.experiment_batch import load_catalog, load_presets
 from .experiment_editor import NUMERIC_FIELDS, OPERATOR_LABELS, add_numeric, parse_numeric, remove_value, toggle_value, review
-from ..experiments.batch_store import create_batch, batch_status, finish_batch, discover_batches, read_batch
+from ..experiments.batch_store import create_batch, batch_status, discover_batches, read_batch
 from ..experiments.experiment_process import BatchProcess
 
 
@@ -108,6 +108,7 @@ class ExperimentRunnerApp(ctk.CTk):
         self.advanced_open = False
         self.process = None
         self.selected_batch = None
+        self.preparing = None
         self.worker = ThreadPoolExecutor(max_workers=1, thread_name_prefix='batch-files')
         self.discovery = None
         self.discovery_root = ROOT / 'Results'
@@ -200,7 +201,7 @@ class ExperimentRunnerApp(ctk.CTk):
         self.show_batches()
 
     def show_batches(self):
-        if self.process is not None:
+        if self.process is not None or self.preparing is not None:
             self.status.configure(text='Pause the active batch before switching.')
             return
         self.form.grid_remove()
@@ -248,7 +249,7 @@ class ExperimentRunnerApp(ctk.CTk):
             self.show_batches()
 
     def new_batch(self):
-        if self.process is not None:
+        if self.process is not None or self.preparing is not None:
             return
         self.selected_batch = None
         self.batch_directory = None
@@ -259,7 +260,7 @@ class ExperimentRunnerApp(ctk.CTk):
         self.select_preset('Custom configuration')
 
     def open_batch(self, directory):
-        if self.process is not None:
+        if self.process is not None or self.preparing is not None:
             return
         try:
             plan, state, _ = read_batch(directory)
@@ -274,7 +275,7 @@ class ExperimentRunnerApp(ctk.CTk):
             self.count_label.configure(text=f"Saved batch: {state['status']}")
             self.status.configure(text=str(directory) + ('\nLegacy format: viewing only; resume unavailable.'
                                   if state['manifest_version']==1 else ''))
-            self.run_button.configure(text='Saved batch', state='disabled')
+            self.update_run_button(state)
         except (OSError, ValueError, KeyError, TypeError, sqlite3.Error) as error:
             messagebox.showerror('Cannot open batch', str(error), parent=self)
 
@@ -451,13 +452,13 @@ class ExperimentRunnerApp(ctk.CTk):
         return review(config, self.catalog)
 
     def refresh_review(self):
-        if self._building or self.process is not None or self.selected_batch is not None:
+        if self._building or self.process is not None or self.selected_batch is not None or self.preparing is not None:
             return
         try:
             _, count, warnings = self.validated_review()
             self.count_label.configure(text=f'Planned runs: {count:,}')
             self.status.configure(text='\n'.join(warnings) or 'Ready. Each combination runs once per repetition.')
-            self.run_button.configure(state='normal')
+            self.run_button.configure(text='Run batch', state='normal')
         except (ValueError,OSError) as error:
             self.count_label.configure(text='Planned runs: —')
             self.status.configure(text=str(error))
@@ -468,39 +469,86 @@ class ExperimentRunnerApp(ctk.CTk):
         if path:
             self.output_var.set(path)
 
-    def launch(self):
+    def update_run_button(self, state):
         if self.process is not None:
+            requested = state.get('pause_requested', False) or self.closing
+            self.run_button.configure(text='Pausing…' if requested else 'Pause',
+                                      state='disabled' if requested else 'normal')
+        elif state['manifest_version'] == 2 and state['status'] in ('pending','paused','interrupted','running'):
+            self.run_button.configure(text='Resume' if state['status'] != 'pending' else 'Run batch', state='normal')
+        else:
+            self.run_button.configure(text='Completed' if state['status']=='succeeded' else 'Viewing only', state='disabled')
+
+    def launch(self):
+        if self.preparing is not None:
             return
         try:
-            plan,count,warnings = self.validated_review()
-            config = plan.configuration
-            if not messagebox.askyesno('Run batch',f'Run exactly {count:,} executions?\n\nOutput: {config.output_dir}\n\n'+ '\n'.join(warnings),parent=self):
+            if self.process is not None:
+                self.process.pause()
+                self.run_button.configure(text='Pausing…', state='disabled')
                 return
-            self.batch_directory = create_batch(plan)
-            try:
-                self.process = BatchProcess(self.batch_directory)
-            except (OSError, sqlite3.Error) as error:
-                try:
-                    finish_batch(self.batch_directory,'failed',str(error))
-                except (OSError, sqlite3.Error) as recording_error:
-                    self.status.configure(text=f'Could not launch: {error}\n'
-                                          f'Could not record batch failure: {recording_error}')
-                    return
-                raise
-            self.run_button.configure(state='disabled')
-            self.status.configure(text=f'Batch starting…\n{self.batch_directory}')
+            if self.selected_batch is not None:
+                self.start_saved_batch()
+                return
+            plan, count, warnings = self.validated_review()
+            if not messagebox.askyesno('Run batch', f'Run exactly {count:,} executions?\n\nOutput: {plan.configuration.output_dir}\n\n' + '\n'.join(warnings), parent=self):
+                return
+            self.preparing = self.worker.submit(create_batch, plan)
+            self.run_button.configure(text='Preparing…', state='disabled')
+            self.back_button.configure(state='disabled')
+            self.set_form_enabled(False)
+            self.status.configure(text='Preparing the persisted run queue…')
+            self.after(100, self.finish_preparation)
         except (ValueError, OSError, sqlite3.Error) as error:
             self.status.configure(text=f'Could not launch: {error}')
+
+    def finish_preparation(self):
+        if not self.preparing.done():
+            self.after(100, self.finish_preparation)
+            return
+        future, self.preparing = self.preparing, None
+        try:
+            self.batch_directory = future.result()
+            self.selected_batch = batch_status(self.batch_directory)
+            if self.closing:
+                self.destroy()
+                return
+            self.start_saved_batch()
+        except (ValueError, OSError, sqlite3.Error) as error:
+            self.status.configure(text=f'Could not prepare/start batch: {error}')
+            self.back_button.configure(state='normal')
+            if self.selected_batch is None:
+                self.set_form_enabled(True)
+                self.refresh_review()
+            else:
+                self.update_run_button(self.selected_batch)
+            if self.closing:
+                self.destroy()
+
+    def start_saved_batch(self):
+        if self.process is not None:
+            return
+        state = batch_status(self.batch_directory)
+        if state['manifest_version'] != 2:
+            raise ValueError('Legacy batch is viewing only; resume unavailable')
+        if state['status'] not in ('pending','paused','interrupted','running'):
+            raise ValueError(f"Cannot resume batch in state {state['status']}")
+        self.process = BatchProcess(self.batch_directory)
+        self.selected_batch = state
+        self.set_form_enabled(False)
+        self.back_button.configure(state='disabled')
+        self.update_run_button(state)
+        self.status.configure(text=f'Batch starting…\n{self.batch_directory}')
 
     def poll_execution(self):
         if self.process is not None:
             try:
-                if self.interrupt_requested or self.closing:
-                    self.process.interrupt()
+                if self.interrupt_requested:
+                    self.process.pause()
                     self.interrupt_requested = False
                 code = self.process.poll(sqlite_timeout=BATCH_POLL_SQLITE_TIMEOUT)
                 state = batch_status(self.batch_directory, timeout=BATCH_POLL_SQLITE_TIMEOUT)
-                completed = sum(state['counts'][key] for key in ('succeeded','failed','interrupted'))
+                completed = state['counts']['succeeded']
                 current = state['current']
                 text = f"{state['status'].capitalize()} — {completed:,} / {state['total']:,} finished"
                 if current:
@@ -508,14 +556,17 @@ class ExperimentRunnerApp(ctk.CTk):
                 if state['error']:
                     text += '\n'+state['error']
                 self.status.configure(text=text+'\n'+str(self.batch_directory))
+                self.update_run_button(state)
                 if code is not None:
                     self.process = None
-                    self.refresh_review()
+                    self.selected_batch = state
+                    self.back_button.configure(state='normal')
+                    self.update_run_button(state)
                     self.status.configure(text=text+'\n'+str(self.batch_directory))
                     if self.closing:
                         self.destroy()
                         return
-            except (OSError, sqlite3.Error) as error:
+            except (ValueError, OSError, sqlite3.Error) as error:
                 self.status.configure(text=f'Could not update batch status: {error}\n{self.batch_directory}')
         elif self.interrupt_requested:
             self.destroy()
@@ -523,13 +574,21 @@ class ExperimentRunnerApp(ctk.CTk):
         self.after(300,self.poll_execution)
 
     def close(self):
-        if self.process is not None:
-            if not messagebox.askyesno('Interrupt batch?', 'Interrupt the current run and close? Completed results will remain saved.',parent=self):
+        if self.preparing is not None:
+            self.closing = True
+            self.status.configure(text='Finishing queue preparation before closing…')
+        elif self.process is not None:
+            if not messagebox.askyesno('Pause batch?', 'Finish the current run, pause, and close?', parent=self):
                 return
             self.closing = True
-            self.process.interrupt()
+            self.interrupt_requested = True
+            self.status.configure(text='Waiting for the current run to finish before closing…')
         else:
             self.destroy()
+
+    def destroy(self):
+        self.worker.shutdown(wait=False, cancel_futures=True)
+        super().destroy()
 
 
 def main():
